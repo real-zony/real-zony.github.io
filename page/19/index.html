@@ -261,17 +261,29 @@
 
     <div class="article-title-wrapper">
         <h2 class="article-title">
-            <a href="/p/c#-hashtable%E4%B8%8Ehashmap%E7%9A%84%E5%8C%BA%E5%88%AB/">C# HashTable与HashMap的区别</a>
+            <a href="/p/eintr-%E4%BF%A1%E5%8F%B7%E4%B8%AD%E6%96%AD%E4%B8%8E%E6%85%A2%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/">EINTR-信号中断与慢系统调用</a>
         </h2>
-    
+
+        
+        <div class="article-subtitle">
+            什么是慢系统调用？ 慢系统调用指的是那些可能永远阻塞的系统调用，永远阻塞的系统调用意味着该调用永远无法返回，而多数网络支持函数都属于这一类系统调用。就如同**accept()**函数，如果没有客户连接，那么该调用将会一直阻塞。
+读写‘慢’设备（包括pipe，终端设备，网络连接等）。读时，数据不存在，需要等待；写时，缓冲区满或其他原因，需要等待。读写磁盘文件一般不会阻塞。 当打开某些特殊文件时，需要等待某些条件，才能打开。例如：打开中断设备时，需要等到连接设备的modem响应才能完成。 pause和wait函数。pause函数使调用进程睡眠，直到捕获到一个信号。wait等待子进程终止。 某些ioctl操作。 某些IPC操作。 EINTR介绍 早期的Unix系统，如果进程在一个慢系统调用(slow system call)中阻塞时，当捕获到某个信号且相应信号处理函数返回时，这个系统调用被中断，调用返回错误，设置errno为EINTR（相应的错误描述为“Interrupted system call”）。
+不同函数产生EINTR错误，所代表的含义也不尽相同。
+系统调用函数 errno为EINTR表征的意义 write 由于信号中断，没有成功任何数据。 open 由于信号中断，没有读到任何数据。 recv 由于信号中断返回，没有任何数据可用。 sem_wait 函数调用被信号处理函数终端。 如何处理被中断的系统调用 既然系统调用会被中断，那么别忘了要处理被中断的系统调用。有三种处理方式：
+人为重启被中断的系统调用
+人为当碰到EINTR错误的时候，有一些可以重启的系统调用要进行重启，而对于有一些系统调用是不能够重启的。例如：accept、read、write、select、和open之类的函数来说，是可以进行重启的。不过对于套接字编程中的connect函数我们是不能重启的，若connect函数返回一个EINTR错误的时候，我们不能再次调用它，否则将立即返回一个错误。针对connect不能重启的处理方法是，必须调用select来等待连接完成。 这里的“重启”怎么理解？
+一些IO系统调用执行时，如 read 等待输入期间，如果收到一个信号，系统将中断read， 转而执行信号处理函数. 当信号处理返回后， 系统遇到了一个问题： 是重新开始这个系统调用， 还是让系统调用失败？早期UNIX系统的做法是， 中断系统调用，并让系统调用失败， 比如read返回 -1， 同时设置 errno 为EINTR中断了的系统调用是没有完成的调用，它的失败是临时性的，如果再次调用则可能成功，这并不是真正的失败，所以要对这种情况进行处理， 典型的方式为：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 again: if ((n = read(fd， buf， BUFFSIZE)) &lt; 0) { if (errno == EINTR) goto again; /* just an interrupted system call */ /* handle other errors */ } …… while ((r = read (fd， buf， len)) &lt; 0 &amp;&amp; errno == EINTR) /*do nothing*/ ; …… ssize_t Read(int fd， void *ptr， size_t nbytes) { ssize_t n; again: if((n = read(fd， ptr， nbytes)) == -1){ if(errno == EINTR) goto again; else return -1; } return n; } 安装信号时设置 SA_RESTART属性（该方法对有的系统调用无效）
+            </h3>
+        </div>
         
     </div>
 
     
     <footer class="article-time">
         
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <path stroke="none" d="M0 0h24v24H0z"/>
   <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
   <circle cx="18" cy="18" r="4" />
@@ -280,13 +292,13 @@
   <path d="M3 11h16" />
   <path d="M18 16.496v1.504l1 1" />
 </svg>
-                <time class="article-time--published">Jul 19, 2016</time>
-            </div>
+            <time class="article-time--published">Jul 22, 2016</time>
+        </div>
         
 
         
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <path stroke="none" d="M0 0h24v24H0z"/>
   <circle cx="12" cy="12" r="9" />
   <polyline points="12 7 12 12 15 15" />
@@ -294,10 +306,141 @@
 
 
 
-                <time class="article-time--reading">
-                    阅读时长: 1 分钟
-                </time>
-            </div>
+            <time class="article-time--reading">
+                阅读时长: 2 分钟
+            </time>
+        </div>
+        <div>
+            <a href="/p/eintr-%E4%BF%A1%E5%8F%B7%E4%B8%AD%E6%96%AD%E4%B8%8E%E6%85%A2%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/">Read More…</a>
+        </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+</article>
+        
+            
+<article class="">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/c#-collection-%E4%B8%8E-collection/">C# Collection 与 Collection</a>
+        </h2>
+
+        
+        <div class="article-subtitle">
+             Collection 是集合类的上级接口，继承它的接口主要有set和list. Collections 是针对集合类的一个帮助类，他提供一系列静态方法实现对各种集合的搜索，排序，线程安全化等操作。 
+            </h3>
+        </div>
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+            <time class="article-time--published">Jul 19, 2016</time>
+        </div>
+        
+
+        
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+            <time class="article-time--reading">
+                阅读时长: 1 分钟
+            </time>
+        </div>
+        <div>
+            <a href="/p/c#-collection-%E4%B8%8E-collection/">Read More…</a>
+        </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+</article>
+        
+            
+<article class="">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/c#-hashtable%E4%B8%8Ehashmap%E7%9A%84%E5%8C%BA%E5%88%AB/">C# HashTable与HashMap的区别</a>
+        </h2>
+
+        
+        <div class="article-subtitle">
+             HashTable的方法是同步的，HashMap的方法是未同步的，所以在多线程场合需要手动同步。 HashTable不允许null值，而HashMap则是允许null值存在的。 HashTable有一个contains(Object value)，功能和containsValue(Object value)功能一样。 HashTable使用Enumeration，HashMap使用Iterator。 以上只是表面的不同，它们的实现也有很大的不同。 HashTable中hash数组默认大小是11，增加的方式是 old*2+1。HashMap中hash数组的默认大小是16，而且一定是2的指数。 哈希值的使用不同。 简要区别：
+Hashtable是Dictionary的子类，HashMap是Map接口的一个实现类。 Hashtable中的方法是同步的，而HashMap中的方法在缺省情况下是非同步的。即是说，在多线程应用程序中，不用专门的操作就安全地可以使用Hashtable了；而对于HashMap，则需要额外的同步机制。但HashMap的同步问题可通过Collections的一个静态方法得到解决： 1 Map Collections.synchronizedMap(Map m); 这个方法返回一个同步的Map，这个Map封装了底层的HashMap的所有方法，使得底层的HashMap即使是在多线程的环境中也是安全的。
+在HashMap中，null可以作为键，这样的键只有一个；可以有一个或多个键所对应的值为null。当get()方法返回null值时，即可以表示HashMap中没有该键，也可以表示该键所对应的值为null。因此，在HashMap中不能由get()方法来判断HashMap中是否存在某个键，而应该用containsKey()方法来判断。 
+            </h3>
+        </div>
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+            <time class="article-time--published">Jul 19, 2016</time>
+        </div>
+        
+
+        
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+            <time class="article-time--reading">
+                阅读时长: 1 分钟
+            </time>
+        </div>
+        <div>
+            <a href="/p/c#-hashtable%E4%B8%8Ehashmap%E7%9A%84%E5%8C%BA%E5%88%AB/">Read More…</a>
+        </div>
         
     </footer>
     
@@ -318,15 +461,23 @@
         <h2 class="article-title">
             <a href="/p/c#-%E7%B1%BB%E4%B8%8E%E7%BB%93%E6%9E%84%E7%9A%84%E5%8C%BA%E5%88%AB/">C# 类与结构的区别</a>
         </h2>
-    
+
+        
+        <div class="article-subtitle">
+            这个问题可能很多初学者都知道，用C#写了这么久的程序，类和结构用了很久却并不知道他们之间的本质区别。 在很多时候，他们只是声明的时候关键字的不同，一个是class，一个是struct而已。 本质上的区别在于：
+类 类是属于引用类型，引用类型是在堆上面分配地址。 类对象之间的赋值是通过复制引用实现的。
+除非明确的对类进行了sealed，否则类是可以继承其他类和接口且本身也可被继承。 内部结构区别: 有默认的构造函数。 有析构函数。 可以使用abstract和sealed。 有protected修饰符。 必须使用new初始化。 结构 结构属于值类型，值类型在堆栈上分配地址。 所有基类型都是结构类型，如int 对应的是System.int32结构。 堆栈的执行效率更高，但资源有限，不适合处理逻辑复杂的对象。 结构体对象之间赋值是创建新的结构。 不能从另外的结构继承，本身也不能够被继承 内部结构区别: 没有默认的构造函数，但是能够添加构造函数。 没有abstract和sealed。 不能有protected修饰符。 可以不使用new初始化。 在结构初始化实例字段是错误的。 谈了这么多，那么什么时候使用类，什么时候使用结构体呢？
+堆栈空间有限，对于有大量逻辑的对象，使用类比结构体好一些。 在表示抽象和多级别层次的对象时，使用类是更好的选择。 在大多数情况下对象的类型只是数据时，使用结构是最好的选择。 
+            </h3>
+        </div>
         
     </div>
 
     
     <footer class="article-time">
         
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <path stroke="none" d="M0 0h24v24H0z"/>
   <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
   <circle cx="18" cy="18" r="4" />
@@ -335,13 +486,13 @@
   <path d="M3 11h16" />
   <path d="M18 16.496v1.504l1 1" />
 </svg>
-                <time class="article-time--published">Jul 19, 2016</time>
-            </div>
+            <time class="article-time--published">Jul 19, 2016</time>
+        </div>
         
 
         
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <path stroke="none" d="M0 0h24v24H0z"/>
   <circle cx="12" cy="12" r="9" />
   <polyline points="12 7 12 12 15 15" />
@@ -349,10 +500,13 @@
 
 
 
-                <time class="article-time--reading">
-                    阅读时长: 1 分钟
-                </time>
-            </div>
+            <time class="article-time--reading">
+                阅读时长: 1 分钟
+            </time>
+        </div>
+        <div>
+            <a href="/p/c#-%E7%B1%BB%E4%B8%8E%E7%BB%93%E6%9E%84%E7%9A%84%E5%8C%BA%E5%88%AB/">Read More…</a>
+        </div>
         
     </footer>
     
@@ -373,15 +527,22 @@
         <h2 class="article-title">
             <a href="/p/winform-%E5%9C%A8%E7%BA%BF%E7%A8%8B%E4%B8%AD%E5%90%AF%E5%8A%A8%E6%96%B0%E7%9A%84%E7%AA%97%E5%8F%A3/">WinForm 在线程中启动新的窗口</a>
         </h2>
-    
+
+        
+        <div class="article-subtitle">
+            由于工程需要在线程当中加载一个新的WinForm窗口，但是直接在线程中加载会立即闪退，我认为是线程执行完成之后自动销毁了new的窗口。
+1 new Thread(()=&gt;{new Form2().Show();}).Start(); 之后谷歌了一番，有人提到使用异步委托在线程中来加载新的窗口：
+1 new Thread(()=&gt;{BeginInvoke(new MethodInvoker(()=&gt; { new Form2().Show(); }));}).Start(); 使用如上方法能够正常运行。
+            </h3>
+        </div>
         
     </div>
 
     
     <footer class="article-time">
         
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <path stroke="none" d="M0 0h24v24H0z"/>
   <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
   <circle cx="18" cy="18" r="4" />
@@ -390,13 +551,13 @@
   <path d="M3 11h16" />
   <path d="M18 16.496v1.504l1 1" />
 </svg>
-                <time class="article-time--published">May 25, 2016</time>
-            </div>
+            <time class="article-time--published">May 25, 2016</time>
+        </div>
         
 
         
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <path stroke="none" d="M0 0h24v24H0z"/>
   <circle cx="12" cy="12" r="9" />
   <polyline points="12 7 12 12 15 15" />
@@ -404,120 +565,13 @@
 
 
 
-                <time class="article-time--reading">
-                    阅读时长: 1 分钟
-                </time>
-            </div>
-        
-    </footer>
-    
-
-    
-</div>
-</header>
-</article>
-        
-            
-<article class="">
-    <header class="article-header">
-
-    <div class="article-details">
-    
-
-    <div class="article-title-wrapper">
-        <h2 class="article-title">
-            <a href="/p/c#-%E5%AE%9E%E7%8E%B0%E6%8F%92%E4%BB%B6%E5%8A%9F%E8%83%BD/">C# 实现插件功能</a>
-        </h2>
-    
-        
-    </div>
-
-    
-    <footer class="article-time">
-        
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
-  <circle cx="18" cy="18" r="4" />
-  <path d="M15 3v4" />
-  <path d="M7 3v4" />
-  <path d="M3 11h16" />
-  <path d="M18 16.496v1.504l1 1" />
-</svg>
-                <time class="article-time--published">May 14, 2016</time>
-            </div>
-        
-
-        
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="12" cy="12" r="9" />
-  <polyline points="12 7 12 12 15 15" />
-</svg>
-
-
-
-                <time class="article-time--reading">
-                    阅读时长: 1 分钟
-                </time>
-            </div>
-        
-    </footer>
-    
-
-    
-</div>
-</header>
-</article>
-        
-            
-<article class="">
-    <header class="article-header">
-
-    <div class="article-details">
-    
-
-    <div class="article-title-wrapper">
-        <h2 class="article-title">
-            <a href="/p/%E7%94%A8%E6%88%B7%E6%80%81%E4%B8%8E%E5%86%85%E6%A0%B8%E6%80%81/">用户态与内核态</a>
-        </h2>
-    
-        
-    </div>
-
-    
-    <footer class="article-time">
-        
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
-  <circle cx="18" cy="18" r="4" />
-  <path d="M15 3v4" />
-  <path d="M7 3v4" />
-  <path d="M3 11h16" />
-  <path d="M18 16.496v1.504l1 1" />
-</svg>
-                <time class="article-time--published">May 04, 2016</time>
-            </div>
-        
-
-        
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="12" cy="12" r="9" />
-  <polyline points="12 7 12 12 15 15" />
-</svg>
-
-
-
-                <time class="article-time--reading">
-                    阅读时长: 1 分钟
-                </time>
-            </div>
+            <time class="article-time--reading">
+                阅读时长: 1 分钟
+            </time>
+        </div>
+        <div>
+            <a href="/p/winform-%E5%9C%A8%E7%BA%BF%E7%A8%8B%E4%B8%AD%E5%90%AF%E5%8A%A8%E6%96%B0%E7%9A%84%E7%AA%97%E5%8F%A3/">Read More…</a>
+        </div>
         
     </footer>
     
@@ -632,7 +686,11 @@
                 
             
             
-                    <a class='page-link' href='/page/24/'>24</a>
+                    
+                
+            
+            
+                    <a class='page-link' href='/page/25/'>25</a>
                 
             
     </nav>
@@ -714,7 +772,7 @@
                     <a href="/archives/#2019">
                         
                             <span class="year">2019</span>
-                            <span class="count">21</span>
+                            <span class="count">22</span>
                         
                     </a> 
                 </div>
@@ -730,7 +788,7 @@
                     <a href="/archives/#2017">
                         
                             <span class="year">2017</span>
-                            <span class="count">26</span>
+                            <span class="count">27</span>
                         
                     </a> 
                 </div>
@@ -785,7 +843,7 @@
 
     <div class="tagCloud-tags">
         
-            <a href="/tags/c#/" class="font_size_79">
+            <a href="/tags/c#/" class="font_size_80">
                 C#
             </a>
         
@@ -805,15 +863,15 @@
                 ABP
             </a>
         
+            <a href="/tags/.net-core/" class="font_size_10">
+                .NET Core
+            </a>
+        
             <a href="/tags/asp.net/" class="font_size_9">
                 ASP.NET
             </a>
         
-            <a href="/tags/.net-core/" class="font_size_8">
-                .NET Core
-            </a>
-        
-            <a href="/tags/asp.net-core/" class="font_size_7">
+            <a href="/tags/asp.net-core/" class="font_size_8">
                 ASP.NET Core
             </a>
         

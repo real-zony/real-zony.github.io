@@ -263,15 +263,89 @@
         <h2 class="article-title">
             <a href="/p/%E5%9F%BA%E4%BA%8E-jenkins--kubernetes%E6%B7%B7%E5%90%88%E9%9B%86%E7%BE%A4--argo-cd-%E7%9A%84%E5%AE%8C%E6%95%B4-devops-%E6%B5%81%E7%A8%8B%E8%AE%B0%E5%BD%951-%E7%8E%AF%E5%A2%83%E9%83%A8%E7%BD%B2/">基于 Jenkins &#43; Kubernetes(混合集群) &#43; Argo CD 的完整 DevOps 流程记录(1) - 环境部署</a>
         </h2>
-    
+
+        
+        <div class="article-subtitle">
+            <h2 id="一环境准备">一、环境准备</h2>
+<h3 id="11-镜像仓库">1.1 镜像仓库</h3>
+<p>整套 DevOps 流程使用 Harbor 作为内部镜像仓库，所有构建产物(镜像)都会推送到 Harbor，以备后续进行项目部署。Harbor 从 2.x 版本开始支持 OCI 标准镜像，如果是安装的 1.x 版本，在使用 Podman 构建镜像的时候，需要加上 <code>--format docker</code> 参数，以便生成 Docker 格式的镜像文件。</p>
+<h4 id="111-前置条件">1.1.1 前置条件</h4>
+<ul>
+<li>配置要求: 双核 CPU，4 GB 内存， 硬盘 100 GB+</li>
+<li>系统要求: Rocky Linux 8 或 CentOS 7.x</li>
+<li>软件要求: Docker CE、Docker-Compose</li>
+</ul>
+<h4 id="112-安装配置">1.1.2 安装配置</h4>
+<p>解压 tar 文件之后，会得到一个 <em>harbor.yml</em> 文件，里面可以对一些参数进行配置，例如监听端口与默认的密码数据。</p>
+<p>需要进行配置的选项是 <code>hostname</code> 、<code>https</code>、<code>harbor_admin_password</code>，默认情况下， 其他的参数不需要做特殊调整。针对 https 我们默认禁用掉，因为需要有效证书才能暴露 https 给外部服务，否则后续镜像的推送会有问题。</p>
+<blockquote>
+<p>关于 SSL 证书，必须要 <strong>全链(Full-Chain)证书</strong> 才能正常工作，可使用 amch.sh 等工具进行申请。</p>
+</blockquote>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">hostname</span><span class="p">:</span><span class="w"> </span><span class="m">10.0.0.203</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c"># http related config</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">http</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="c"># port for http, default is 80. If https enabled, this port will redirect to https port</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="m">8088</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c"># https related config</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c">#https:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="c"># https port for harbor, default is 443</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="c"># port: 443</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="c"># The path of cert and key files for nginx</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c">#  certificate: /your/certificate/path</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c">#  private_key: /your/private/key/path</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">harbor_admin_password</span><span class="p">:</span><span class="w"> </span><span class="l">helloWorld</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c"># ... Other info.</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p><em>harbor.yml</em> 文件配置完成之后，执行 <em>install.sh</em> 脚本，一切正常的话，安装完成之后，可以输入 <code>docker ps -a</code> 命令查看正在运行的容器信息。</p>
+<p><a class="link" href="https://img2022.cnblogs.com/blog/1203160/202205/1203160-20220517233143705-870265146.png"  target="_blank" rel="noopener"
+    ><img src="https://img2022.cnblogs.com/blog/1203160/202205/1203160-20220517233143705-870265146.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+></a></p>
+<p>安装成功之后，Harbor 会为我们创建一个 <em>docker-compose.yml</em> 文件，如果需要手动重启 Harbor 相关服务，可以直接安装 Docker-Compose 工具进行操作。</p>
+            </h3>
+        </div>
         
     </div>
 
     
     <footer class="article-time">
         
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <path stroke="none" d="M0 0h24v24H0z"/>
   <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
   <circle cx="18" cy="18" r="4" />
@@ -280,13 +354,13 @@
   <path d="M3 11h16" />
   <path d="M18 16.496v1.504l1 1" />
 </svg>
-                <time class="article-time--published">May 18, 2022</time>
-            </div>
+            <time class="article-time--published">May 18, 2022</time>
+        </div>
         
 
         
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <path stroke="none" d="M0 0h24v24H0z"/>
   <circle cx="12" cy="12" r="9" />
   <polyline points="12 7 12 12 15 15" />
@@ -294,10 +368,13 @@
 
 
 
-                <time class="article-time--reading">
-                    阅读时长: 8 分钟
-                </time>
-            </div>
+            <time class="article-time--reading">
+                阅读时长: 8 分钟
+            </time>
+        </div>
+        <div>
+            <a href="/p/%E5%9F%BA%E4%BA%8E-jenkins--kubernetes%E6%B7%B7%E5%90%88%E9%9B%86%E7%BE%A4--argo-cd-%E7%9A%84%E5%AE%8C%E6%95%B4-devops-%E6%B5%81%E7%A8%8B%E8%AE%B0%E5%BD%951-%E7%8E%AF%E5%A2%83%E9%83%A8%E7%BD%B2/">Read More…</a>
+        </div>
         
     </footer>
     
@@ -318,15 +395,23 @@
         <h2 class="article-title">
             <a href="/p/asp.net-core-%E7%A7%BB%E9%99%A4%E5%B7%B2%E6%B3%A8%E5%86%8C%E7%9A%84%E8%BF%87%E6%BB%A4%E5%99%A8/">ASP.NET Core 移除已注册的过滤器</a>
         </h2>
-    
+
+        
+        <div class="article-subtitle">
+            背景 ABP vNext 默认对异常响应进行了处理，现在某个项目需要自定义异常响应结果。
+问题 在 ABP vNext 的 MVC 模块当中，可以看到是通过 AddService(typeof(AbpExceptionFilter)) 添加的过滤器。最初我的想法是在 ConfigureService() 生命周期方法内，使用 Configure&lt;MvcOptions&gt; 移除已经注册的过滤器。 找到对应的 Remove() 方法，发现需要提供一个 IFilterMetadata 对象，顿时懵逼。
+解决 通过查阅 AddService() 方法的源码，看到底层是通过 ServiceFilterAttribute 将一个过滤器类型包裹起来。最后将其强转为一个 IFilterMetadata 扔进集合，有强转这一步我们翻阅源码可以看到 ServiceFilterAttribute 应该是实现了这个接口的。
+1 2 3 4 5 6 7 8 9 10 11 public IFilterMetadata AddService(Type filterType, int order) { if (filterType == (Type) null) throw new ArgumentNullException(nameof (filterType)); ServiceFilterAttribute serviceFilterAttribute = typeof (IFilterMetadata).IsAssignableFrom(filterType) ? new ServiceFilterAttribute(filterType) { Order = order } : throw new ArgumentException(Resources.
+            </h3>
+        </div>
         
     </div>
 
     
     <footer class="article-time">
         
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <path stroke="none" d="M0 0h24v24H0z"/>
   <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
   <circle cx="18" cy="18" r="4" />
@@ -335,13 +420,13 @@
   <path d="M3 11h16" />
   <path d="M18 16.496v1.504l1 1" />
 </svg>
-                <time class="article-time--published">Nov 22, 2020</time>
-            </div>
+            <time class="article-time--published">Nov 22, 2020</time>
+        </div>
         
 
         
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <path stroke="none" d="M0 0h24v24H0z"/>
   <circle cx="12" cy="12" r="9" />
   <polyline points="12 7 12 12 15 15" />
@@ -349,10 +434,13 @@
 
 
 
-                <time class="article-time--reading">
-                    阅读时长: 1 分钟
-                </time>
-            </div>
+            <time class="article-time--reading">
+                阅读时长: 1 分钟
+            </time>
+        </div>
+        <div>
+            <a href="/p/asp.net-core-%E7%A7%BB%E9%99%A4%E5%B7%B2%E6%B3%A8%E5%86%8C%E7%9A%84%E8%BF%87%E6%BB%A4%E5%99%A8/">Read More…</a>
+        </div>
         
     </footer>
     
@@ -373,15 +461,24 @@
         <h2 class="article-title">
             <a href="/p/abp-vnext-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90-23.-%E4%BA%8C%E8%BF%9B%E5%88%B6%E5%A4%A7%E5%AF%B9%E8%B1%A1%E7%B3%BB%E7%BB%9Fblob/">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</a>
         </h2>
-    
+
+        
+        <div class="article-subtitle">
+            <h2 id="一简介">一、简介</h2>
+<p>ABP vNext 在 v 2.9.x 版本当中添加了 BLOB 系统，主要用于存储大型二进制文件。ABP 抽象了一套通用的 BLOB 体系，开发人员在存储或读取二进制文件时，可以忽略具体实现，直接使用 <code>IBlobContainer</code> 或 <code>IBlobContainer&lt;T&gt;</code> 进行操作。官方的 BLOB Provider 实现有 <strong>Azure</strong>、<strong>AWS</strong>、<strong>FileSystem(文件系统存储)</strong>、<strong>Database(数据库存储)</strong>、<strong>阿里云 OSS</strong>，你也可以自己继承 <code>BlobProviderBase</code> 来实现其他的 Provider。</p>
+<p>BLOB 常用于各类二进制文件存储和管理，基本就是对云服务的 OSS 进行了抽象，在使用当中也会有 Bucket 和 Object Key 的概念，在 BLOB 里面对应的就是 ContainerName 和 BlobName。</p>
+<p>关于 BLOB 的官方使用指南，可以参考 <a class="link" href="https://docs.abp.io/en/abp/latest/Blob-Storing"  target="_blank" rel="noopener"
+    >https://docs.abp.io/en/abp/latest/Blob-Storing</a>，本文的阅读前提是建立在你已经阅读过该指南，并有一定的使用经验。</p>
+            </h3>
+        </div>
         
     </div>
 
     
     <footer class="article-time">
         
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <path stroke="none" d="M0 0h24v24H0z"/>
   <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
   <circle cx="18" cy="18" r="4" />
@@ -390,13 +487,13 @@
   <path d="M3 11h16" />
   <path d="M18 16.496v1.504l1 1" />
 </svg>
-                <time class="article-time--published">Jul 27, 2020</time>
-            </div>
+            <time class="article-time--published">Jul 27, 2020</time>
+        </div>
         
 
         
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <path stroke="none" d="M0 0h24v24H0z"/>
   <circle cx="12" cy="12" r="9" />
   <polyline points="12 7 12 12 15 15" />
@@ -404,10 +501,13 @@
 
 
 
-                <time class="article-time--reading">
-                    阅读时长: 8 分钟
-                </time>
-            </div>
+            <time class="article-time--reading">
+                阅读时长: 8 分钟
+            </time>
+        </div>
+        <div>
+            <a href="/p/abp-vnext-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90-23.-%E4%BA%8C%E8%BF%9B%E5%88%B6%E5%A4%A7%E5%AF%B9%E8%B1%A1%E7%B3%BB%E7%BB%9Fblob/">Read More…</a>
+        </div>
         
     </footer>
     
@@ -428,15 +528,38 @@
         <h2 class="article-title">
             <a href="/p/%E4%BD%BF%E7%94%A8-httpclient-%E8%BF%9B%E8%A1%8C%E8%A1%A8%E5%8D%95%E6%8F%90%E4%BA%A4%E6%97%B6%E9%81%87%E5%88%B0%E7%9A%84%E9%97%AE%E9%A2%98/">使用 HttpClient 进行表单提交时，遇到的问题</a>
         </h2>
-    
+
+        
+        <div class="article-subtitle">
+            <h3 id="问题">问题</h3>
+<p>在开发微信支付的小微商户进件接口时，需要通过表单来上传身份证图片等数据。在微信支付接口文档也说明了，需要使用 multipart/form-data 的方式发送请求。.NET 提供了 <code>MultipartFormDataContent</code> 类型，帮助我们构建表单请求，故有以下代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">form</span> <span class="p">=</span> <span class="k">new</span> <span class="n">MultipartFormDataContent</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span><span class="k">new</span> <span class="n">StringContent</span><span class="p">(</span><span class="s">&#34;Value&#34;</span><span class="p">),</span><span class="s">&#34;Name},
+</span></span></span><span class="line"><span class="cl"><span class="s"></span>    <span class="p">{</span><span class="k">new</span> <span class="n">ByteArrayContent</span><span class="p">(</span><span class="k">new</span> <span class="kt">byte</span><span class="p">[]{}</span><span class="cm">/*模拟文件数据*/</span><span class="p">),</span><span class="s">&#34;File,&#34;</span><span class="n">FileName</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>按照微信支付官方文档提交之后，一直提示参数错误，百思不得其解。</p>
+            </h3>
+        </div>
         
     </div>
 
     
     <footer class="article-time">
         
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <path stroke="none" d="M0 0h24v24H0z"/>
   <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
   <circle cx="18" cy="18" r="4" />
@@ -445,13 +568,13 @@
   <path d="M3 11h16" />
   <path d="M18 16.496v1.504l1 1" />
 </svg>
-                <time class="article-time--published">Dec 29, 2019</time>
-            </div>
+            <time class="article-time--published">Dec 29, 2019</time>
+        </div>
         
 
         
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <path stroke="none" d="M0 0h24v24H0z"/>
   <circle cx="12" cy="12" r="9" />
   <polyline points="12 7 12 12 15 15" />
@@ -459,10 +582,13 @@
 
 
 
-                <time class="article-time--reading">
-                    阅读时长: 2 分钟
-                </time>
-            </div>
+            <time class="article-time--reading">
+                阅读时长: 2 分钟
+            </time>
+        </div>
+        <div>
+            <a href="/p/%E4%BD%BF%E7%94%A8-httpclient-%E8%BF%9B%E8%A1%8C%E8%A1%A8%E5%8D%95%E6%8F%90%E4%BA%A4%E6%97%B6%E9%81%87%E5%88%B0%E7%9A%84%E9%97%AE%E9%A2%98/">Read More…</a>
+        </div>
         
     </footer>
     
@@ -483,15 +609,38 @@
         <h2 class="article-title">
             <a href="/p/abp-vnext-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90-12.-%E5%90%8E%E5%8F%B0%E4%BD%9C%E4%B8%9A%E4%B8%8E%E5%90%8E%E5%8F%B0%E5%B7%A5%E4%BD%9C%E8%80%85/">Abp vNext 源码分析 - 12. 后台作业与后台工作者</a>
         </h2>
-    
+
+        
+        <div class="article-subtitle">
+            <h2 id="一简要说明">一、简要说明</h2>
+<blockquote>
+<p><strong>文章信息：</strong></p>
+<p>基于的 ABP vNext 版本：1.0.0</p>
+<p>创作日期：2019 年 10 月 24 日晚</p>
+<p>更新日期：暂无</p>
+</blockquote>
+<p>ABP vNext 提供了后台工作者和后台作业的支持，基本实现与原来的 ABP 框架类似，并且 ABP vNext 还提供了对 HangFire 和 RabbitMQ 的后台作业集成。开发人员在使用这些第三方库的时候，基本就是开箱即用，不需要做其他复杂的配置。</p>
+<p>后台作业在系统开发的过程当中，是比较常用的功能。因为总是有一些长耗时的任务，而这些任务我们不是立即响应的，例如 Excel 文档导入、批量发送短信通知等。</p>
+<p><strong>后台工作者</strong> 的话，ABP vNext 的实现就是在 CLR 的 <code>Timer</code> 之上封装了一层，周期性地执行用户逻辑。ABP vNext 默认提供的 <strong>后台任务管理器</strong>，就是在后台工作者基础之上进行的封装。</p>
+<p>涉及到后台任务、后台工作者的模块一共有 6 个，它们分别是：</p>
+<ul>
+<li><strong>Volo.Abp.Threading</strong> ：提供了一些常用的线程组件，其中 <code>AbpTimer</code> 就是在里面实现的。</li>
+<li><strong>Volo.Abp.BackgroundWorkers</strong> ：后台工作者的定义和实现。</li>
+<li><strong>Volo.Abp.BackgroundJobs.Abstractions</strong> ：后台任务的一些共有定义。</li>
+<li><strong>Volo.Abp.BackgroundJobs</strong> ：默认的后台任务管理器实现。</li>
+<li><strong>Volo.Abp.BackgroundJobs.HangFire</strong> ：基于 Hangfire 库实现的后台任务管理器。</li>
+<li><strong>Volo.Abp.BackgroundJobs.RabbitMQ</strong> ： 基于 RabbitMQ 实现的后台任务管理器。</li>
+</ul>
+            </h3>
+        </div>
         
     </div>
 
     
     <footer class="article-time">
         
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <path stroke="none" d="M0 0h24v24H0z"/>
   <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
   <circle cx="18" cy="18" r="4" />
@@ -500,13 +649,13 @@
   <path d="M3 11h16" />
   <path d="M18 16.496v1.504l1 1" />
 </svg>
-                <time class="article-time--published">Oct 25, 2019</time>
-            </div>
+            <time class="article-time--published">Oct 25, 2019</time>
+        </div>
         
 
         
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <path stroke="none" d="M0 0h24v24H0z"/>
   <circle cx="12" cy="12" r="9" />
   <polyline points="12 7 12 12 15 15" />
@@ -514,10 +663,13 @@
 
 
 
-                <time class="article-time--reading">
-                    阅读时长: 12 分钟
-                </time>
-            </div>
+            <time class="article-time--reading">
+                阅读时长: 12 分钟
+            </time>
+        </div>
+        <div>
+            <a href="/p/abp-vnext-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90-12.-%E5%90%8E%E5%8F%B0%E4%BD%9C%E4%B8%9A%E4%B8%8E%E5%90%8E%E5%8F%B0%E5%B7%A5%E4%BD%9C%E8%80%85/">Read More…</a>
+        </div>
         
     </footer>
     
@@ -629,7 +781,11 @@
                 
             
             
-                    <a class='page-link' href='/page/24/'>24</a>
+                    
+                
+            
+            
+                    <a class='page-link' href='/page/25/'>25</a>
                 
             
     </nav>
@@ -711,7 +867,7 @@
                     <a href="/archives/#2019">
                         
                             <span class="year">2019</span>
-                            <span class="count">21</span>
+                            <span class="count">22</span>
                         
                     </a> 
                 </div>
@@ -727,7 +883,7 @@
                     <a href="/archives/#2017">
                         
                             <span class="year">2017</span>
-                            <span class="count">26</span>
+                            <span class="count">27</span>
                         
                     </a> 
                 </div>
@@ -782,7 +938,7 @@
 
     <div class="tagCloud-tags">
         
-            <a href="/tags/c#/" class="font_size_79">
+            <a href="/tags/c#/" class="font_size_80">
                 C#
             </a>
         
@@ -802,15 +958,15 @@
                 ABP
             </a>
         
+            <a href="/tags/.net-core/" class="font_size_10">
+                .NET Core
+            </a>
+        
             <a href="/tags/asp.net/" class="font_size_9">
                 ASP.NET
             </a>
         
-            <a href="/tags/.net-core/" class="font_size_8">
-                .NET Core
-            </a>
-        
-            <a href="/tags/asp.net-core/" class="font_size_7">
+            <a href="/tags/asp.net-core/" class="font_size_8">
                 ASP.NET Core
             </a>
         
