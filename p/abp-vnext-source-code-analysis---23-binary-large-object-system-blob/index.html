@@ -1,0 +1,1588 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、简介 ABP vNext 在 v 2.9.x 版本当中添加了 BLOB 系统，主要用于存储大型二进制文件。ABP 抽象了一套通用的 BLOB 体系，开发人员在存储或读取二进制文件时，可以忽略具体实现，直接使用 IBlobContainer 或 IBlobContainer&amp;lt;T&amp;gt; 进行操作。官方的 BLOB Provider 实现有 Azure、AWS、FileSystem(文件系统存储)、Database(数据库存储)、阿里云 OSS，你也可以自己继承 BlobProviderBase 来实现其他的 Provider。
+BLOB 常用于各类二进制文件存储和管理，基本就是对云服务的 OSS 进行了抽象，在使用当中也会有 Bucket 和 Object Key 的概念，在 BLOB 里面对应的就是 ContainerName 和 BlobName。
+关于 BLOB 的官方使用指南，可以参考 https://docs.abp.io/en/abp/latest/Blob-Storing，本文的阅读前提是建立在你已经阅读过该指南，并有一定的使用经验。
+'><title>Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</title>
+
+<link rel='canonical' href='https://example.com/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)'>
+<meta property='og:description' content='一、简介 ABP vNext 在 v 2.9.x 版本当中添加了 BLOB 系统，主要用于存储大型二进制文件。ABP 抽象了一套通用的 BLOB 体系，开发人员在存储或读取二进制文件时，可以忽略具体实现，直接使用 IBlobContainer 或 IBlobContainer&amp;lt;T&amp;gt; 进行操作。官方的 BLOB Provider 实现有 Azure、AWS、FileSystem(文件系统存储)、Database(数据库存储)、阿里云 OSS，你也可以自己继承 BlobProviderBase 来实现其他的 Provider。
+BLOB 常用于各类二进制文件存储和管理，基本就是对云服务的 OSS 进行了抽象，在使用当中也会有 Bucket 和 Object Key 的概念，在 BLOB 里面对应的就是 ContainerName 和 BlobName。
+关于 BLOB 的官方使用指南，可以参考 https://docs.abp.io/en/abp/latest/Blob-Storing，本文的阅读前提是建立在你已经阅读过该指南，并有一定的使用经验。
+'>
+<meta property='og:url' content='https://example.com/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='ABP vNext' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='ASP.NET Core' /><meta property='article:tag' content='ASP.NET Core MVC' /><meta property='article:tag' content='BLOB' /><meta property='article:tag' content='OSS' /><meta property='article:published_time' content='2020-07-27T12:09:00&#43;00:00'/><meta property='article:modified_time' content='2020-07-27T12:09:00&#43;00:00'/>
+<meta name="twitter:title" content="Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)">
+<meta name="twitter:description" content="一、简介 ABP vNext 在 v 2.9.x 版本当中添加了 BLOB 系统，主要用于存储大型二进制文件。ABP 抽象了一套通用的 BLOB 体系，开发人员在存储或读取二进制文件时，可以忽略具体实现，直接使用 IBlobContainer 或 IBlobContainer&amp;lt;T&amp;gt; 进行操作。官方的 BLOB Provider 实现有 Azure、AWS、FileSystem(文件系统存储)、Database(数据库存储)、阿里云 OSS，你也可以自己继承 BlobProviderBase 来实现其他的 Provider。
+BLOB 常用于各类二进制文件存储和管理，基本就是对云服务的 OSS 进行了抽象，在使用当中也会有 Bucket 和 Object Key 的概念，在 BLOB 里面对应的就是 ContainerName 和 BlobName。
+关于 BLOB 的官方使用指南，可以参考 https://docs.abp.io/en/abp/latest/Blob-Storing，本文的阅读前提是建立在你已经阅读过该指南，并有一定的使用经验。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jul 27, 2020</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 8 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一简介">一、简介</h2>
+<p>ABP vNext 在 v 2.9.x 版本当中添加了 BLOB 系统，主要用于存储大型二进制文件。ABP 抽象了一套通用的 BLOB 体系，开发人员在存储或读取二进制文件时，可以忽略具体实现，直接使用 <code>IBlobContainer</code> 或 <code>IBlobContainer&lt;T&gt;</code> 进行操作。官方的 BLOB Provider 实现有 <strong>Azure</strong>、<strong>AWS</strong>、<strong>FileSystem(文件系统存储)</strong>、<strong>Database(数据库存储)</strong>、<strong>阿里云 OSS</strong>，你也可以自己继承 <code>BlobProviderBase</code> 来实现其他的 Provider。</p>
+<p>BLOB 常用于各类二进制文件存储和管理，基本就是对云服务的 OSS 进行了抽象，在使用当中也会有 Bucket 和 Object Key 的概念，在 BLOB 里面对应的就是 ContainerName 和 BlobName。</p>
+<p>关于 BLOB 的官方使用指南，可以参考 <a class="link" href="https://docs.abp.io/en/abp/latest/Blob-Storing"  target="_blank" rel="noopener"
+    >https://docs.abp.io/en/abp/latest/Blob-Storing</a>，本文的阅读前提是建立在你已经阅读过该指南，并有一定的使用经验。</p>
+<h2 id="二源码分析">二、源码分析</h2>
+<h3 id="21-模块分析">2.1 模块分析</h3>
+<p>看一个 ABP 的库项目，首先从他的 Module 入手，对应的 BLOB 核心库的 <code>Module</code> 就是 <code>AbpBlobStoringModule</code> 类，在其内部，只进行了两个操作，注入了 <code>IBlobContainer</code> 与 <code>IBlobContainer&lt;&gt;</code> 的实现。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">ConfigureServices</span><span class="p">(</span><span class="n">ServiceConfigurationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">.</span><span class="n">AddTransient</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="k">typeof</span><span class="p">(</span><span class="n">IBlobContainer</span><span class="p">&lt;&gt;),</span>
+</span></span><span class="line"><span class="cl">        <span class="k">typeof</span><span class="p">(</span><span class="n">BlobContainer</span><span class="p">&lt;&gt;)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">.</span><span class="n">AddTransient</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="k">typeof</span><span class="p">(</span><span class="n">IBlobContainer</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">        <span class="n">serviceProvider</span> <span class="p">=&gt;</span> <span class="n">serviceProvider</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IBlobContainer</span><span class="p">&lt;</span><span class="n">DefaultContainer</span><span class="p">&gt;&gt;()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>从上述代码可以看出来，<code>IBlobContainer</code> 的默认实现还是基于 <code>BlobContainer&lt;T&gt;</code> 的。那么为啥会有个泛型的 Container，从简介中可以看到 OSS 里面对应的 Bucket 其实就是一个 <code>IBlobContainer</code>。假如你会针对某云的多个 Bucket 进行操作，那么就需要类型化的 BlobContainer 了。</p>
+<p>在这里可以看到，<code>IBlobContainer</code> 的实现是一个工厂方法，这一点在后面会进行解释。</p>
+<h3 id="22-blob-容器">2.2 BLOB 容器</h3>
+<h4 id="221-容器的定义">2.2.1 容器的定义</h4>
+<p>每个容器就是一个 OSS 的 Bucket，开发人员在对 BLOB 进行操作时，会注入 <code>IBlobContainer</code>/<code>IBlobContainer&lt;T&gt;</code>，通过接口提供的 5 种方法进行操作，这五个方法分别是 <strong>保存对象</strong>、<strong>删除对象</strong>、<strong>判断对象是否存在</strong>、<strong>获取对象</strong>、<strong>获取对象(不存在返回 NULL)</strong>。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IBlobContainer</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 保存对象</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span> <span class="n">SaveAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Stream</span> <span class="n">stream</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">bool</span> <span class="n">overrideExisting</span> <span class="p">=</span> <span class="k">false</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// 删除对象</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span><span class="p">&lt;</span><span class="kt">bool</span><span class="p">&gt;</span> <span class="n">DeleteAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// 判断对象是否存在</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span><span class="p">&lt;</span><span class="kt">bool</span><span class="p">&gt;</span> <span class="n">ExistsAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获取对象</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span><span class="p">&lt;</span><span class="n">Stream</span><span class="p">&gt;</span> <span class="n">GetAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获取对象(不存在返回 NULL)</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span><span class="p">&lt;</span><span class="n">Stream</span><span class="p">&gt;</span> <span class="n">GetOrNullAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">//TODO: Create shortcut extension methods: GetAsArraryAsync, GetAsStringAsync(encoding) (and null versions)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>泛型的 BLOB 容器也是集成自该接口，内部没有任何特殊的方法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IBlobContainer</span><span class="p">&lt;</span><span class="n">TContainer</span><span class="p">&gt;</span> <span class="p">:</span> <span class="n">IBlobContainer</span>
+</span></span><span class="line"><span class="cl">    <span class="k">where</span> <span class="n">TContainer</span><span class="p">:</span> <span class="k">class</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="222-容器的实现">2.2.2 容器的实现</h4>
+<p>容器的两种实现都存放在 <code>BlobContainer.cs</code> 文件当中，标注容器实现内部都会有一个 <code>ContainerName</code>，用于标识不同的容器，并且和其他的组件作为 <strong>关联键</strong> 进行绑定。每个容器都会关联 <code>BlobContainerConfiguration</code>、<code>IBlobProvider</code> 两个组件，它们分别提供了容器的配置信息和容器的具体实现 Provider，在容器构造的时候根据 <code>ContainerName</code> 分别进行初始化。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">BlobContainer</span> <span class="p">:</span> <span class="n">IBlobContainer</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="kt">string</span> <span class="n">ContainerName</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">BlobContainerConfiguration</span> <span class="n">Configuration</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IBlobProvider</span> <span class="n">Provider</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">ICurrentTenant</span> <span class="n">CurrentTenant</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">ICancellationTokenProvider</span> <span class="n">CancellationTokenProvider</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IServiceProvider</span> <span class="n">ServiceProvider</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到这里还注入了 <code>ICurrentTenant</code>，注入该对象的主要作用是用来处理多租户的情况，如果当前容器启用了多租户，那么会手动 <code>Change()</code>。下面以 <code>SaveAsync()</code> 方法为例。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">SaveAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">string</span> <span class="n">name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Stream</span> <span class="n">stream</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">bool</span> <span class="n">overrideExisting</span> <span class="p">=</span> <span class="k">false</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 变更当前租户信息，当启用了多租户时，会使用当前租户进行变更。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="n">CurrentTenant</span><span class="p">.</span><span class="n">Change</span><span class="p">(</span><span class="n">GetTenantIdOrNull</span><span class="p">()))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 根据 ContainerName 取得对应的标准化容器名称和对象名称。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="p">(</span><span class="n">normalizedContainerName</span><span class="p">,</span> <span class="n">normalizedBlobName</span><span class="p">)</span> <span class="p">=</span> <span class="n">NormalizeNaming</span><span class="p">(</span><span class="n">ContainerName</span><span class="p">,</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 使用 ContainerName 匹配的 Provider 存储对象数据。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">Provider</span><span class="p">.</span><span class="n">SaveAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="k">new</span> <span class="n">BlobProviderSaveArgs</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">normalizedContainerName</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">Configuration</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">normalizedBlobName</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">stream</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">overrideExisting</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">CancellationTokenProvider</span><span class="p">.</span><span class="n">FallbackToProvider</span><span class="p">(</span><span class="n">cancellationToken</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里有两个地方需要单独分析，第一个是 <code>NormalizeNaming()</code> 的作用，第二个是 <code>BlobProviderSaveArgs</code> 对象。</p>
+<h5 id="2231-名称标准化对象">2.2.3.1 名称标准化对象</h5>
+<p><code>IBlobNamingNormalizer</code>(BLOB 名称标准化对象)，主要用于将一个字符串进行标准化处理，防止 Provider 无法处理这种名称。各大 OSS 都对容器的名称或对象的名称有命名要求，比如必须全部小写，不能有哪些特殊符号等等。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="p">(</span><span class="kt">string</span><span class="p">,</span> <span class="kt">string</span><span class="p">)</span> <span class="n">NormalizeNaming</span><span class="p">(</span><span class="kt">string</span> <span class="n">containerName</span><span class="p">,</span>  <span class="kt">string</span> <span class="n">blobName</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 从当前的配置信息中获取对应的标准化器，如果不存在任何标准化工具对象，则直接返回原始名称。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">Configuration</span><span class="p">.</span><span class="n">NamingNormalizers</span><span class="p">.</span><span class="n">Any</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="p">(</span><span class="n">containerName</span><span class="p">,</span> <span class="n">blobName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">scope</span> <span class="p">=</span> <span class="n">ServiceProvider</span><span class="p">.</span><span class="n">CreateScope</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 获取所有的标准化器，并依次进行名称的标准化处理。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">normalizerType</span> <span class="k">in</span> <span class="n">Configuration</span><span class="p">.</span><span class="n">NamingNormalizers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">normalizer</span> <span class="p">=</span> <span class="n">scope</span><span class="p">.</span><span class="n">ServiceProvider</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">GetRequiredService</span><span class="p">(</span><span class="n">normalizerType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">As</span><span class="p">&lt;</span><span class="n">IBlobNamingNormalizer</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="n">containerName</span> <span class="p">=</span> <span class="n">normalizer</span><span class="p">.</span><span class="n">NormalizeContainerName</span><span class="p">(</span><span class="n">containerName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="n">blobName</span> <span class="p">=</span> <span class="n">normalizer</span><span class="p">.</span><span class="n">NormalizeBlobName</span><span class="p">(</span><span class="n">blobName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="p">(</span><span class="n">containerName</span><span class="p">,</span> <span class="n">blobName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h5 id="2232-blob-上下文">2.2.3.2 BLOB 上下文</h5>
+<p>在 BLOB 里面，ABP 分别为每个操作都定义了一个 <code>***Args</code> 对象，它就是一个上下文对象，用于在整个调用周期中传递参数。</p>
+<h5 id="2233-blob-配置信息">2.2.3.3 BLOB 配置信息</h5>
+<p>每个 BLOB 容器都会有一个 <code>BlobContainerConfiguration</code> 用于存储配置信息，它主要有以下几个重要的属性。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">BlobContainerConfiguration</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 当前 BLOB 容器对应的 Provider 类型。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Type</span> <span class="n">ProviderType</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 当前 BLOB 容器是否启用了多租户。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">IsMultiTenant</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 当前 BLOB 容器的名称标准化对象。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ITypeList</span><span class="p">&lt;</span><span class="n">IBlobNamingNormalizer</span><span class="p">&gt;</span> <span class="n">NamingNormalizers</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 当前 BLOB 容器的属性。</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [NotNull]</span> <span class="k">private</span> <span class="k">readonly</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;</span> <span class="n">_properties</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 当尝试获取某些配置属性，但是不存在时，会从这个 Configuration 拿取数据。</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [CanBeNull]</span> <span class="k">private</span> <span class="k">readonly</span> <span class="n">BlobContainerConfiguration</span> <span class="n">_fallbackConfiguration</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">BlobContainerConfiguration</span><span class="p">(</span><span class="n">BlobContainerConfiguration</span> <span class="n">fallbackConfiguration</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">NamingNormalizers</span> <span class="p">=</span> <span class="k">new</span> <span class="n">TypeList</span><span class="p">&lt;</span><span class="n">IBlobNamingNormalizer</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_fallbackConfiguration</span> <span class="p">=</span> <span class="n">fallbackConfiguration</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_properties</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">    [CanBeNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">T</span> <span class="n">GetConfigurationOrDefault</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="n">T</span> <span class="n">defaultValue</span> <span class="p">=</span> <span class="k">default</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="p">(</span><span class="n">T</span><span class="p">)</span> <span class="n">GetConfigurationOrNull</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">defaultValue</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">    [CanBeNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">object</span> <span class="n">GetConfigurationOrNull</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="kt">object</span> <span class="n">defaultValue</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">_properties</span><span class="p">.</span><span class="n">GetOrDefault</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="p">??</span>
+</span></span><span class="line"><span class="cl">                <span class="n">_fallbackConfiguration</span><span class="p">?.</span><span class="n">GetConfigurationOrNull</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">defaultValue</span><span class="p">)</span> <span class="p">??</span>
+</span></span><span class="line"><span class="cl">                <span class="n">defaultValue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在后续各种 Provider 里面定义的配置项，本质上就是对 <code>_properties</code> 字典进行操作。</p>
+<h4 id="223-容器的构造与初始化">2.2.3 容器的构造与初始化</h4>
+<p>BLOB 容器并不是通过 IoC 容器直接解析构造的，而是通过 <code>IBlobContainerFactory</code> 工厂进行创建，与容器相关的配置对象和 BLOB Provider 也是在这个时候进行构造赋值。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">BlobContainerFactory</span> <span class="p">:</span> <span class="n">IBlobContainerFactory</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IBlobProviderSelector</span> <span class="n">ProviderSelector</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IBlobContainerConfigurationProvider</span> <span class="n">ConfigurationProvider</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">ICurrentTenant</span> <span class="n">CurrentTenant</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">ICancellationTokenProvider</span> <span class="n">CancellationTokenProvider</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IServiceProvider</span> <span class="n">ServiceProvider</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">BlobContainerFactory</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IBlobContainerConfigurationProvider</span> <span class="n">configurationProvider</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ICurrentTenant</span> <span class="n">currentTenant</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ICancellationTokenProvider</span> <span class="n">cancellationTokenProvider</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IBlobProviderSelector</span> <span class="n">providerSelector</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IServiceProvider</span> <span class="n">serviceProvider</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ConfigurationProvider</span> <span class="p">=</span> <span class="n">configurationProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">CurrentTenant</span> <span class="p">=</span> <span class="n">currentTenant</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">CancellationTokenProvider</span> <span class="p">=</span> <span class="n">cancellationTokenProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ProviderSelector</span> <span class="p">=</span> <span class="n">providerSelector</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ServiceProvider</span> <span class="p">=</span> <span class="n">serviceProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">IBlobContainer</span> <span class="n">Create</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 根据容器的名称，获取对应的配置。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">configuration</span> <span class="p">=</span> <span class="n">ConfigurationProvider</span><span class="p">.</span><span class="n">Get</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 构造一个新的容器对象。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">new</span> <span class="n">BlobContainer</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">configuration</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 一样的是根据容器名称，获得匹配的 Provider 类型。</span>
+</span></span><span class="line"><span class="cl">            <span class="n">ProviderSelector</span><span class="p">.</span><span class="n">Get</span><span class="p">(</span><span class="n">name</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">            <span class="n">CurrentTenant</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">CancellationTokenProvider</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">ServiceProvider</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>那么这个工厂方法是在什么时候调用的呢？跳转到工厂方法的实现，发现会被一个静态扩展方法所调用，重要的是这个方法是一个泛型方法，这样就与开头的类型化 BLOB 容器相对应了。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">BlobContainerFactoryExtensions</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="n">IBlobContainer</span> <span class="n">Create</span><span class="p">&lt;</span><span class="n">TContainer</span><span class="p">&gt;(</span>
+</span></span><span class="line"><span class="cl">        <span class="k">this</span> <span class="n">IBlobContainerFactory</span> <span class="n">blobContainerFactory</span>
+</span></span><span class="line"><span class="cl">    <span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 通过 GetContainerName 方法获取容器的名字。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">blobContainerFactory</span><span class="p">.</span><span class="n">Create</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">BlobContainerNameAttribute</span><span class="p">.</span><span class="n">GetContainerName</span><span class="p">&lt;</span><span class="n">TContainer</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>GetContainerName()</code> 方法也很简单，如果容器类型没有指定 <code>BlobContainerNameAttribute</code> 特性，那么就会默认使用类型的 <code>FullName</code> 作为名称。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="kt">string</span> <span class="n">GetContainerName</span><span class="p">(</span><span class="n">Type</span> <span class="n">type</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">nameAttribute</span> <span class="p">=</span> <span class="n">type</span><span class="p">.</span><span class="n">GetCustomAttribute</span><span class="p">&lt;</span><span class="n">BlobContainerNameAttribute</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">nameAttribute</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">type</span><span class="p">.</span><span class="n">FullName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">nameAttribute</span><span class="p">.</span><span class="n">GetName</span><span class="p">(</span><span class="n">type</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>最后的最后，看一下这个类型化的 BLOB 容器。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">BlobContainer</span><span class="p">&lt;</span><span class="n">TContainer</span><span class="p">&gt;</span> <span class="p">:</span> <span class="n">IBlobContainer</span><span class="p">&lt;</span><span class="n">TContainer</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">where</span> <span class="n">TContainer</span> <span class="p">:</span> <span class="k">class</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IBlobContainer</span> <span class="n">_container</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">BlobContainer</span><span class="p">(</span><span class="n">IBlobContainerFactory</span> <span class="n">blobContainerFactory</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_container</span> <span class="p">=</span> <span class="n">blobContainerFactory</span><span class="p">.</span><span class="n">Create</span><span class="p">&lt;</span><span class="n">TContainer</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>对应的是模块初始化的工厂方法：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">.</span><span class="n">AddTransient</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="k">typeof</span><span class="p">(</span><span class="n">IBlobContainer</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">    <span class="n">serviceProvider</span> <span class="p">=&gt;</span> <span class="n">serviceProvider</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IBlobContainer</span><span class="p">&lt;</span><span class="n">DefaultContainer</span><span class="p">&gt;&gt;()</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里的 <code>DefaultContainer</code> 就指定了该特性，所以本质上一个 <code>IBlobContainer</code> 就是一个类型化的容器，它的泛型参数是 <code>DefaultContainer</code>。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[BlobContainerName(Name)]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">DefaultContainer</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">const</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">=</span> <span class="s">&#34;default&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h5 id="2231-blob-的配置提供者">2.2.3.1 BLOB 的配置提供者</h5>
+<p>BLOB 容器工厂使用 <code>IBlobContainerConfigurationProvider</code> 来匹配对应容器的配置信息，实现比较简单，直接注入了 <code>AbpBlobStoringOptions</code> 并尝试从它的 <code>BlobContainerConfigurations</code> 中获取配置对象。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">DefaultBlobContainerConfigurationProvider</span> <span class="p">:</span> <span class="n">IBlobContainerConfigurationProvider</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">AbpBlobStoringOptions</span> <span class="n">Options</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">DefaultBlobContainerConfigurationProvider</span><span class="p">(</span><span class="n">IOptions</span><span class="p">&lt;</span><span class="n">AbpBlobStoringOptions</span><span class="p">&gt;</span> <span class="n">options</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Options</span> <span class="p">=</span> <span class="n">options</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">BlobContainerConfiguration</span> <span class="n">Get</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">Options</span><span class="p">.</span><span class="n">Containers</span><span class="p">.</span><span class="n">GetConfiguration</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里的 <code>BlobContainerConfigurations</code> 对象，核心就是一个键值对，键就是 BLOB 容器的名称，值就是容器对应的配置对象。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">BlobContainerConfigurations</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">BlobContainerConfiguration</span> <span class="n">Default</span> <span class="p">=&gt;</span> <span class="n">GetConfiguration</span><span class="p">&lt;</span><span class="n">DefaultContainer</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">BlobContainerConfiguration</span><span class="p">&gt;</span> <span class="n">_containers</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">BlobContainerConfigurations</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_containers</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">BlobContainerConfiguration</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 添加默认的 BLOB 容器。</span>
+</span></span><span class="line"><span class="cl"><span class="na">            [BlobContainerNameAttribute.GetContainerName&lt;DefaultContainer&gt;()]</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BlobContainerConfiguration</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">};</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">BlobContainerConfigurations</span> <span class="n">Configure</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl"><span class="na">        [NotNull]</span> <span class="kt">string</span> <span class="n">name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"><span class="na">        [NotNull]</span> <span class="n">Action</span><span class="p">&lt;</span><span class="n">BlobContainerConfiguration</span><span class="p">&gt;</span> <span class="n">configureAction</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Check</span><span class="p">.</span><span class="n">NotNullOrWhiteSpace</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">name</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="n">configureAction</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">configureAction</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">configureAction</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">_containers</span><span class="p">.</span><span class="n">GetOrAdd</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="p">()</span> <span class="p">=&gt;</span> <span class="k">new</span> <span class="n">BlobContainerConfiguration</span><span class="p">(</span><span class="n">Default</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">this</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">BlobContainerConfigurations</span> <span class="n">ConfigureAll</span><span class="p">(</span><span class="n">Action</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">BlobContainerConfiguration</span><span class="p">&gt;</span> <span class="n">configureAction</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">container</span> <span class="k">in</span> <span class="n">_containers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">configureAction</span><span class="p">(</span><span class="n">container</span><span class="p">.</span><span class="n">Key</span><span class="p">,</span> <span class="n">container</span><span class="p">.</span><span class="n">Value</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">this</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在使用过程中，我们在模块里面调用的 <code>Configure()</code> 方法，就会在字典添加一个新的 Item，并为其赋值。而 <code>ConfigureAll()</code> 就是遍历这个字典，为每个 BLOB 容器调用委托，以便进行配置。</p>
+<h5 id="2232-blob-的-provider-选择器">2.2.3.2 BLOB 的 Provider 选择器</h5>
+<p>在构造 BLOB 容器的时候，BLOB 容器工厂通过 <code>IBlobProviderSelector</code> 来选择对应的 BLOB Provider，具体选择哪一个是根据 <code>BlobContainerConfiguration</code> 里面的 <code>ProviderType</code> 决定的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="n">IBlobProvider</span> <span class="n">Get</span><span class="p">([</span><span class="n">NotNull</span><span class="p">]</span> <span class="kt">string</span> <span class="n">containerName</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="n">containerName</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">containerName</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得当前 BLOB 容器对应的配置信息。</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">configuration</span> <span class="p">=</span> <span class="n">ConfigurationProvider</span><span class="p">.</span><span class="n">Get</span><span class="p">(</span><span class="n">containerName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">BlobProviders</span><span class="p">.</span><span class="n">Any</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span> <span class="k">new</span> <span class="n">AbpException</span><span class="p">(</span><span class="s">&#34;No BLOB Storage provider was registered! At least one provider must be registered to be able to use the Blog Storing System.&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">provider</span> <span class="k">in</span> <span class="n">BlobProviders</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 通过配置信息匹配对应的 Provider。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">ProxyHelper</span><span class="p">.</span><span class="n">GetUnProxiedType</span><span class="p">(</span><span class="n">provider</span><span class="p">).</span><span class="n">IsAssignableTo</span><span class="p">(</span><span class="n">configuration</span><span class="p">.</span><span class="n">ProviderType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">provider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">throw</span> <span class="k">new</span> <span class="n">AbpException</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="s">$&#34;Could not find the BLOB Storage provider with the type ({configuration.ProviderType.AssemblyQualifiedName}) configured for the container {containerName} and no default provider was set.&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>上面的 <code>BlobProviders</code> 其实就是直接从 IoC 解析的 <code>IEnumerable&lt;IBlobProvider&gt;</code> 对象，我还找了半天是哪个地方进行赋值的。当 ABP 框架自动之后，会自动将已经实现的 BLOB Provider 注入到 IoC 容器中，如果某个容器在使用时指定了对应的配置参数，则会匹配对应的 BLOB Provider。</p>
+<h3 id="23-provider-的实现">2.3 Provider 的实现</h3>
+<h4 id="231-file-system">2.3.1 File System</h4>
+<p>文件系统作为 BLOB 的最简化实现，本质就是通过文件夹进行租户隔离动作，所有操作都会将数据持久化到硬盘上。核心代码就一个文件 <code>FileSystemBlobProvider</code>，在这个文件内部定义了具体的执行逻辑，我们这里大概看一下 <code>SaveAsyn()</code> 的实现。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">SaveAsync</span><span class="p">(</span><span class="n">BlobProviderSaveArgs</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">filePath</span> <span class="p">=</span> <span class="n">FilePathCalculator</span><span class="p">.</span><span class="n">Calculate</span><span class="p">(</span><span class="n">args</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">args</span><span class="p">.</span><span class="n">OverrideExisting</span> <span class="p">&amp;&amp;</span> <span class="k">await</span> <span class="n">ExistsAsync</span><span class="p">(</span><span class="n">filePath</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span> <span class="k">new</span> <span class="n">BlobAlreadyExistsException</span><span class="p">(</span><span class="s">$&#34;Saving BLOB &#39;{args.BlobName}&#39; does already exists in the container &#39;{args.ContainerName}&#39;! Set {nameof(args.OverrideExisting)} if it should be overwritten.&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">DirectoryHelper</span><span class="p">.</span><span class="n">CreateIfNotExists</span><span class="p">(</span><span class="n">Path</span><span class="p">.</span><span class="n">GetDirectoryName</span><span class="p">(</span><span class="n">filePath</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">fileMode</span> <span class="p">=</span> <span class="n">args</span><span class="p">.</span><span class="n">OverrideExisting</span>
+</span></span><span class="line"><span class="cl">        <span class="p">?</span> <span class="n">FileMode</span><span class="p">.</span><span class="n">Create</span>
+</span></span><span class="line"><span class="cl">        <span class="p">:</span> <span class="n">FileMode</span><span class="p">.</span><span class="n">CreateNew</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">await</span> <span class="n">Policy</span><span class="p">.</span><span class="n">Handle</span><span class="p">&lt;</span><span class="n">IOException</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">WaitAndRetryAsync</span><span class="p">(</span><span class="m">2</span><span class="p">,</span> <span class="n">retryCount</span> <span class="p">=&gt;</span> <span class="n">TimeSpan</span><span class="p">.</span><span class="n">FromSeconds</span><span class="p">(</span><span class="n">retryCount</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">ExecuteAsync</span><span class="p">(</span><span class="k">async</span> <span class="p">()</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">fileStream</span> <span class="p">=</span> <span class="n">File</span><span class="p">.</span><span class="n">Open</span><span class="p">(</span><span class="n">filePath</span><span class="p">,</span> <span class="n">fileMode</span><span class="p">,</span> <span class="n">FileAccess</span><span class="p">.</span><span class="n">Write</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">await</span> <span class="n">args</span><span class="p">.</span><span class="n">BlobStream</span><span class="p">.</span><span class="n">CopyToAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">fileStream</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">args</span><span class="p">.</span><span class="n">CancellationToken</span>
+</span></span><span class="line"><span class="cl">                <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="k">await</span> <span class="n">fileStream</span><span class="p">.</span><span class="n">FlushAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">});</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>很简单，通过 <code>FilePathCalculator </code>计算出来文件的具体路径，然后结合配置参数来判断文件是否存在，以及是否进入后续操作。通过 <strong>Polly</strong> 提供的重试机制来创建文件。</p>
+<h4 id="232-database">2.3.2 DataBase</h4>
+<p>数据库 Provider 是利用数据库的 BLOB 类型，将这些大型对象存储到数据库当中，不太建议这样操作。这里不再进行详细介绍，基本大同小异。</p>
+<h4 id="233-各类-oss-腾讯云为例">2.3.3 各类 OSS (腾讯云为例)</h4>
+<p>OSS 作为云厂商的标配，基本概念和操作都与 ABP 的 BLOB 相匹配，集成起来也还是比较简单，就是将各个 OSS 的 SDK 塞进来就行。这里注意点的是，每个 BLOB Provider 都会编写一个基于 <code>BlobContainerConfiguration</code> 类型的静态方法，取名都叫做 <code>UseXXX()</code>，并在里面对具体的配置进行赋值。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">TencentCloudBlobContainerConfigurationExtensions</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="n">TencentCloudBlobProviderConfiguration</span> <span class="n">GetTencentCloudConfiguration</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="k">this</span> <span class="n">BlobContainerConfiguration</span> <span class="n">containerConfiguration</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">new</span> <span class="n">TencentCloudBlobProviderConfiguration</span><span class="p">(</span><span class="n">containerConfiguration</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="n">BlobContainerConfiguration</span> <span class="n">UseTencentCloud</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="k">this</span> <span class="n">BlobContainerConfiguration</span> <span class="n">containerConfiguration</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Action</span><span class="p">&lt;</span><span class="n">TencentCloudBlobProviderConfiguration</span><span class="p">&gt;</span> <span class="n">tencentCloudConfigureAction</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">containerConfiguration</span><span class="p">.</span><span class="n">ProviderType</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">TencentCloudBlobProvider</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">containerConfiguration</span><span class="p">.</span><span class="n">NamingNormalizers</span><span class="p">.</span><span class="n">TryAdd</span><span class="p">&lt;</span><span class="n">TencentCloudBlobNamingNormalizer</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="n">tencentCloudConfigureAction</span><span class="p">(</span><span class="k">new</span> <span class="n">TencentCloudBlobProviderConfiguration</span><span class="p">(</span><span class="n">containerConfiguration</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">containerConfiguration</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可能会对这个 <code>TencentCloudBlobProviderConfiguration</code> 有一些好奇，其实就是个套娃，因为直接传入了 <code>BlobContainerConfiguration</code> 对象，里面的各种属性本质上就是对配置项的那个 <code>Dictionary&lt;string,object&gt;</code> 进行操作。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TencentCloudBlobProviderConfiguration</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">AppId</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">get</span> <span class="p">=&gt;</span> <span class="n">_containerConfiguration</span><span class="p">.</span><span class="n">GetConfigurationOrDefault</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;(</span><span class="n">TencentCloudBlobProviderConfigurationNames</span><span class="p">.</span><span class="n">AppId</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">set</span> <span class="p">=&gt;</span> <span class="n">_containerConfiguration</span><span class="p">.</span><span class="n">SetConfiguration</span><span class="p">(</span><span class="n">TencentCloudBlobProviderConfigurationNames</span><span class="p">.</span><span class="n">AppId</span><span class="p">,</span> <span class="k">value</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">SecretId</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">get</span> <span class="p">=&gt;</span> <span class="n">_containerConfiguration</span><span class="p">.</span><span class="n">GetConfigurationOrDefault</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;(</span><span class="n">TencentCloudBlobProviderConfigurationNames</span><span class="p">.</span><span class="n">SecretId</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">set</span> <span class="p">=&gt;</span> <span class="n">_containerConfiguration</span><span class="p">.</span><span class="n">SetConfiguration</span><span class="p">(</span><span class="n">TencentCloudBlobProviderConfigurationNames</span><span class="p">.</span><span class="n">SecretId</span><span class="p">,</span> <span class="k">value</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TencentCloudBlobProviderConfiguration</span><span class="p">(</span><span class="n">BlobContainerConfiguration</span> <span class="n">containerConfiguration</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_containerConfiguration</span> <span class="p">=</span> <span class="n">containerConfiguration</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>腾讯云的 BLOB Provider 仓库：https://github.com/EasyAbp/Abp.BlobStoring.TencentCloud</p>
+<h3 id="24-回顾">2.4 回顾</h3>
+<ol>
+<li>开发人员可以在模块的 <code>ConfigureService()</code> 阶段为所有容器或者特定容器指定参数。</li>
+<li>ABP vNext 框架会注入所有的 BLOB Provider，并注入默认的 <code>IBlobContainer&lt;DefaultContainer&gt;</code> 容器和其他的类型化容器实现。</li>
+<li>当需要使用 BLOB 时，开发人员注入了 <code>IBlobContainer</code> 或 <code>IBlobContainer&lt;T&gt;</code>。</li>
+<li>BLOB 容器的工厂会根据容器的名称匹配对应的 BLOB Provider 和配置对象。</li>
+<li>BLOB Provider 根据 **Args 参数内部附带的配置对象，读取对应的配置信息进行自定义的操作。</li>
+</ol>
+<h2 id="三总结">三、总结</h2>
+<p>小型项目直接集成 FileSystem 即可，中大型项目可以使用各种 OSS Provider，BLOB 系统可以简化开发人员对于大量二进制文件的管理操作。最近工作相当杂乱繁忙，下半年希望有时间继续学习更新吧。</p>
+<p>其他相关文章，请参阅 <strong><a class="link" href="https://www.cnblogs.com/myzony/p/10722506.html"  target="_blank" rel="noopener"
+    >文章目录</a></strong> 。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/abp-vnext/">ABP vNext</a>
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/asp.net-core/">ASP.NET Core</a>
+        
+            <a href="/tags/asp.net-core-mvc/">ASP.NET Core MVC</a>
+        
+            <a href="/tags/blob/">BLOB</a>
+        
+            <a href="/tags/oss/">OSS</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---12-background-jobs-and-background-workers/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 12. 后台作业与后台工作者</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---6-ddd-application-layer-support-application-service/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 6. DDD 的应用层支持 (应用服务)</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---1-framework-startup-process-analysis/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 1. 框架启动流程分析</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/aspnet-core-removes-a-registered-filter/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">ASP.NET Core 移除已注册的过滤器</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/ignore-invalid-property-values-during-json-serialization/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">JSON 序列化的时候忽略无效的属性值</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一简介">一、简介</a></li>
+    <li><a href="#二源码分析">二、源码分析</a>
+      <ol>
+        <li><a href="#21-模块分析">2.1 模块分析</a></li>
+        <li><a href="#22-blob-容器">2.2 BLOB 容器</a>
+          <ol>
+            <li><a href="#221-容器的定义">2.2.1 容器的定义</a></li>
+            <li><a href="#222-容器的实现">2.2.2 容器的实现</a></li>
+            <li><a href="#223-容器的构造与初始化">2.2.3 容器的构造与初始化</a></li>
+          </ol>
+        </li>
+        <li><a href="#23-provider-的实现">2.3 Provider 的实现</a>
+          <ol>
+            <li><a href="#231-file-system">2.3.1 File System</a></li>
+            <li><a href="#232-database">2.3.2 DataBase</a></li>
+            <li><a href="#233-各类-oss-腾讯云为例">2.3.3 各类 OSS (腾讯云为例)</a></li>
+          </ol>
+        </li>
+        <li><a href="#24-回顾">2.4 回顾</a></li>
+      </ol>
+    </li>
+    <li><a href="#三总结">三、总结</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>
