@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-cn" dir="ltr">
     <head>
-	<meta name="generator" content="Hugo 0.104.0" /><meta charset='utf-8'>
+	<meta name="generator" content="Hugo 0.104.1" /><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='A .NET Developer'><title>演示站点</title>
 
 <link rel='canonical' href='https://example.com/'>
@@ -10,7 +10,7 @@
 <meta property='og:description' content='A .NET Developer'>
 <meta property='og:url' content='https://example.com/'>
 <meta property='og:site_name' content='演示站点'>
-<meta property='og:type' content='website'><meta property='og:updated_time' content=' 2022-05-18T11:51:00&#43;00:00 '/>
+<meta property='og:type' content='website'><meta property='og:updated_time' content=' 2022-08-12T19:00:00&#43;00:00 '/>
 <meta name="twitter:title" content="演示站点">
 <meta name="twitter:description" content="A .NET Developer"><link rel="alternate" type="application/rss&#43;xml" href="https://example.com/index.xml">
     </head>
@@ -261,16 +261,72 @@
 
     <div class="article-title-wrapper">
         <h2 class="article-title">
-            <a href="/p/talking-about-module-system-and-abp-framework-initialization/">浅谈模块系统与 ABP 框架初始化</a>
+            <a href="/p/use-csharp-to-implement-the-analysis-and-coding-of-cj-t188-water-meter-protocol-and-dl-t645-electricity-meter-protocol/">使用 C# 实现 CJ-T188 水表协议和 DL-T645 电表协议的解析与编码</a>
         </h2>
 
         
         <div class="article-subtitle">
-            在 ABP 框架当中所有库以及项目都是以模块的形式存在，所有模块都是继承自AbpModule 这个抽象基类，每个模块都拥有四个生命周期。分别是：
-PreInitialze(); Initialize(); PostInitialize(): ShutDown(); AddAbp() 在初始化 ABP 框架的时候，通过 services.AddAbp&lt;AbpTestMulitPageWebHostModule&gt;方法将启动模块作为泛型参数传入到 AddAbp 当中。 之后根据传入的启动模块，初始化 AbpBootstrapper，在 AbpBootstrapper 初始化的时候执行拦截器注册等操作。 之后配置 Asp Net Core 相关服务，替换控制器、视图组件、过滤器等默认实现，改用ABP 框架的实现，并且将 Ioc 容器替换为 CastleWindsor。
-app.UseAbp() 之前的 AddAbp 仅仅是在 ConfigureService 注入服务，紧接着就会在 Configure方法启用 Abp 中间件。
-1 2 3 4 5 private static void InitializeAbp(IApplicationBuilder app) { var abpBootstrapper = app.ApplicationServices.GetRequiredService&lt;AbpBootstrapper&gt;(); abpBootstrapper.Initialize(); } 可以看到在初始化 ABP 的时候，实际上是从 Ioc 容器中解析出 AbpBootStrapper 调用它的初始化方法。
-AbpBootStrapper.Initialize() 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 public virtual void Initialize() { ResolveLogger(); try { RegisterBootstrapper(); IocManager.
+            <h2 id="一协议的定义">一、协议的定义</h2>
+<p>要对某种协议进行编解码操作，就必须知道协议的基本定义，首先我们来看一下 CJ/T188 的数据帧定义(协议定义)，了解请求数据与响应数据的基本结构。</p>
+<h3 id="11-cjt188-水表通讯协议">1.1 CJ/T188 水表通讯协议</h3>
+<p><strong>请求帧：</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">字节</th>
+<th style="text-align:left">值</th>
+<th style="text-align:left">描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">0</td>
+<td style="text-align:left">0x68</td>
+<td style="text-align:left">数据帧开始标识。</td>
+</tr>
+<tr>
+<td style="text-align:left">1</td>
+<td style="text-align:left">T</td>
+<td style="text-align:left">表计类型代码，详细信息请参考 <em>表计类型表</em> 。</td>
+</tr>
+<tr>
+<td style="text-align:left">2-8</td>
+<td style="text-align:left">A0-A6</td>
+<td style="text-align:left">表计地址，水表设备的具体地址，这里是 <strong>BCD</strong> 形式。</td>
+</tr>
+<tr>
+<td style="text-align:left">9</td>
+<td style="text-align:left">CTR_01</td>
+<td style="text-align:left">协议控制码，例如 0x1 就是读表数据。</td>
+</tr>
+<tr>
+<td style="text-align:left">10</td>
+<td style="text-align:left">0x3</td>
+<td style="text-align:left">数据域长度。</td>
+</tr>
+<tr>
+<td style="text-align:left">11-12</td>
+<td style="text-align:left">0x1F,0x90</td>
+<td style="text-align:left">数据标识 DI0-DI1。</td>
+</tr>
+<tr>
+<td style="text-align:left">13</td>
+<td style="text-align:left">0x00</td>
+<td style="text-align:left">序列号，一般为 0x00，序列号也被作为整个数据域的长度。</td>
+</tr>
+<tr>
+<td style="text-align:left">14</td>
+<td style="text-align:left">CS</td>
+<td style="text-align:left">表示校验和数据，即 0-13 位置的所有字节的累加和。</td>
+</tr>
+<tr>
+<td style="text-align:left">15</td>
+<td style="text-align:left">0x16</td>
+<td style="text-align:left">数据帧的结束标识。</td>
+</tr>
+</tbody>
+</table>
+<p>例如有以下请求帧数据(读取水表数据)：</p>
             </h3>
         </div>
         
@@ -289,7 +345,282 @@ AbpBootStrapper.Initialize() 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 pub
   <path d="M3 11h16" />
   <path d="M18 16.496v1.504l1 1" />
 </svg>
-            <time class="article-time--published">Jan 27, 2018</time>
+            <time class="article-time--published">May 21, 2019</time>
+        </div>
+        
+
+        
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+            <time class="article-time--reading">
+                阅读时长: 8 分钟
+            </time>
+        </div>
+        <div>
+            <a href="/p/use-csharp-to-implement-the-analysis-and-coding-of-cj-t188-water-meter-protocol-and-dl-t645-electricity-meter-protocol/">Read More…</a>
+        </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+</article>
+        
+            
+<article class="">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/when-devexpress-uses-gridcontrol-the-data-source-cannot-be-updated-immediately/">DevExpress 使用 GridControl 时，数据源无法立即更新的问题</a>
+        </h2>
+
+        
+        <div class="article-subtitle">
+            <h2 id="背景">背景</h2>
+<p>在使用 DevExpress 的 GridControl 为其实现 Checkbox 列，发现如果勾选了三行的数据，在遍历 GridControl 绑定的数据源时 Checkbox 列的数据仅有 2 行被更新。</p>
+<h2 id="原因">原因</h2>
+<p>使用 Google 搜索了半天，在 DevExpress 的 <strong><a class="link" href="https://www.devexpress.com/Support/Center/Question/Details/Q413632/checkbox-not-immediately-updating-an-underlying-bindinglist-until-i-move-off-of-the"  target="_blank" rel="noopener"
+    >Support</a></strong> 上找到了答案，似乎是需要手动调用 GridControl 关联 View 的 <code>PostEditor()</code> 方法。</p>
+            </h3>
+        </div>
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+            <time class="article-time--published">May 20, 2019</time>
+        </div>
+        
+
+        
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+            <time class="article-time--reading">
+                阅读时长: 1 分钟
+            </time>
+        </div>
+        <div>
+            <a href="/p/when-devexpress-uses-gridcontrol-the-data-source-cannot-be-updated-immediately/">Read More…</a>
+        </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+</article>
+        
+            
+<article class="">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/csharp-checksum-converts-hexadecimal-string-to-byte-array/">C# 校验并转换 16 进制字符串到字节数组</a>
+        </h2>
+
+        
+        <div class="article-subtitle">
+            <h2 id="问题">问题</h2>
+<p>最近在进行硬件上位机开发的时候，经常会遇到将 16 进制字符串转换为 <code>byte[]</code> 的情况，除了这种需求以外，还需要判定一个字符串是否是有效的 16 进制数据。</p>
+            </h3>
+        </div>
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+            <time class="article-time--published">May 04, 2019</time>
+        </div>
+        
+
+        
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+            <time class="article-time--reading">
+                阅读时长: 1 分钟
+            </time>
+        </div>
+        <div>
+            <a href="/p/csharp-checksum-converts-hexadecimal-string-to-byte-array/">Read More…</a>
+        </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+</article>
+        
+            
+<article class="">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-vnext-source-code-analysis---3-dependency-injection-and-interceptor/">Abp vNext 源码分析 - 3. 依赖注入与拦截器</a>
+        </h2>
+
+        
+        <div class="article-subtitle">
+            <h2 id="一简要说明">一、简要说明</h2>
+<p>ABP vNext 框架在使用依赖注入服务的时候，是直接使用的微软提供的 <strong>Microsoft.Extensions.DependencyInjection</strong> 包。这里与原来的 ABP 框架就不一样了，原来的 ABP 框架还需要抽象出来一个 <code>IIocManager</code> 用来管理整个 IoC 容器，现在则直接操作 <code>IServiceCollection</code> 与 <code>IServiceProvider</code> 进行组件的注册/解析。</p>
+<p>这里需要注意的是，虽然现在的依赖注入服务是使用微软官方那一套库进行操作，但是 ABP vNext 还是为我们提供了组件自动注册、拦截器这些基础功能。</p>
+            </h3>
+        </div>
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+            <time class="article-time--published">Apr 23, 2019</time>
+        </div>
+        
+
+        
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+            <time class="article-time--reading">
+                阅读时长: 11 分钟
+            </time>
+        </div>
+        <div>
+            <a href="/p/abp-vnext-source-code-analysis---3-dependency-injection-and-interceptor/">Read More…</a>
+        </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+</article>
+        
+            
+<article class="">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-vnext-source-code-analysis---2-changes-in-the-module-system/">Abp vNext 源码分析 - 2. 模块系统的变化</a>
+        </h2>
+
+        
+        <div class="article-subtitle">
+            <h2 id="一简要说明">一、简要说明</h2>
+<p>本篇文章主要分析 Abp vNext 当中的模块系统，从类型构造层面上来看，Abp vNext 当中不再只是单纯的通过 <code>AbpModuleManager</code> 来管理其他的模块，它现在则是 <code>IModuleManager</code> 和 <code>IModuleLoader</code> 来协同工作，其他的代码逻辑并无太大变化。</p>
+<p>Abp vNext 规定每个模块必须继承自 <code>IAbpModule</code> 接口，这样 vNext 系统在启动的时候才会扫描到相应的模块。与原来 Abp 框架一样，每个模块可以通过 <code>DependsOnAttribute</code> 特性来确定依赖关系，算法还是使用拓扑排序算法，来根据依赖性确定模块的加载顺序。(从最顶层的模块，依次加载，直到启动模块。)</p>
+<p><img src="/p/abp-vnext-source-code-analysis---2-changes-in-the-module-system/1555576475508.png"
+	width="1308"
+	height="756"
+	srcset="/p/abp-vnext-source-code-analysis---2-changes-in-the-module-system/1555576475508_hu5d6de9c744f197311e431fde2d4146fc_36316_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---2-changes-in-the-module-system/1555576475508_hu5d6de9c744f197311e431fde2d4146fc_36316_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1555576475508"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="173"
+		data-flex-basis="415px"
+	
+></p>
+            </h3>
+        </div>
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+            <time class="article-time--published">Apr 19, 2019</time>
         </div>
         
 
@@ -308,273 +639,7 @@ AbpBootStrapper.Initialize() 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 pub
             </time>
         </div>
         <div>
-            <a href="/p/talking-about-module-system-and-abp-framework-initialization/">Read More…</a>
-        </div>
-        
-    </footer>
-    
-
-    
-</div>
-</header>
-</article>
-        
-            
-<article class="">
-    <header class="article-header">
-
-    <div class="article-details">
-    
-
-    <div class="article-title-wrapper">
-        <h2 class="article-title">
-            <a href="/p/talking-about-the-application-of-work-unit-in-the-whole-abp-framework/">浅谈工作单元 在整个 ABP 框架当中的应用</a>
-        </h2>
-
-        
-        <div class="article-subtitle">
-            ABP在其内部实现了工作单元模式，统一地进行事务与连接管理。 其核心就是通过 Castle 的 Dynamic Proxy 进行动态代理，在组件注册的时候进行拦截器注入，拦截到实现了 Unit Of Work 特性的方法进行操作，在执行完方法之后就会关闭掉工作单元。
-其整体流程大概如下：
-首先 UOW 相关接口、拦截器等通过 IocManager 注入到 Ioc 容器当中。 监听 Ioc 注册事件，并为其添加方法拦截器。 在拦截器内部使用 using 包裹数据库操作方法，使其成为一个工作单元。 一旦在方法 procced 执行的时候，产生任何异常触发任何异常都不会执行 Complete 方法，直接抛出终止执行。 UnitOfWorkInterceptors 这是一个 Castle Interceptors 的实现，在 AbpBootStrap 的 Initialze 方法当中被注入到 Ioc 容器。
-1 2 3 4 5 6 7 8 private void AddInterceptorRegistrars() { ValidationInterceptorRegistrar.Initialize(IocManager); AuditingInterceptorRegistrar.Initialize(IocManager); EntityHistoryInterceptorRegistrar.Initialize(IocManager); UnitOfWorkRegistrar.Initialize(IocManager); AuthorizationInterceptorRegistrar.Initialize(IocManager); } 之后在 Registrar 内部针对组件注入事件进行绑定：
-1 2 3 4 5 6 7 8 9 public static void Initialize(IIocManager iocManager) { iocManager.
-            </h3>
-        </div>
-        
-    </div>
-
-    
-    <footer class="article-time">
-        
-        <div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
-  <circle cx="18" cy="18" r="4" />
-  <path d="M15 3v4" />
-  <path d="M7 3v4" />
-  <path d="M3 11h16" />
-  <path d="M18 16.496v1.504l1 1" />
-</svg>
-            <time class="article-time--published">Jan 26, 2018</time>
-        </div>
-        
-
-        
-        <div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="12" cy="12" r="9" />
-  <polyline points="12 7 12 12 15 15" />
-</svg>
-
-
-
-            <time class="article-time--reading">
-                阅读时长: 6 分钟
-            </time>
-        </div>
-        <div>
-            <a href="/p/talking-about-the-application-of-work-unit-in-the-whole-abp-framework/">Read More…</a>
-        </div>
-        
-    </footer>
-    
-
-    
-</div>
-</header>
-</article>
-        
-            
-<article class="">
-    <header class="article-header">
-
-    <div class="article-details">
-    
-
-    <div class="article-title-wrapper">
-        <h2 class="article-title">
-            <a href="/p/design-patterns-creative-patterns-factory-methods/">设计模式(创建型模式)：工厂方法</a>
-        </h2>
-
-        
-        <div class="article-subtitle">
-            介绍完简单工厂之后，现在就来介绍一下工厂方法模式。之前简单工厂有一个弊端就是每次你需要产生新的产品的时候都需要对创建工厂类进行更改，如同前一篇文章说过的一样最后的后果是工厂类会变得十分庞大。 而工厂方法模式就是对简单工厂的进一步抽象，引入了抽象工厂，而具体的产品则由具体的产品工厂来进行构建。从而将创建对象的工作从一个工厂当中分离出来，转而延迟到具体的产品工厂来进行实例化。 所以，在工厂方法模式当中，由这 4 个对象构成：
-抽象工厂 具体工厂 抽象产品 具体产品 抽象工厂用于用于定义创建产品等抽象方法，而具体工厂则实习现这些接口用来创建具体产品。我们用来代码来实现。 抽象工厂: 1 2 3 4 public abstract class AbsFactory { public abstract Food CreateFood(); } 具体工厂A:
-1 2 3 4 5 6 7 public class FactoryA : AbsFactory { public override Food CreateFood() { return new FoodA(); } } 具体工厂B:
-1 2 3 4 5 6 7 public class FactoryB : AbsFactory { public override Food CreateFood() { return new FoodB(); } } 抽象产品:
-            </h3>
-        </div>
-        
-    </div>
-
-    
-    <footer class="article-time">
-        
-        <div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
-  <circle cx="18" cy="18" r="4" />
-  <path d="M15 3v4" />
-  <path d="M7 3v4" />
-  <path d="M3 11h16" />
-  <path d="M18 16.496v1.504l1 1" />
-</svg>
-            <time class="article-time--published">Jan 26, 2018</time>
-        </div>
-        
-
-        
-        <div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="12" cy="12" r="9" />
-  <polyline points="12 7 12 12 15 15" />
-</svg>
-
-
-
-            <time class="article-time--reading">
-                阅读时长: 1 分钟
-            </time>
-        </div>
-        <div>
-            <a href="/p/design-patterns-creative-patterns-factory-methods/">Read More…</a>
-        </div>
-        
-    </footer>
-    
-
-    
-</div>
-</header>
-</article>
-        
-            
-<article class="">
-    <header class="article-header">
-
-    <div class="article-details">
-    
-
-    <div class="article-title-wrapper">
-        <h2 class="article-title">
-            <a href="/p/design-patterns-creative-patterns-simple-factory/">设计模式(创建型模式)：简单工厂</a>
-        </h2>
-
-        
-        <div class="article-subtitle">
-            在设计模式当中有三大工厂，分别是 简单工厂、抽象工厂、工厂方法 这三种创建实例的设计模式，这里先从简单工厂将其，从名字就可以看出这是这三种工厂模式当中最为简单的一种实现。 简单工厂一般由以下几个对象组成：
-对象 作用 工厂类 负责创建产品 抽象产品类 工厂创建出来的产品抽象 具体产品类 继承自抽象产品类，具体的产品功能 那么我们为什么不直接 new 一个对象来执行操作呢？如果有以下代码:
-1 2 3 4 5 6 7 8 public class BusinessClass { public void Process() { Car _car = new Car(); _car.Run(); } } 这么写的话，一旦我们业务逻辑发生变化，我不想创建 Car 对象了，我想创建一个 AirPlane 对象，他也具有 Run 方法，这个时候这种写法就很尴尬了，我需要在后面加一个 AirPlane air = new AirPlane() 然后再 Run。 而工厂模式则将创建与使用分离开来，用户不用关心怎么创建的，只需要告诉工厂你需要哪种类型的对象，我给你创建好，你直接调用即可。乍一看来没有什么改变，但之前直接 new 对象的方式则造成 BusinessClass 对于 Car 等对象造成了一种依赖关系。 换句话说，如果按照上面那种方式书写，BusinessClass 则是依赖于 Car 对象的，而简单工厂则是降低对象之间的耦合度(依赖)的。 在上面的例子中，我们要封装他们的改变，他们之间改变的地方在于实例的创建，那么我们封装之后就由工厂来进行创建，便有以下代码： 抽象产品类：
-1 2 3 4 public abstract class Product { void Run(); } 再有一个工厂类:
-            </h3>
-        </div>
-        
-    </div>
-
-    
-    <footer class="article-time">
-        
-        <div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
-  <circle cx="18" cy="18" r="4" />
-  <path d="M15 3v4" />
-  <path d="M7 3v4" />
-  <path d="M3 11h16" />
-  <path d="M18 16.496v1.504l1 1" />
-</svg>
-            <time class="article-time--published">Jan 25, 2018</time>
-        </div>
-        
-
-        
-        <div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="12" cy="12" r="9" />
-  <polyline points="12 7 12 12 15 15" />
-</svg>
-
-
-
-            <time class="article-time--reading">
-                阅读时长: 1 分钟
-            </time>
-        </div>
-        <div>
-            <a href="/p/design-patterns-creative-patterns-simple-factory/">Read More…</a>
-        </div>
-        
-    </footer>
-    
-
-    
-</div>
-</header>
-</article>
-        
-            
-<article class="">
-    <header class="article-header">
-
-    <div class="article-details">
-    
-
-    <div class="article-title-wrapper">
-        <h2 class="article-title">
-            <a href="/p/design-pattern-creative-pattern-singleton-pattern/">设计模式(创建型模式)：单例模式</a>
-        </h2>
-
-        
-        <div class="article-subtitle">
-            单例模式用于在整个软件系统当中保持唯一实例，在 C# 当中最能够体现此概念的就是静态类，静态类的生命周期是跟随整个程序，并且在整个程序中仅保有一个实例。
-不过在这里我们不再详细阐述单例模式与静态类有什么区别，如果有兴趣的话可以查看 这篇博文 和 这篇博文。
-这里说一下个人的理解：
-单例模式可以用实现接口与继承，而静态类是无法实现的。 单例模式可以方便进行 Mock 测试。 单例对象可以很方便的进行替换。 静态类/静态方法更多的是用于工具类方法，是无状态的。 为了保证我们的对象是全局唯一的，那么我们肯定不能够通过 new 来创建单例对象，所以我们首先要将其构造函数设为私有的，其次我们肯定要有一个 static 字段来保存我们唯一的实例化对象。 既然不能通过 new 来实例化对象，则需要提供一个全局访问点。下面我们就来看一下具体实现：
-1 2 3 4 5 6 7 8 9 10 11 public class SingletonImplementation { private static SingletonImplementation m_instance; private SingletonImplementation(){} public static SingletonImplementation GetInstance() { if(m_instance == null) m_instance = new SingletonImplementation(); return m_instance; } } 实现起来是相当简单的，这里我们将构造函数设置为私有的，然后通过 GetInstance 方法来取得对象的实例。其实这里可以改用一个静态属性来实现，更加方便。 如果考虑到线程安全的话，就需要加一个 locker 来保证访问不会重复创建对象。因为如果在多线程环境当中调用这个静态类的时候，可能在同一时间都会访问到 m_instance，这个时候 m_instance 都为空的情况下就会连续创建两次实例，这就违背了初衷。最简单的方法就是加锁，让 m_instance 在同一时间只能一个线程访问这个对象。
-            </h3>
-        </div>
-        
-    </div>
-
-    
-    <footer class="article-time">
-        
-        <div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
-  <circle cx="18" cy="18" r="4" />
-  <path d="M15 3v4" />
-  <path d="M7 3v4" />
-  <path d="M3 11h16" />
-  <path d="M18 16.496v1.504l1 1" />
-</svg>
-            <time class="article-time--published">Jan 24, 2018</time>
-        </div>
-        
-
-        
-        <div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="12" cy="12" r="9" />
-  <polyline points="12 7 12 12 15 15" />
-</svg>
-
-
-
-            <time class="article-time--reading">
-                阅读时长: 1 分钟
-            </time>
-        </div>
-        <div>
-            <a href="/p/design-pattern-creative-pattern-singleton-pattern/">Read More…</a>
+            <a href="/p/abp-vnext-source-code-analysis---2-changes-in-the-module-system/">Read More…</a>
         </div>
         
     </footer>
@@ -694,7 +759,79 @@ AbpBootStrapper.Initialize() 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 pub
                 
             
             
-                    <a class='page-link' href='/page/25/'>25</a>
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    
+                
+            
+            
+                    <a class='page-link' href='/page/43/'>43</a>
                 
             
     </nav>
@@ -760,7 +897,15 @@ AbpBootStrapper.Initialize() 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 pub
                     <a href="/archives/#2022">
                         
                             <span class="year">2022</span>
-                            <span class="count">1</span>
+                            <span class="count">2</span>
+                        
+                    </a> 
+                </div>
+            <div class="archives-year">
+                    <a href="/archives/#2021">
+                        
+                            <span class="year">2021</span>
+                            <span class="count">4</span>
                         
                     </a> 
                 </div>
@@ -768,7 +913,7 @@ AbpBootStrapper.Initialize() 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 pub
                     <a href="/archives/#2020">
                         
                             <span class="year">2020</span>
-                            <span class="count">2</span>
+                            <span class="count">8</span>
                         
                     </a> 
                 </div>
@@ -776,7 +921,7 @@ AbpBootStrapper.Initialize() 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 pub
                     <a href="/archives/#2019">
                         
                             <span class="year">2019</span>
-                            <span class="count">22</span>
+                            <span class="count">49</span>
                         
                     </a> 
                 </div>
@@ -784,20 +929,12 @@ AbpBootStrapper.Initialize() 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 pub
                     <a href="/archives/#2018">
                         
                             <span class="year">2018</span>
-                            <span class="count">17</span>
+                            <span class="count">53</span>
                         
                     </a> 
                 </div>
             <div class="archives-year">
                     <a href="/archives/#2017">
-                        
-                            <span class="year">2017</span>
-                            <span class="count">27</span>
-                        
-                    </a> 
-                </div>
-            <div class="archives-year">
-                    <a href="/archives/#2016">
                         
                             <span class="year">更多</span>
                         
@@ -847,44 +984,44 @@ AbpBootStrapper.Initialize() 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 pub
 
     <div class="tagCloud-tags">
         
-            <a href="/tags/c#/" class="font_size_80">
+            <a href="/tags/c#/" class="font_size_143">
                 C#
             </a>
         
-            <a href="/tags/c&#43;&#43;/" class="font_size_17">
-                C&#43;&#43;
-            </a>
-        
-            <a href="/tags/asp.net-mvc/" class="font_size_12">
-                ASP.NET MVC
-            </a>
-        
-            <a href="/tags/linux/" class="font_size_12">
-                Linux
-            </a>
-        
-            <a href="/tags/abp/" class="font_size_11">
+            <a href="/tags/abp/" class="font_size_50">
                 ABP
             </a>
         
-            <a href="/tags/.net-core/" class="font_size_10">
+            <a href="/tags/.net-core/" class="font_size_38">
                 .NET Core
             </a>
         
-            <a href="/tags/asp.net/" class="font_size_9">
-                ASP.NET
-            </a>
-        
-            <a href="/tags/asp.net-core/" class="font_size_8">
+            <a href="/tags/asp.net-core/" class="font_size_30">
                 ASP.NET Core
             </a>
         
-            <a href="/tags/aspnetboilerplate/" class="font_size_7">
+            <a href="/tags/aspnetboilerplate/" class="font_size_26">
                 AspNetBoilerplate
             </a>
         
-            <a href="/tags/asp.net-core-mvc/" class="font_size_6">
+            <a href="/tags/asp.net-core-mvc/" class="font_size_23">
                 ASP.NET Core MVC
+            </a>
+        
+            <a href="/tags/linux/" class="font_size_23">
+                Linux
+            </a>
+        
+            <a href="/tags/abp-vnext/" class="font_size_22">
+                ABP vNext
+            </a>
+        
+            <a href="/tags/c&#43;&#43;/" class="font_size_21">
+                C&#43;&#43;
+            </a>
+        
+            <a href="/tags/asp.net-mvc/" class="font_size_14">
+                ASP.NET MVC
             </a>
         
     </div>

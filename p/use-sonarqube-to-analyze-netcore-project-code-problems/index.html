@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='0.介绍 Sonar 是一款开源的代码分析工具，可能有很多人已经用过，本篇文章主要是讲解如何在 Docker 里面安装 Sonar 并且用其来分析 .Net Core 项目。
+Sonar 是一个用于代码质量管理的开放平台。通过插件机制，Sonar 可以集成不同的测试工具，代码分析工具，以及持续集成工具。
+与持续集成工具（例如 Hudson/Jenkins 等）不同，Sonar 并不是简单地把不同的代码检查工具结果（例如 FindBugs，PMD 等）直接显示在 Web 页面上，而是通过不同的插件对这些结果进行再加工处理，通过量化的方式度量代码质量的变化，从而可以方便地对不同规模和种类的工程进行代码质量管理。
+1.安装 安装的话，秉承一贯的懒人原则，在本篇文章当中是直接使用的 Sonar 的 Docker 镜像来进行安装配置的。
+1.1 安装 Docker 安装 Docker-CE 的教程在我的**这篇文章**里面有讲到过，这里就不再多加赘述。
+1.2 建立私有网络 执行以下命令：
+1 docker network create sonar 将会创建一个 Docker 内部网络，名字为 sonar。
+1.2 启动 PostgreSql 容器 使用以下命令拉取 **PostgreSql **的镜像：
+1 docker pull postgres 然后我们启动一个 PostgreSql 容器，名字叫做 sonar-db。
+1 docker run -d --name sonar-db --network sonar -e POSTGRES_USER=sonar -e POSTGRES_PASSWORD=sonar postgres 这里启动容器的时候指定了容器的网络是 sonar-db ，那么后面在 sonar 容器启动的时候加入这个网络即可，其余两个环境变量是用作 PostgreSql 数据库默认的账号密码。'><title>使用 SonarQube 来分析 NetCore 项目代码问题</title>
+
+<link rel='canonical' href='https://example.com/p/use-sonarqube-to-analyze-netcore-project-code-problems/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='使用 SonarQube 来分析 NetCore 项目代码问题'>
+<meta property='og:description' content='0.介绍 Sonar 是一款开源的代码分析工具，可能有很多人已经用过，本篇文章主要是讲解如何在 Docker 里面安装 Sonar 并且用其来分析 .Net Core 项目。
+Sonar 是一个用于代码质量管理的开放平台。通过插件机制，Sonar 可以集成不同的测试工具，代码分析工具，以及持续集成工具。
+与持续集成工具（例如 Hudson/Jenkins 等）不同，Sonar 并不是简单地把不同的代码检查工具结果（例如 FindBugs，PMD 等）直接显示在 Web 页面上，而是通过不同的插件对这些结果进行再加工处理，通过量化的方式度量代码质量的变化，从而可以方便地对不同规模和种类的工程进行代码质量管理。
+1.安装 安装的话，秉承一贯的懒人原则，在本篇文章当中是直接使用的 Sonar 的 Docker 镜像来进行安装配置的。
+1.1 安装 Docker 安装 Docker-CE 的教程在我的**这篇文章**里面有讲到过，这里就不再多加赘述。
+1.2 建立私有网络 执行以下命令：
+1 docker network create sonar 将会创建一个 Docker 内部网络，名字为 sonar。
+1.2 启动 PostgreSql 容器 使用以下命令拉取 **PostgreSql **的镜像：
+1 docker pull postgres 然后我们启动一个 PostgreSql 容器，名字叫做 sonar-db。
+1 docker run -d --name sonar-db --network sonar -e POSTGRES_USER=sonar -e POSTGRES_PASSWORD=sonar postgres 这里启动容器的时候指定了容器的网络是 sonar-db ，那么后面在 sonar 容器启动的时候加入这个网络即可，其余两个环境变量是用作 PostgreSql 数据库默认的账号密码。'>
+<meta property='og:url' content='https://example.com/p/use-sonarqube-to-analyze-netcore-project-code-problems/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Linux' /><meta property='article:tag' content='SonarQube' /><meta property='article:tag' content='Docker' /><meta property='article:tag' content='.NET Core' /><meta property='article:published_time' content='2018-06-27T06:33:32&#43;00:00'/><meta property='article:modified_time' content='2018-06-27T06:33:32&#43;00:00'/>
+<meta name="twitter:title" content="使用 SonarQube 来分析 NetCore 项目代码问题">
+<meta name="twitter:description" content="0.介绍 Sonar 是一款开源的代码分析工具，可能有很多人已经用过，本篇文章主要是讲解如何在 Docker 里面安装 Sonar 并且用其来分析 .Net Core 项目。
+Sonar 是一个用于代码质量管理的开放平台。通过插件机制，Sonar 可以集成不同的测试工具，代码分析工具，以及持续集成工具。
+与持续集成工具（例如 Hudson/Jenkins 等）不同，Sonar 并不是简单地把不同的代码检查工具结果（例如 FindBugs，PMD 等）直接显示在 Web 页面上，而是通过不同的插件对这些结果进行再加工处理，通过量化的方式度量代码质量的变化，从而可以方便地对不同规模和种类的工程进行代码质量管理。
+1.安装 安装的话，秉承一贯的懒人原则，在本篇文章当中是直接使用的 Sonar 的 Docker 镜像来进行安装配置的。
+1.1 安装 Docker 安装 Docker-CE 的教程在我的**这篇文章**里面有讲到过，这里就不再多加赘述。
+1.2 建立私有网络 执行以下命令：
+1 docker network create sonar 将会创建一个 Docker 内部网络，名字为 sonar。
+1.2 启动 PostgreSql 容器 使用以下命令拉取 **PostgreSql **的镜像：
+1 docker pull postgres 然后我们启动一个 PostgreSql 容器，名字叫做 sonar-db。
+1 docker run -d --name sonar-db --network sonar -e POSTGRES_USER=sonar -e POSTGRES_PASSWORD=sonar postgres 这里启动容器的时候指定了容器的网络是 sonar-db ，那么后面在 sonar 容器启动的时候加入这个网络即可，其余两个环境变量是用作 PostgreSql 数据库默认的账号密码。">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/use-sonarqube-to-analyze-netcore-project-code-problems/">使用 SonarQube 来分析 NetCore 项目代码问题</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jun 27, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 3 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="0介绍">0.介绍</h2>
+<p>Sonar 是一款开源的代码分析工具，可能有很多人已经用过，本篇文章主要是讲解如何在 Docker 里面安装 Sonar 并且用其来分析 .Net Core 项目。</p>
+<blockquote>
+<p>Sonar 是一个用于代码质量管理的开放平台。通过插件机制，Sonar 可以集成不同的测试工具，代码分析工具，以及持续集成工具。</p>
+<p>与持续集成工具（例如 Hudson/Jenkins 等）不同，Sonar 并不是简单地把不同的代码检查工具结果（例如 FindBugs，PMD 等）直接显示在 Web 页面上，而是通过不同的插件对这些结果进行再加工处理，通过量化的方式度量代码质量的变化，从而可以方便地对不同规模和种类的工程进行代码质量管理。</p>
+</blockquote>
+<h2 id="1安装">1.安装</h2>
+<p>安装的话，秉承一贯的懒人原则，在本篇文章当中是直接使用的 Sonar 的 Docker 镜像来进行安装配置的。</p>
+<h3 id="11-安装-docker">1.1 安装 Docker</h3>
+<p>安装 Docker-CE 的教程在我的**<a class="link" href="https://blog.myzony.com/linux-xia-de-docker-an-zhuang-yu-shi-yong/"  target="_blank" rel="noopener"
+    >这篇文章</a>**里面有讲到过，这里就不再多加赘述。</p>
+<h3 id="12-建立私有网络">1.2 建立私有网络</h3>
+<p>执行以下命令：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker network create sonar
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>将会创建一个 Docker 内部网络，名字为 sonar。</p>
+<h3 id="12-启动-postgresql-容器">1.2 启动 PostgreSql 容器</h3>
+<p>使用以下命令拉取 **PostgreSql **的镜像：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker pull postgres
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>然后我们启动一个 <strong>PostgreSql</strong> 容器，名字叫做 sonar-db。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker run -d --name sonar-db --network sonar -e <span class="nv">POSTGRES_USER</span><span class="o">=</span>sonar -e <span class="nv">POSTGRES_PASSWORD</span><span class="o">=</span>sonar postgres
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里启动容器的时候指定了容器的网络是 sonar-db ，那么后面在 sonar 容器启动的时候加入这个网络即可，其余两个环境变量是用作 <strong>PostgreSql</strong> 数据库默认的账号密码。</p>
+<h3 id="13-启动-sonar-容器">1.3 启动 Sonar 容器</h3>
+<p>使用以下命令拉取 Sonar 镜像：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker pull sonarqube
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>启动 Sonar 容器：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker run -d --name sonar --network sonar -p 9000:9000 -p 9092:9092 -e <span class="nv">SONARQUBE_JDBC_USERNAME</span><span class="o">=</span>sonar -e <span class="nv">SONARQUBE_JDBC_PASSWORD</span><span class="o">=</span>sonar -e <span class="nv">SONARQUBE_JDBC_URL</span><span class="o">=</span>jdbc:postgresql://sonar-db:5432/sonar sonarqube
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>至此，我们的 Sonar 已经部署完成了，访问你服务器或者本地 IP 的 9000 端口即可看到我们最终的效果。</p>
+<p><img src="/p/use-sonarqube-to-analyze-netcore-project-code-problems/1530077974134.png"
+	width="1841"
+	height="957"
+	srcset="/p/use-sonarqube-to-analyze-netcore-project-code-problems/1530077974134_hu375d98fe585001b358769e98da190409_97431_480x0_resize_box_3.png 480w, /p/use-sonarqube-to-analyze-netcore-project-code-problems/1530077974134_hu375d98fe585001b358769e98da190409_97431_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1530077974134"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="192"
+		data-flex-basis="461px"
+	
+></p>
+<blockquote>
+<p>注意：在这里我们没有针对这两个容器进行数据卷挂载，挂载可以参考下列 YML 文件进行自己的配置，推荐在实际生产环境部署的时候使用 Docker-Compose 来进行部署。</p>
+</blockquote>
+<h3 id="13扩展使用-docker-compose-来运行-sonar">1.3：扩展：使用 Docker-Compose 来运行 Sonar</h3>
+<p>如果你每次都需要手动输入这么多命令，其实很麻烦的，在 Sonar 官方的 <strong><a class="link" href="https://github.com/SonarSource/docker-sonarqube/blob/master/recipes.md"  target="_blank" rel="noopener"
+    >GitHub</a></strong> 上面有一个 docker-compose.yml 文件，你直接通过 Docker-Compose 就可以运行好环境的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">version: <span class="s2">&#34;2&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">services:
+</span></span><span class="line"><span class="cl">  sonarqube:
+</span></span><span class="line"><span class="cl">    image: sonarqube
+</span></span><span class="line"><span class="cl">    ports:
+</span></span><span class="line"><span class="cl">      - <span class="s2">&#34;9000:9000&#34;</span>
+</span></span><span class="line"><span class="cl">    networks:
+</span></span><span class="line"><span class="cl">      - sonarnet
+</span></span><span class="line"><span class="cl">    environment:
+</span></span><span class="line"><span class="cl">      - <span class="nv">SONARQUBE_JDBC_URL</span><span class="o">=</span>jdbc:postgresql://db:5432/sonar
+</span></span><span class="line"><span class="cl">    volumes:
+</span></span><span class="line"><span class="cl">      - sonarqube_conf:/opt/sonarqube/conf
+</span></span><span class="line"><span class="cl">      - sonarqube_data:/opt/sonarqube/data
+</span></span><span class="line"><span class="cl">      - sonarqube_extensions:/opt/sonarqube/extensions
+</span></span><span class="line"><span class="cl">      - sonarqube_bundled-plugins:/opt/sonarqube/lib/bundled-plugins
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  db:
+</span></span><span class="line"><span class="cl">    image: postgres
+</span></span><span class="line"><span class="cl">    networks:
+</span></span><span class="line"><span class="cl">      - sonarnet
+</span></span><span class="line"><span class="cl">    environment:
+</span></span><span class="line"><span class="cl">      - <span class="nv">POSTGRES_USER</span><span class="o">=</span>sonar
+</span></span><span class="line"><span class="cl">      - <span class="nv">POSTGRES_PASSWORD</span><span class="o">=</span>sonar
+</span></span><span class="line"><span class="cl">    volumes:
+</span></span><span class="line"><span class="cl">      - postgresql:/var/lib/postgresql
+</span></span><span class="line"><span class="cl">      <span class="c1"># This needs explicit mapping due to https://github.com/docker-library/postgres/blob/4e48e3228a30763913ece952c611e5e9b95c8759/Dockerfile.template#L52</span>
+</span></span><span class="line"><span class="cl">      - postgresql_data:/var/lib/postgresql/data
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">networks:
+</span></span><span class="line"><span class="cl">  sonarnet:
+</span></span><span class="line"><span class="cl">    driver: bridge
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">volumes:
+</span></span><span class="line"><span class="cl">  sonarqube_conf:
+</span></span><span class="line"><span class="cl">  sonarqube_data:
+</span></span><span class="line"><span class="cl">  sonarqube_extensions:
+</span></span><span class="line"><span class="cl">  sonarqube_bundled-plugins:
+</span></span><span class="line"><span class="cl">  postgresql:
+</span></span><span class="line"><span class="cl">  postgresql_data:
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>将其保存到你的 Linux 服务器上，运行以下命令：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker-compose up
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>如果需要重启的话则运行以下命令即可：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker-compose restart sonarqube
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="14-新建项目">1.4 新建项目</h3>
+<p>Sonar 镜像安装的默认管理员账号和密码都是 admin，直接输入进入到 Sonar 的项目管理界面。</p>
+<p><img src="/p/use-sonarqube-to-analyze-netcore-project-code-problems/Command1.gif"
+	width="1281"
+	height="693"
+	srcset="/p/use-sonarqube-to-analyze-netcore-project-code-problems/Command1_hu5f0825f689a71b3eeb30fd85fd207da3_292398_480x0_resize_box.gif 480w, /p/use-sonarqube-to-analyze-netcore-project-code-problems/Command1_hu5f0825f689a71b3eeb30fd85fd207da3_292398_1024x0_resize_box.gif 1024w"
+	loading="lazy"
+	
+		alt="Command1"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="184"
+		data-flex-basis="443px"
+	
+></p>
+<p>步骤：</p>
+<ul>
+<li>首先输入你的项目名称，生成一个 Token。</li>
+<li>点击生成之后，点击 Continue ，这时候会提示你选择项目类型，并输入一个项目的唯一 Key，这里我还是输入的 TestProject。</li>
+<li>点击 Done 之后右边会生成相关的 Scanner 执行步骤，你可以 Copy 下来。</li>
+</ul>
+<h2 id="2分析">2.分析</h2>
+<p>如果你需要分析项目的话，有两种选择，第一种就是使用工具1，而如果你是拥有 DotNet Core 2.1 环境的话可以使用 Global Tool 来直接安装分析器。</p>
+<h3 id="21-安装-dotnet-scanner">2.1 安装 dotnet scanner</h3>
+<p>参照 <a class="link" href="https://docs.sonarqube.org/display/SCAN/Analyzing&#43;with&#43;SonarQube&#43;Scanner&#43;for&#43;MSBuild"  target="_blank" rel="noopener"
+    >Sonar 官方的文档</a> ，运行命令行工具，并且键入以下命令：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">dotnet tool install --global dotnet-sonarscanner --version 4.3.1
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>就成功安装好 Sonar Scanner 了。</p>
+<h3 id="22-分析项目">2.2 分析项目</h3>
+<p>跳转到你需要分析的项目的根目录，这里我新建了一个测试用的控制台程序，代码很简单，传入了一个 NULL 对象，并且判断这个变量不等于空。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">System</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">TestConsoleApp</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">class</span> <span class="nc">Program</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">string</span> <span class="n">c</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">c</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;不可能执行的代码.&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;Hello World!&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在命令行工具当中分步执行以下命令：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">dotnet sonarscanner begin /k:<span class="s2">&#34;TestProject&#34;</span> /d:sonar.host.url<span class="o">=</span><span class="s2">&#34;http://192.168.100.107:9000&#34;</span> /d:sonar.login<span class="o">=</span><span class="s2">&#34;cfe594fd605f2e4821835e43c69da82e489c2f23&#34;</span>
+</span></span><span class="line"><span class="cl">dotnet build
+</span></span><span class="line"><span class="cl">dotnet sonarscanner end /d:sonar.login<span class="o">=</span><span class="s2">&#34;cfe594fd605f2e4821835e43c69da82e489c2f23&#34;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里的 /k 指定你的项目，/d 这些参数分别是你 Sonar 的地址与你刚才生成的 Token。</p>
+<p>动图在这里：</p>
+<p><img src="/p/use-sonarqube-to-analyze-netcore-project-code-problems/Command2.gif"
+	width="997"
+	height="527"
+	srcset="/p/use-sonarqube-to-analyze-netcore-project-code-problems/Command2_hu110fe136db7432130b47528b7568f21e_1065613_480x0_resize_box.gif 480w, /p/use-sonarqube-to-analyze-netcore-project-code-problems/Command2_hu110fe136db7432130b47528b7568f21e_1065613_1024x0_resize_box.gif 1024w"
+	loading="lazy"
+	
+		alt="Command2"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="189"
+		data-flex-basis="454px"
+	
+></p>
+<h3 id="23-查看结果">2.3 查看结果</h3>
+<p>现在来到 Sonar 的站点就可以看到我们刚刚分析的结果啦。</p>
+<p><img src="/p/use-sonarqube-to-analyze-netcore-project-code-problems/1530079707597.png"
+	width="1520"
+	height="872"
+	srcset="/p/use-sonarqube-to-analyze-netcore-project-code-problems/1530079707597_hu2045a96e307563308140c6c6263ec679_102104_480x0_resize_box_3.png 480w, /p/use-sonarqube-to-analyze-netcore-project-code-problems/1530079707597_hu2045a96e307563308140c6c6263ec679_102104_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1530079707597"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="174"
+		data-flex-basis="418px"
+	
+></p>
+<p>可以看到说我有一个 BUG。</p>
+<p><img src="/p/use-sonarqube-to-analyze-netcore-project-code-problems/1530079727905.png"
+	width="1552"
+	height="769"
+	srcset="/p/use-sonarqube-to-analyze-netcore-project-code-problems/1530079727905_hud7b8f61f78398314f237230159827c4f_81892_480x0_resize_box_3.png 480w, /p/use-sonarqube-to-analyze-netcore-project-code-problems/1530079727905_hud7b8f61f78398314f237230159827c4f_81892_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1530079727905"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="201"
+		data-flex-basis="484px"
+	
+></p>
+<h2 id="3汉化">3.汉化</h2>
+<p>可能有的朋友需要中文界面，这个在 Sonar 社区里面提供了中文插件，地址如下 <a class="link" href="https://github.com/SonarQubeCommunity/sonar-l10n-zh"  target="_blank" rel="noopener"
+    >https://github.com/SonarQubeCommunity/sonar-l10n-zh</a>。你可以根据你的 Sonar 版本来选择下载安装哪一个版本的插件，博主目前是基于 Sonar 的 7.1 镜像的，所以下载的是 1.21 版本。</p>
+<p>下载完成之后，使用在之前运行容器的时候，加上 <code>-v</code> 参数，将容器目录 <code>/opt/sonarqube/extensions/plugins</code> 映射到你宿主机来，将你的这个文件拷贝到映射好的目录之下，然后重启 Sonar 容器即可。</p>
+<p>如果你是使用的 Docker-Compose 文件来运行的容器，只需要找到相应的卷，比如说博主插件的数据卷目录在</p>
+<p><code>/var/lib/docker/volumes/docker-ymls_sonarqube_extensions/_data </code>里面，我直接拷贝过去重启容器即可，大家的目录路径可能不一样，使用 <code>docker volume ls</code> 命令可以看到存在的数据卷，比如说我的：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">DRIVER              VOLUME NAME
+</span></span><span class="line"><span class="cl"><span class="nb">local</span>               09d0144ebeb8fd9dc382bb14f33d35e156c6e7f29dcfa42ac52f2b82422fab98
+</span></span><span class="line"><span class="cl"><span class="nb">local</span>               2c6c4d351a919c9550de94797ce77805fbe178c9226e71bf99c07c44fd303af1
+</span></span><span class="line"><span class="cl"><span class="nb">local</span>               c8b5b6cd301d4cea2e64866e12a9cf6a2bb4e257e5875449f62dede59ebc52c7
+</span></span><span class="line"><span class="cl"><span class="nb">local</span>               docker-ymls_postgresql
+</span></span><span class="line"><span class="cl"><span class="nb">local</span>               docker-ymls_postgresql_data
+</span></span><span class="line"><span class="cl"><span class="nb">local</span>               docker-ymls_sonarqube_bundled-plugins
+</span></span><span class="line"><span class="cl"><span class="nb">local</span>               docker-ymls_sonarqube_conf
+</span></span><span class="line"><span class="cl"><span class="nb">local</span>               docker-ymls_sonarqube_data
+</span></span><span class="line"><span class="cl"><span class="nb">local</span>               docker-ymls_sonarqube_extensions
+</span></span><span class="line"><span class="cl"><span class="nb">local</span>               fd1127a3cec43dc992cbf0eefd053bd9dd8f3e93dc9fb0348c70048846f82308
+</span></span><span class="line"><span class="cl"><span class="nb">local</span>               portainer_data
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到插件目录是放在 docker-ymls_sonarqube_extensions 这个数据卷里面的。</p>
+<p>汉化完成的界面如下：</p>
+<p><img src="/p/use-sonarqube-to-analyze-netcore-project-code-problems/1530087690719.png"
+	width="1654"
+	height="761"
+	srcset="/p/use-sonarqube-to-analyze-netcore-project-code-problems/1530087690719_hu6bdd0b2484c573807b6715a16c9e8e5d_91309_480x0_resize_box_3.png 480w, /p/use-sonarqube-to-analyze-netcore-project-code-problems/1530087690719_hu6bdd0b2484c573807b6715a16c9e8e5d_91309_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1530087690719"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="217"
+		data-flex-basis="521px"
+	
+></p>
+<h2 id="4结语">4.结语</h2>
+<p>后面会分享如何与 Jenkins + Git(Gogs) 来进行集成的。</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/linux/">Linux</a>
+        
+            <a href="/tags/sonarqube/">SonarQube</a>
+        
+            <a href="/tags/docker/">Docker</a>
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/docker-container-directory-garbled-problem-with-dotnet-core/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">dotNET Core 的 Docker 容器目录乱码问题</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/ddns-tool-based-on-alibaba-cloud-dns-api/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">基于阿里云 DNS API 实现的 DDNS 工具</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/continuous-integrationdeployment-for-net-core-with-jenkins/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">使用 Jenkins 为 .Net Core 实现持续集成/部署</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/docker-install-elk/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Docker 安装 ELK</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/jenkins-combines-docker-to-implement-low-level-ci/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Jenkins 结合 Docker 实现低配版的 CI&amp;CD</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#0介绍">0.介绍</a></li>
+    <li><a href="#1安装">1.安装</a>
+      <ol>
+        <li><a href="#11-安装-docker">1.1 安装 Docker</a></li>
+        <li><a href="#12-建立私有网络">1.2 建立私有网络</a></li>
+        <li><a href="#12-启动-postgresql-容器">1.2 启动 PostgreSql 容器</a></li>
+        <li><a href="#13-启动-sonar-容器">1.3 启动 Sonar 容器</a></li>
+        <li><a href="#13扩展使用-docker-compose-来运行-sonar">1.3：扩展：使用 Docker-Compose 来运行 Sonar</a></li>
+        <li><a href="#14-新建项目">1.4 新建项目</a></li>
+      </ol>
+    </li>
+    <li><a href="#2分析">2.分析</a>
+      <ol>
+        <li><a href="#21-安装-dotnet-scanner">2.1 安装 dotnet scanner</a></li>
+        <li><a href="#22-分析项目">2.2 分析项目</a></li>
+        <li><a href="#23-查看结果">2.3 查看结果</a></li>
+      </ol>
+    </li>
+    <li><a href="#3汉化">3.汉化</a></li>
+    <li><a href="#4结语">4.结语</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

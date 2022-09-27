@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='最近做项目的时候，需要对接厂商提供的 IP 摄像头。但是他们只提供了 C&#43;&#43; 的 SDK，没办法，只能开始撸 C# 的 SDK Helper 类。本篇文章主要记录了对接 C&#43;&#43; DLL 需要注意的几个地方，以及常见类型的转换。
+要对接 C&#43;&#43; 的 DLL，首先得知道如何引用 DLL 内的方法。在 C# 当中，只需要编写符合 C&#43;&#43; 的函数签名，再使用 [DllImport] 特性指定 DLL 文件路径和入口点等参数即可。
+假如你需要使用 Win32 API 提供的方法，这里我以 SetProcessDPIAware 函数为例：
+1 2 3 4 5 public static class Win32Helper { [DllImport(&amp;#34;user32.dll&amp;#34;)] public static extern bool SetProcessDPIAware(); } 接下来你只需要像使用静态方法一样，调用 Win32Helper.SetProcessDPIAware() 方法即可。
+'><title>C# 结合 PInvoke 对接 IP 摄像头的笔记</title>
+
+<link rel='canonical' href='https://example.com/p/notes-on-csharp-and-pinvoke-docking-ip-camera/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='C# 结合 PInvoke 对接 IP 摄像头的笔记'>
+<meta property='og:description' content='最近做项目的时候，需要对接厂商提供的 IP 摄像头。但是他们只提供了 C&#43;&#43; 的 SDK，没办法，只能开始撸 C# 的 SDK Helper 类。本篇文章主要记录了对接 C&#43;&#43; DLL 需要注意的几个地方，以及常见类型的转换。
+要对接 C&#43;&#43; 的 DLL，首先得知道如何引用 DLL 内的方法。在 C# 当中，只需要编写符合 C&#43;&#43; 的函数签名，再使用 [DllImport] 特性指定 DLL 文件路径和入口点等参数即可。
+假如你需要使用 Win32 API 提供的方法，这里我以 SetProcessDPIAware 函数为例：
+1 2 3 4 5 public static class Win32Helper { [DllImport(&amp;#34;user32.dll&amp;#34;)] public static extern bool SetProcessDPIAware(); } 接下来你只需要像使用静态方法一样，调用 Win32Helper.SetProcessDPIAware() 方法即可。
+'>
+<meta property='og:url' content='https://example.com/p/notes-on-csharp-and-pinvoke-docking-ip-camera/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='PInvoke' /><meta property='article:tag' content='C&#43;&#43;' /><meta property='article:tag' content='DLL' /><meta property='article:published_time' content='2019-11-27T11:27:00&#43;00:00'/><meta property='article:modified_time' content='2019-11-27T11:27:00&#43;00:00'/>
+<meta name="twitter:title" content="C# 结合 PInvoke 对接 IP 摄像头的笔记">
+<meta name="twitter:description" content="最近做项目的时候，需要对接厂商提供的 IP 摄像头。但是他们只提供了 C&#43;&#43; 的 SDK，没办法，只能开始撸 C# 的 SDK Helper 类。本篇文章主要记录了对接 C&#43;&#43; DLL 需要注意的几个地方，以及常见类型的转换。
+要对接 C&#43;&#43; 的 DLL，首先得知道如何引用 DLL 内的方法。在 C# 当中，只需要编写符合 C&#43;&#43; 的函数签名，再使用 [DllImport] 特性指定 DLL 文件路径和入口点等参数即可。
+假如你需要使用 Win32 API 提供的方法，这里我以 SetProcessDPIAware 函数为例：
+1 2 3 4 5 public static class Win32Helper { [DllImport(&amp;#34;user32.dll&amp;#34;)] public static extern bool SetProcessDPIAware(); } 接下来你只需要像使用静态方法一样，调用 Win32Helper.SetProcessDPIAware() 方法即可。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/notes-on-csharp-and-pinvoke-docking-ip-camera/">C# 结合 PInvoke 对接 IP 摄像头的笔记</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Nov 27, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 2 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>最近做项目的时候，需要对接厂商提供的 IP 摄像头。但是他们只提供了 C++ 的 SDK，没办法，只能开始撸 C# 的 SDK Helper 类。本篇文章主要记录了对接 C++ DLL 需要注意的几个地方，以及常见类型的转换。</p>
+<p>要对接 C++ 的 DLL，首先得知道如何引用 DLL 内的方法。在 C# 当中，只需要编写符合 C++ 的函数签名，再使用 <code>[DllImport]</code> 特性指定 DLL 文件路径和入口点等参数即可。</p>
+<p>假如你需要使用 Win32 API 提供的方法，这里我以 <code>SetProcessDPIAware</code> 函数为例：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">Win32Helper</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [DllImport(&#34;user32.dll&#34;)]</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">static</span> <span class="k">extern</span> <span class="kt">bool</span> <span class="n">SetProcessDPIAware</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>接下来你只需要像使用静态方法一样，调用 <code>Win32Helper.SetProcessDPIAware()</code> 方法即可。</p>
+<h2 id="对接-dll-时的问题记录">对接 DLL 时的问题记录</h2>
+<p>一般来说，提供 SDK 的厂商都会给你一份 DEMO 项目，或者是包含有函数定义的头文件 (<code>*.h</code>)。你只需要按照转换规则，将头文件里面的函数签名翻译成 C# 版本的即可。</p>
+<h3 id="函数签名不正确">函数签名不正确</h3>
+<p><img src="/p/notes-on-csharp-and-pinvoke-docking-ip-camera/image-20191127190504279.png"
+	width="825"
+	height="349"
+	srcset="/p/notes-on-csharp-and-pinvoke-docking-ip-camera/image-20191127190504279_hu81e6a97cb498f5ba1a43a990549b814a_33503_480x0_resize_box_3.png 480w, /p/notes-on-csharp-and-pinvoke-docking-ip-camera/image-20191127190504279_hu81e6a97cb498f5ba1a43a990549b814a_33503_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="236"
+		data-flex-basis="567px"
+	
+></p>
+<p>有的时候，你名字直接和头文件一样还不行，得手动指定 <code>EntryPoint</code> 参数。你可以使用 <strong>DLL Export Viewer</strong> 工具来查看 DLL 的所有开放函数签名，将其复制下来，填写到 <code>EntryPoint</code> 参数即可。</p>
+<p><img src="/p/notes-on-csharp-and-pinvoke-docking-ip-camera/image-20191127190754780.png"
+	width="1252"
+	height="946"
+	srcset="/p/notes-on-csharp-and-pinvoke-docking-ip-camera/image-20191127190754780_hu941da2fbe0280ea9014cde89493e73ac_97259_480x0_resize_box_3.png 480w, /p/notes-on-csharp-and-pinvoke-docking-ip-camera/image-20191127190754780_hu941da2fbe0280ea9014cde89493e73ac_97259_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="132"
+		data-flex-basis="317px"
+	
+></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[DllImport(@&#34;ThirdFiles\AlprSDK.dll&#34;, EntryPoint = &#34;AlprSDK_Startup@12&#34;, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Winapi)]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">extern</span> <span class="kt">int</span> <span class="n">AlprSDK_Startup</span><span class="p">(</span><span class="n">IntPtr</span> <span class="n">hNotifyWnd</span><span class="p">,</span> <span class="kt">uint</span> <span class="n">nCommandId</span><span class="p">,</span> <span class="kt">string</span> <span class="n">pLocalAddress</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="传递回调函数">传递回调函数</h3>
+<p>有时第三方 SDK 需要你传递回调函数，一般都只提供了一个 <code>void*</code> 定义，也就是一个函数指针。那我们在 C# 如何将委托传递给该参数作为回调函数呢？</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="n">ALPRSDK_API</span> <span class="n">OS_Error</span> <span class="n">WINAPI</span> <span class="nf">AlprSDK_SearchAllCameras</span><span class="p">(</span><span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">nTimeout</span><span class="p">,</span><span class="kt">void</span><span class="o">*</span> <span class="n">callback</span><span class="p">,</span> <span class="kt">char</span> <span class="o">*</span><span class="n">pLocalAddr</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这个时候就需要使用到 <code>[UnmanagedFunctionPointer]</code> 特性来指定函数指针了，只需要将其标注到委托定义上，指定函数的调用方式即可。</p>
+<p>最后我在 C# 里面编写的方法签名如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[UnmanagedFunctionPointer(CallingConvention.Winapi, CharSet = CharSet.Ansi)]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">delegate</span> <span class="k">void</span> <span class="n">SearchAllCamerasCallback</span><span class="p">(</span><span class="kt">uint</span> <span class="n">deviceType</span><span class="p">,</span> <span class="kt">string</span> <span class="n">deviceName</span><span class="p">,</span> <span class="kt">string</span> <span class="n">deviceIp</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">byte</span><span class="p">[]</span> <span class="n">macAddress</span><span class="p">,</span> <span class="kt">ushort</span> <span class="n">wPortWeb</span><span class="p">,</span> <span class="kt">ushort</span> <span class="n">wPortListen</span><span class="p">,</span> <span class="kt">string</span> <span class="n">pSubMask</span><span class="p">,</span> <span class="kt">string</span> <span class="n">pGateway</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">string</span> <span class="n">pMultiAddress</span><span class="p">,</span> <span class="kt">string</span> <span class="n">pDnsAddress</span><span class="p">,</span> <span class="kt">ushort</span> <span class="n">wMultiPort</span><span class="p">,</span> <span class="kt">int</span> <span class="n">nChannelNum</span><span class="p">,</span> <span class="kt">int</span> <span class="n">nFindCount</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">uint</span> <span class="n">dwDeviceId</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">[DllImport(@&#34;ThirdFiles\AlprSDK.dll&#34;, EntryPoint = &#34;_AlprSDK_SearchAllCameras@12&#34;, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Winapi)]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">extern</span> <span class="kt">int</span> <span class="n">AlprSDK_SearchAllCameras</span><span class="p">(</span><span class="kt">uint</span> <span class="n">nTimeout</span><span class="p">,</span> <span class="n">SearchAllCamerasCallback</span> <span class="n">callback</span><span class="p">,</span> <span class="kt">string</span> <span class="n">pLocalAddress</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="获取摄像头传递的位图">获取摄像头传递的位图</h3>
+<p>原始 C++ 的函数签名如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="c1">////////////////////////////////////////////////////////////////////////////////////////////
+</span></span></span><span class="line"><span class="cl"><span class="c1">//捕获一张bmp图片.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//pBmpBuf:存放数据的缓冲区，传入参数时应该为NULL，内存由SDK自行管理.外面的应用程序不用去释放内存
+</span></span></span><span class="line"><span class="cl"><span class="c1">//len:    数据的长度
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">ALPRSDK_API</span> <span class="n">OS_Error</span> <span class="n">WINAPI</span> <span class="nf">AlprSDK_CaptureBmp</span><span class="p">(</span><span class="kt">int</span> <span class="n">nHandleID</span><span class="p">,</span> <span class="kt">void</span> <span class="o">**</span><span class="n">pBmpBuf</span><span class="p">,</span> <span class="kt">int</span> <span class="o">*</span><span class="n">len</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>主要的难点在于参数 <code>void** pbmp</code> 的翻译，这里参数 xx 就是指针的指针。因为这个位图是 SDK 来生成的，所以它会在内存空间开辟一段区域用于位图的存储。所以 <code>void*</code> 指向的是这个位图的起始地址，而我传递 <code>void**</code> 就是让 SDK 将这个起始地址传递给我。</p>
+<p>所以 <code>void*</code> 可以翻译为 <code>IntPtr</code>，而这个地址不是我赋值的，而是 SDK 给我的地址，所以我们需要加上按引用传递关键字 <code>ref</code> 。</p>
+<p>如此，我们便获得了位图在内存空间的起始地址，而且方法也将这个位图的大小给了我们。我们只需要从起始地址读取 N 个字节的数据，将其转储到 <code>byte[]</code> 即可。有了 <code>byte[]</code> 对象，你就可以进行其他的操作了，例如加载，保存等。</p>
+<p>在 C# 内部，我是这样定义方法签名，并进行使用的：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[DllImport(@&#34;ThirdFiles\AlprSDK.dll&#34;, EntryPoint = &#34;_AlprSDK_CaptureBmp@12&#34;, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Winapi)]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">extern</span> <span class="kt">uint</span> <span class="n">AlprSDK_CaptureBmp</span><span class="p">(</span><span class="kt">int</span> <span class="n">nHandleId</span><span class="p">,</span> <span class="k">ref</span> <span class="n">IntPtr</span> <span class="n">pBmpBuf</span><span class="p">,</span> <span class="k">ref</span> <span class="kt">int</span> <span class="n">len</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>读取位图数据，并将其存储到磁盘当中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">bitmapPtr</span> <span class="p">=</span> <span class="n">IntPtr</span><span class="p">.</span><span class="n">Zero</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">length</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="n">AlprSdk</span><span class="p">.</span><span class="n">AlprSDK_CaptureBmp</span><span class="p">(</span><span class="m">0</span><span class="p">,</span> <span class="k">ref</span> <span class="n">bitmapPtr</span><span class="p">,</span> <span class="k">ref</span> <span class="n">length</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="n">ThrowIfResultNotZero</span><span class="p">(</span><span class="s">&#34;无法从摄像头获取位图&#34;</span><span class="p">,</span><span class="n">result</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">bytes</span> <span class="p">=</span> <span class="k">new</span> <span class="kt">byte</span><span class="p">[</span><span class="n">length</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl"><span class="n">Marshal</span><span class="p">.</span><span class="n">Copy</span><span class="p">(</span><span class="n">bitmapPtr</span><span class="p">,</span> <span class="n">bytes</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="n">length</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">ms</span> <span class="p">=</span> <span class="n">File</span><span class="p">.</span><span class="n">Create</span><span class="p">(</span><span class="s">@&#34;D:\bitmap.bmp&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">writer</span> <span class="p">=</span> <span class="k">new</span> <span class="n">StreamWriter</span><span class="p">(</span><span class="n">ms</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">writer</span><span class="p">.</span><span class="n">Write</span><span class="p">(</span><span class="n">bytes</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="附录-1常用数据类型对照表">附录 1：常用数据类型对照表</h2>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:left">C/C++</th>
+<th style="text-align:left">C#</th>
+<th style="text-align:left">备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>WORD</code></td>
+<td style="text-align:left"><code>ushort</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>DWORD</code></td>
+<td style="text-align:left"><code>uint</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>UCHAR</code></td>
+<td style="text-align:left"><code>int</code> 或 <code>byte</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>UCHAR*</code></td>
+<td style="text-align:left"><code>string</code> 或 <code>IntPtr</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>unsigned char*</code></td>
+<td style="text-align:left"><code>[MarshalAs(UnmanagedType.LPArray)]byte[]</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>char*</code></td>
+<td style="text-align:left"><code>string</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>LPCTSTR</code></td>
+<td style="text-align:left"><code>string</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>LPTSTR</code></td>
+<td style="text-align:left"><code>[MarshalAs(UnmanagedType.LPTStr)] string</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>long</code></td>
+<td style="text-align:left"><code>int</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>ulong</code></td>
+<td style="text-align:left"><code>uint</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>HANDLE</code></td>
+<td style="text-align:left"><code>IntPtr</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>HWND</code></td>
+<td style="text-align:left"><code>IntPtr</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>void*</code></td>
+<td style="text-align:left"><code>IntPtr</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>int</code></td>
+<td style="text-align:left"><code>int</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>int*</code></td>
+<td style="text-align:left"><code>ref int</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>*int</code></td>
+<td style="text-align:left"><code>IntPtr</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>unsigned int</code></td>
+<td style="text-align:left"><code>uint</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>COLORREF</code></td>
+<td style="text-align:left"><code>uint</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>CHAR</code></td>
+<td style="text-align:left"><code>char</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>HDC</code></td>
+<td style="text-align:left"><code>int</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>HGDIOBJ</code></td>
+<td style="text-align:left"><code>int</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>BOOL</code></td>
+<td style="text-align:left"><code>bool</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>LPSTR</code></td>
+<td style="text-align:left"><code>string</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>LPCSTR</code></td>
+<td style="text-align:left"><code>string</code></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>BYTE</code></td>
+<td style="text-align:left"><code>byte</code></td>
+<td style="text-align:left"></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>参考文章：<a class="link" href="https://www.cnblogs.com/yiki/archive/2008/10/29/1321848.html"  target="_blank" rel="noopener"
+    >C# 与 C++ 数据类型对照</a></strong></p>
+<h2 id="附录-2相关工具软件下载">附录 2：相关工具软件下载</h2>
+<p>DLL Export Viewer v1.66：https://www.cnblogs.com</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/pinvoke/">PInvoke</a>
+        
+            <a href="/tags/c&#43;&#43;/">C&#43;&#43;</a>
+        
+            <a href="/tags/dll/">DLL</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/talking-about-the-coding-of-csharp-and-c-communication-again/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">再谈C#与C&#43;&#43;通信之编码</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/detailed-explanation-of-dll-main-function-under-windows/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Windows下 DLL Main 函数详解</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#对接-dll-时的问题记录">对接 DLL 时的问题记录</a>
+      <ol>
+        <li><a href="#函数签名不正确">函数签名不正确</a></li>
+        <li><a href="#传递回调函数">传递回调函数</a></li>
+        <li><a href="#获取摄像头传递的位图">获取摄像头传递的位图</a></li>
+      </ol>
+    </li>
+    <li><a href="#附录-1常用数据类型对照表">附录 1：常用数据类型对照表</a></li>
+    <li><a href="#附录-2相关工具软件下载">附录 2：相关工具软件下载</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

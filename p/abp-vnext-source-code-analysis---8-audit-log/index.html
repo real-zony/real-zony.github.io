@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、简要说明 ABP vNext 当中的审计模块早在 **依赖注入与拦截器**一文中有所提及，但没有详细的对其进行分析。
+审计模块是 ABP vNext 框架的一个基本组件，它能够提供一些实用日志记录。不过这里的日志不是说系统日志，而是说接口每次调用之后的执行情况（执行时间、传入参数、异常信息、请求 IP）。
+除了常规的日志功能以外，关于 实体 和 聚合 的审计字段接口也是存放在审计模块当中的。（创建人、创建时间、修改人、修改时间、删除人、删除时间）
+'><title>Abp vNext 源码分析 - 8. 审计日志</title>
+
+<link rel='canonical' href='https://example.com/p/abp-vnext-source-code-analysis---8-audit-log/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp vNext 源码分析 - 8. 审计日志'>
+<meta property='og:description' content='一、简要说明 ABP vNext 当中的审计模块早在 **依赖注入与拦截器**一文中有所提及，但没有详细的对其进行分析。
+审计模块是 ABP vNext 框架的一个基本组件，它能够提供一些实用日志记录。不过这里的日志不是说系统日志，而是说接口每次调用之后的执行情况（执行时间、传入参数、异常信息、请求 IP）。
+除了常规的日志功能以外，关于 实体 和 聚合 的审计字段接口也是存放在审计模块当中的。（创建人、创建时间、修改人、修改时间、删除人、删除时间）
+'>
+<meta property='og:url' content='https://example.com/p/abp-vnext-source-code-analysis---8-audit-log/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='ABP vNext' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='ASP.NET Core' /><meta property='article:tag' content='ASP.NET Core MVC' /><meta property='article:published_time' content='2019-10-08T03:53:07&#43;00:00'/><meta property='article:modified_time' content='2019-10-08T03:53:07&#43;00:00'/>
+<meta name="twitter:title" content="Abp vNext 源码分析 - 8. 审计日志">
+<meta name="twitter:description" content="一、简要说明 ABP vNext 当中的审计模块早在 **依赖注入与拦截器**一文中有所提及，但没有详细的对其进行分析。
+审计模块是 ABP vNext 框架的一个基本组件，它能够提供一些实用日志记录。不过这里的日志不是说系统日志，而是说接口每次调用之后的执行情况（执行时间、传入参数、异常信息、请求 IP）。
+除了常规的日志功能以外，关于 实体 和 聚合 的审计字段接口也是存放在审计模块当中的。（创建人、创建时间、修改人、修改时间、删除人、删除时间）
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-vnext-source-code-analysis---8-audit-log/">Abp vNext 源码分析 - 8. 审计日志</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Oct 08, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 6 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一简要说明">一、简要说明</h2>
+<p>ABP vNext 当中的审计模块早在 **<a class="link" href="https://blog.myzony.com/abp-vnext-source-analyze-auditing-log/"  target="_blank" rel="noopener"
+    >依赖注入与拦截器</a>**一文中有所提及，但没有详细的对其进行分析。</p>
+<p>审计模块是 ABP vNext 框架的一个基本组件，它能够提供一些实用日志记录。不过这里的日志不是说系统日志，而是说接口每次调用之后的执行情况（执行时间、传入参数、异常信息、请求 IP）。</p>
+<p>除了常规的日志功能以外，关于 <strong>实体</strong> 和 <strong>聚合</strong> 的审计字段接口也是存放在审计模块当中的。（<strong>创建人</strong>、<strong>创建时间</strong>、<strong>修改人</strong>、<strong>修改时间</strong>、<strong>删除人</strong>、<strong>删除时间</strong>）</p>
+<h2 id="二源码分析">二、源码分析</h2>
+<h3 id="21-审计日志拦截器">2.1. 审计日志拦截器</h3>
+<h4 id="211-审计日志拦截器的注册">2.1.1 审计日志拦截器的注册</h4>
+<p><strong>Volo.Abp.Auditing</strong> 的模块定义十分简单，主要是提供了 <strong>审计日志拦截器</strong> 的注册功能。下面代码即在组件注册的时候，会调用 <code>AuditingInterceptorRegistrar.RegisterIfNeeded</code> 方法来判定是否为实现类型(ImplementationType) 注入审计日志拦截器。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpAuditingModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">PreConfigureServices</span><span class="p">(</span><span class="n">ServiceConfigurationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">.</span><span class="n">OnRegistred</span><span class="p">(</span><span class="n">AuditingInterceptorRegistrar</span><span class="p">.</span><span class="n">RegisterIfNeeded</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>跳转到具体的实现，可以看到内部会结合三种类型进行判断。分别是 <code>AuditedAttribute</code> 、<code>IAuditingEnabled</code>、<code>DisableAuditingAttribute</code> 。</p>
+<p>前两个作用是，只要类型标注了 <code>AuditedAttribute</code> 特性，或者是实现了 <code>IAuditingEnable</code> 接口，都会为该类型注入审计日志拦截器。</p>
+<p>而 <code>DisableAuditingAttribute</code> 类型则相反，只要类型上标注了该特性，就不会启用审计日志拦截器。某些接口需要 <strong>提升性能</strong> 的话，可以尝试使用该特性禁用掉审计日志功能。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">AuditingInterceptorRegistrar</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">void</span> <span class="n">RegisterIfNeeded</span><span class="p">(</span><span class="n">IOnServiceRegistredContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 满足条件时，将会为该类型注入审计日志拦截器。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">ShouldIntercept</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ImplementationType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">context</span><span class="p">.</span><span class="n">Interceptors</span><span class="p">.</span><span class="n">TryAdd</span><span class="p">&lt;</span><span class="n">AuditingInterceptor</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">static</span> <span class="kt">bool</span> <span class="n">ShouldIntercept</span><span class="p">(</span><span class="n">Type</span> <span class="n">type</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 首先判断类型上面是否使用了辅助类型。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">ShouldAuditTypeByDefault</span><span class="p">(</span><span class="n">type</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果任意方法上面标注了 AuditedAttribute 特性，则仍然为该类型注入拦截器。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">type</span><span class="p">.</span><span class="n">GetMethods</span><span class="p">().</span><span class="n">Any</span><span class="p">(</span><span class="n">m</span> <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="n">IsDefined</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AuditedAttribute</span><span class="p">),</span> <span class="k">true</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">//TODO: Move to a better place</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="kt">bool</span> <span class="n">ShouldAuditTypeByDefault</span><span class="p">(</span><span class="n">Type</span> <span class="n">type</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 下面就是根据三种辅助类型进行判断，是否为当前 type 注入审计日志拦截器。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">type</span><span class="p">.</span><span class="n">IsDefined</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AuditedAttribute</span><span class="p">),</span> <span class="k">true</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">type</span><span class="p">.</span><span class="n">IsDefined</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">DisableAuditingAttribute</span><span class="p">),</span> <span class="k">true</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">IAuditingEnabled</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">type</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="212-审计日志拦截器的实现">2.1.2 审计日志拦截器的实现</h4>
+<p>审计日志拦截器的内部实现，主要使用了三个类型进行协同工作。它们分别是负责管理审计日志信息的 <code>IAuditingManager</code>，负责创建审计日志信息的 <code>IAuditingHelper</code>，还有统计接口执行时常的 <code>Stopwatch</code> 。</p>
+<p>整个审计日志拦截器的大体流程如下：</p>
+<ol>
+<li>首先是判定 MVC 审计日志过滤器是否进行处理。</li>
+<li>再次根据特性，和类型进行二次验证是否应该创建审计日志信息。</li>
+<li>根据调用信息，创建 <code>AuditLogInfo</code> 和 <code>AuditLogActionInfo</code> 审计日志信息。</li>
+<li>调用 <code>StopWatch</code> 的计时方法，如果出现了异常则将异常信息添加到刚才构建的 <code>AuditLogInfo</code> 对象中。</li>
+<li>无论是否出现异常，都会进入 <code>finally</code> 语句块，这个时候会调用 <code>StopWatch</code> 实例的停止方法，并统计完成执行时间。</li>
+</ol>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">InterceptAsync</span><span class="p">(</span><span class="n">IAbpMethodInvocation</span> <span class="n">invocation</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">ShouldIntercept</span><span class="p">(</span><span class="n">invocation</span><span class="p">,</span> <span class="k">out</span> <span class="kt">var</span> <span class="n">auditLog</span><span class="p">,</span> <span class="k">out</span> <span class="kt">var</span> <span class="n">auditLogAction</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">invocation</span><span class="p">.</span><span class="n">ProceedAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 开始进行计时操作。</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">stopwatch</span> <span class="p">=</span> <span class="n">Stopwatch</span><span class="p">.</span><span class="n">StartNew</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">try</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">invocation</span><span class="p">.</span><span class="n">ProceedAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果出现了异常，一样的将异常信息添加到审计日志结果中。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">auditLog</span><span class="p">.</span><span class="n">Exceptions</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">ex</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">finally</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 统计完成，并将信息加入到审计日志结果中。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">stopwatch</span><span class="p">.</span><span class="n">Stop</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">auditLogAction</span><span class="p">.</span><span class="n">ExecutionDuration</span> <span class="p">=</span> <span class="n">Convert</span><span class="p">.</span><span class="n">ToInt32</span><span class="p">(</span><span class="n">stopwatch</span><span class="p">.</span><span class="n">Elapsed</span><span class="p">.</span><span class="n">TotalMilliseconds</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">auditLog</span><span class="p">.</span><span class="n">Actions</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">auditLogAction</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到，只有当 <code>ShouldIntercept()</code> 方法返回 <code>true</code> 的时候，下面的统计等操作才会被执行。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="kt">bool</span> <span class="n">ShouldIntercept</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IAbpMethodInvocation</span> <span class="n">invocation</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">    <span class="k">out</span> <span class="n">AuditLogInfo</span> <span class="n">auditLog</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">    <span class="k">out</span> <span class="n">AuditLogActionInfo</span> <span class="n">auditLogAction</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">auditLog</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">auditLogAction</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">AbpCrossCuttingConcerns</span><span class="p">.</span><span class="n">IsApplied</span><span class="p">(</span><span class="n">invocation</span><span class="p">.</span><span class="n">TargetObject</span><span class="p">,</span> <span class="n">AbpCrossCuttingConcerns</span><span class="p">.</span><span class="n">Auditing</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果没有获取到 Scop，则返回 false。</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">auditLogScope</span> <span class="p">=</span> <span class="n">_auditingManager</span><span class="p">.</span><span class="n">Current</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">auditLogScope</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 进行二次判断是否需要存储审计日志。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">_auditingHelper</span><span class="p">.</span><span class="n">ShouldSaveAudit</span><span class="p">(</span><span class="n">invocation</span><span class="p">.</span><span class="n">Method</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 构建审计日志信息。</span>
+</span></span><span class="line"><span class="cl">    <span class="n">auditLog</span> <span class="p">=</span> <span class="n">auditLogScope</span><span class="p">.</span><span class="n">Log</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">auditLogAction</span> <span class="p">=</span> <span class="n">_auditingHelper</span><span class="p">.</span><span class="n">CreateAuditLogAction</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">auditLog</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">invocation</span><span class="p">.</span><span class="n">TargetObject</span><span class="p">.</span><span class="n">GetType</span><span class="p">(),</span>
+</span></span><span class="line"><span class="cl">        <span class="n">invocation</span><span class="p">.</span><span class="n">Method</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">invocation</span><span class="p">.</span><span class="n">Arguments</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-审计日志的持久化">2.2 审计日志的持久化</h3>
+<p>大体流程和我们上面说的一样，不过好像缺少了重要的一步，那就是 <strong>持久化操作</strong>。你可以在 <strong>Volo.Abp.Auditing</strong> 模块发现有 <code>IAuditingStore</code> 接口的定义，但是它的 <code>SaveAsync()</code> 方法却没有在拦截器内部被调用。同样在 MVC 的审计日志过滤器实现，你也会发现没有调用持久化方法。</p>
+<p>那么我们的审计日志是在什么时候被持久化的呢？找到 <code>SaveAsync()</code> 被调用的地方，发现 ABP vNext 实现了一个审计日志的 ASP.NET Core 中间件。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---8-audit-log/1570420399962.png"
+	width="2100"
+	height="320"
+	srcset="/p/abp-vnext-source-code-analysis---8-audit-log/1570420399962_hu6ec77d8240f9fe37a945538ae7f54d02_54626_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---8-audit-log/1570420399962_hu6ec77d8240f9fe37a945538ae7f54d02_54626_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1570420399962"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="656"
+		data-flex-basis="1575px"
+	
+></p>
+<p>在这个中间件内部的实现比较简单，首先通过一个判定方法，决定是否为本次请求执行 <code>IAuditingManager.BeginScope()</code> 方法。如果判定通过，则执行，否则不仅行任何操作。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">InvokeAsync</span><span class="p">(</span><span class="n">HttpContext</span> <span class="n">context</span><span class="p">,</span> <span class="n">RequestDelegate</span> <span class="n">next</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">ShouldWriteAuditLog</span><span class="p">(</span><span class="n">context</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">next</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">scope</span> <span class="p">=</span> <span class="n">_auditingManager</span><span class="p">.</span><span class="n">BeginScope</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">try</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">next</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">finally</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">scope</span><span class="p">.</span><span class="n">SaveAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到，在这里 ABP vNext 使用 <code>IAuditingManager</code> 构建，调用其 <code>BeginScope()</code> 构建了一个 <code>IAuditLogSaveHandle</code> 对象，并使用其提供的 <code>SaveAsync()</code> 方法进行持久化操作。</p>
+<h4 id="221-嵌套的持久化操作">2.2.1 嵌套的持久化操作</h4>
+<p>在构造出来的 <code>IAuditLogSaveHandle</code> 对象里面，<strong>还是使用的 <code>IAuditingManager</code> 的默认实现 <code>AuditingManager</code> 所提供的 <code>SaveAsync()</code> 方法进行持久化</strong>。</p>
+<p>阅读源码之后，发现了下面两个问题：</p>
+<ol>
+<li><code>IAuditingManager</code> <strong>没有将持久化方法公开</strong> 出来，而是作为一个 <code>protected</code> 级别的方法。</li>
+<li>为什么还要借助 <code>IAuditLogSaveHandle</code> <strong>间接地调用</strong> 管理器的持久化方法。</li>
+</ol>
+<p>这就要从中间件的代码说起了，可以看到它是构造出了一个可以被释放的 <code>IAuditLogSaveHandle</code> 对象。ABP vNext 这样做的目的，就是可以嵌套多个 Scope，即 <strong>只在某个范围内</strong> 才将审计日志记录下来。这种特性类似于 <strong>工作单元</strong> 的用法，其底层实现是 <strong><a class="link" href="https://www.cnblogs.com/myzony/p/10275256.html#3204918192"  target="_blank" rel="noopener"
+    >之前文章</a></strong> 讲过的 <code>IAmbientScopeProvider</code> 对象。</p>
+<p>例如在某个应用服务内部，我可以这样写代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">scope</span> <span class="p">=</span> <span class="n">_auditingManager</span><span class="p">.</span><span class="n">BeginScope</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">await</span> <span class="n">myAuditedObject1</span><span class="p">.</span><span class="n">DoItAsync</span><span class="p">(</span><span class="k">new</span> <span class="n">InputObject</span> <span class="p">{</span> <span class="n">Value1</span> <span class="p">=</span> <span class="s">&#34;我是内部嵌套测试方法1。&#34;</span><span class="p">,</span> <span class="n">Value2</span> <span class="p">=</span> <span class="m">5000</span> <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">scope2</span> <span class="p">=</span> <span class="n">_auditingManager</span><span class="p">.</span><span class="n">BeginScope</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">myAuditedObject1</span><span class="p">.</span><span class="n">DoItAsync</span><span class="p">(</span><span class="k">new</span> <span class="n">InputObject</span> <span class="p">{</span><span class="n">Value1</span> <span class="p">=</span> <span class="s">&#34;我是内部嵌套测试方法2。&#34;</span><span class="p">,</span> <span class="n">Value2</span> <span class="p">=</span> <span class="m">10000</span><span class="p">});</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">scope2</span><span class="p">.</span><span class="n">SaveAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">await</span> <span class="n">scope</span><span class="p">.</span><span class="n">SaveAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>想一下之前的代码，在拦截器内部，我们是通过 <code>IAuditingManager.Current</code> 拿到当前可用的 <code>IAuditLogScope</code> ，而这个 Scope <strong>就是在调用 <code>IAuditingManager.BeginScope()</code> 之后生成的</strong>。</p>
+<h4 id="223-最终的持久化代码">2.2.3 最终的持久化代码</h4>
+<p>通过上述的流程，我们得知最后的审计日志信息会通过 <code>IAuditingStore</code> 进行持久化。ABP vNext 为我们提供了一个默认的 <code>SimpleLogAuditingStore</code> 实现，其内部就是调用 <code>ILogger</code> 将信息输出。如果需要将审计日志持久化到数据库，<strong>你可以实现 <code>IAUditingStore</code> 接口，覆盖原有实现</strong> ，或者使用 ABP vNext 提供的 <strong>Volo.Abp.AuditLogging</strong> 模块。</p>
+<h3 id="23-审计日志的序列化">2.3 审计日志的序列化</h3>
+<p>审计日志的序列化处理是在 <code>IAuditingHelper</code> 的默认实现内部被使用，可以看到构建审计日志的方法内部，通过自定义的序列化器来将 Action 的参数进行序列化处理，方便存储。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="n">AuditLogActionInfo</span> <span class="n">CreateAuditLogAction</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="n">AuditLogInfo</span> <span class="n">auditLog</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Type</span> <span class="n">type</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">    <span class="n">MethodInfo</span> <span class="n">method</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">    <span class="n">IDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;</span> <span class="n">arguments</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">actionInfo</span> <span class="p">=</span> <span class="k">new</span> <span class="n">AuditLogActionInfo</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ServiceName</span> <span class="p">=</span> <span class="n">type</span> <span class="p">!=</span> <span class="k">null</span>
+</span></span><span class="line"><span class="cl">            <span class="p">?</span> <span class="n">type</span><span class="p">.</span><span class="n">FullName</span>
+</span></span><span class="line"><span class="cl">            <span class="p">:</span> <span class="s">&#34;&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">MethodName</span> <span class="p">=</span> <span class="n">method</span><span class="p">.</span><span class="n">Name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 序列化参数信息。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Parameters</span> <span class="p">=</span> <span class="n">SerializeConvertArguments</span><span class="p">(</span><span class="n">arguments</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ExecutionTime</span> <span class="p">=</span> <span class="n">Clock</span><span class="p">.</span><span class="n">Now</span>
+</span></span><span class="line"><span class="cl">    <span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">//TODO Execute contributors</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">actionInfo</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="kt">string</span> <span class="n">SerializeConvertArguments</span><span class="p">(</span><span class="n">IDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;</span> <span class="n">arguments</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">try</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">arguments</span><span class="p">.</span><span class="n">IsNullOrEmpty</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="s">&#34;{}&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">dictionary</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">argument</span> <span class="k">in</span> <span class="n">arguments</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 忽略的代码，主要作用是构建参数字典。</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 调用序列化器，序列化 Action 的调用参数。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">AuditSerializer</span><span class="p">.</span><span class="n">Serialize</span><span class="p">(</span><span class="n">dictionary</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Logger</span><span class="p">.</span><span class="n">LogException</span><span class="p">(</span><span class="n">ex</span><span class="p">,</span> <span class="n">LogLevel</span><span class="p">.</span><span class="n">Warning</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="s">&#34;{}&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>下面就是具体序列化器的代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">JsonNetAuditSerializer</span> <span class="p">:</span> <span class="n">IAuditSerializer</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">AbpAuditingOptions</span> <span class="n">Options</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">JsonNetAuditSerializer</span><span class="p">(</span><span class="n">IOptions</span><span class="p">&lt;</span><span class="n">AbpAuditingOptions</span><span class="p">&gt;</span> <span class="n">options</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Options</span> <span class="p">=</span> <span class="n">options</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Serialize</span><span class="p">(</span><span class="kt">object</span> <span class="n">obj</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 使用 JSON.NET 进行序列化操作。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">JsonConvert</span><span class="p">.</span><span class="n">SerializeObject</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">GetSharedJsonSerializerSettings</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 省略的代码。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="24-审计日志的配置参数">2.4 审计日志的配置参数</h3>
+<p>针对审计日志相关的配置参数的定义，都存放在 <code>AbpAuditingOptions</code> 当中。下面我会针对各个参数的用途，对其进行详细的说明。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpAuditingOptions</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">//TODO: Consider to add an option to disable auditing for application service methods?</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 该参数目前版本暂未使用，为保留参数。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">HideErrors</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 是否启用审计日志功能，默认值为 true。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">IsEnabled</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 审计日志的应用程序名称，默认值为 null，主要在构建 AuditingInfo 被使用。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">ApplicationName</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 是否为匿名请求记录审计日志默认值 true。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">IsEnabledForAnonymousUsers</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 审计日志功能的协作者集合，默认添加了 AspNetCoreAuditLogContributor 实现。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">AuditLogContributor</span><span class="p">&gt;</span> <span class="n">Contributors</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 默认的忽略类型，主要在序列化时使用。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;</span> <span class="n">IgnoredTypes</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 实体类型选择器。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IEntityHistorySelectorList</span> <span class="n">EntityHistorySelectors</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">//TODO: Move this to asp.net core layer or convert it to a more dynamic strategy?</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 是否为 Get 请求记录审计日志，默认值 false。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">IsEnabledForGetRequests</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">AbpAuditingOptions</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IsEnabled</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IsEnabledForAnonymousUsers</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">HideErrors</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">Contributors</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">AuditLogContributor</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">IgnoredTypes</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">typeof</span><span class="p">(</span><span class="n">Stream</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">            <span class="k">typeof</span><span class="p">(</span><span class="n">Expression</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">EntityHistorySelectors</span> <span class="p">=</span> <span class="k">new</span> <span class="n">EntityHistorySelectorList</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="24-实体相关的审计信息">2.4 实体相关的审计信息</h3>
+<p>在文章开始就谈到，除了对 HTTP 请求有审计日志记录以外，ABP vNext 还提供了实体审计信息的记录功能。所谓的实体的审计信息，指的就是实体继承了 ABP vNext 提供的接口之后，ABP vNext 会自动维护实现的接口字段，不需要开发人员自己再进行处理。</p>
+<p>这些接口包括创建实体操作的相关信息 <code>IHasCreationTime</code>、<code>IMayHaveCreator</code>、<code>ICreationAuditedObject</code> 以及删除实体时，需要记录的相关信息接口 <code>IHasDeletionTime</code>、<code>IDeletionAuditedObject</code> 等。除了审计日志模块定义的类型以外，在 <strong>Volo.Abp.Ddd.Domain</strong> 模块的 Auditing 里面也有很多审计实体的默认实现。</p>
+<p>我在这里就不再一一列举，下面仅快速讲解一下 ABP vNext 是如何通过这些接口，实现对审计字段的自动维护的。</p>
+<p>在审计日志模块的内部，我们看到一个接口名字叫做 <code>IAuditPropertySetter</code>，它提供了三个方法，分别是：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IAuditPropertySetter</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">SetCreationProperties</span><span class="p">(</span><span class="kt">object</span> <span class="n">targetObject</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">SetModificationProperties</span><span class="p">(</span><span class="kt">object</span> <span class="n">targetObject</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">SetDeletionProperties</span><span class="p">(</span><span class="kt">object</span> <span class="n">targetObject</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>所以，这几个方法就是用于设置创建信息、修改信息、删除信息的。现在跳转到默认实现 <code>AuditPropertySetter</code>，随便找一个 <code>SetCreationTime()</code> 方法。该方法内部首先是判断传入的 <code>object</code> 是否实现了 <code>IHasCreationTime</code> 接口，如果实现了对其进行强制类型转换，然后赋值即可。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">void</span> <span class="n">SetCreationTime</span><span class="p">(</span><span class="kt">object</span> <span class="n">targetObject</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!(</span><span class="n">targetObject</span> <span class="k">is</span> <span class="n">IHasCreationTime</span> <span class="n">objectWithCreationTime</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">objectWithCreationTime</span><span class="p">.</span><span class="n">CreationTime</span> <span class="p">==</span> <span class="k">default</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">objectWithCreationTime</span><span class="p">.</span><span class="n">CreationTime</span> <span class="p">=</span> <span class="n">Clock</span><span class="p">.</span><span class="n">Now</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>其他几个 Set 方法大同小异，那我们看一下有哪些地方使用到了上述三个方法。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---8-audit-log/1570459669067.png"
+	width="2659"
+	height="615"
+	srcset="/p/abp-vnext-source-code-analysis---8-audit-log/1570459669067_huc3482addd671bea2933737e6b25c717e_199121_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---8-audit-log/1570459669067_huc3482addd671bea2933737e6b25c717e_199121_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1570459669067"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="432"
+		data-flex-basis="1037px"
+	
+></p>
+<p>可以看到使用者就包含有 EF Core 模块和 MongoDB 模块，这里我以 EF Core 模块为例，猜测应该是传入了实体对象过来。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---8-audit-log/1570459763182.png"
+	width="1319"
+	height="332"
+	srcset="/p/abp-vnext-source-code-analysis---8-audit-log/1570459763182_hud1e3759ea69c0aa8e5d2b74870244da9_40604_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---8-audit-log/1570459763182_hud1e3759ea69c0aa8e5d2b74870244da9_40604_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1570459763182"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="397"
+		data-flex-basis="953px"
+	
+></p>
+<p>果不其然&hellip;查看这个方法的调用链，发现是 DbContext 每次进行 <code>SaveChanges/SaveChangesAsync</code> 的时候，就会对实体进行审计字段自动赋值操作。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---8-audit-log/1570459991612.png"
+	width="1946"
+	height="358"
+	srcset="/p/abp-vnext-source-code-analysis---8-audit-log/1570459991612_hu10ec2279145bc9a64ccac2841e9a976a_81619_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---8-audit-log/1570459991612_hu10ec2279145bc9a64ccac2841e9a976a_81619_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1570459991612"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="543"
+		data-flex-basis="1304px"
+	
+></p>
+<h2 id="三总结">三、总结</h2>
+<p>审计日志是 ABP vNext 为我们提供的一个可选组件，当开启审计日志功能后，我们可以根据审计日志信息快速定位问题。但审计日志的开启，也会较大的影响性能，因为每次请求都会创建审计日志信息，之后再进行持久化。因此在使用审计日志功能时，可以结合 <code>DisableAuditingAttribute</code> 特性和 <code>IAuditingManager.BeginScope()</code>，按需开启审计日志功能。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/abp-vnext/">ABP vNext</a>
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/asp.net-core/">ASP.NET Core</a>
+        
+            <a href="/tags/asp.net-core-mvc/">ASP.NET Core MVC</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-multi-tenancy/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 多租户</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一简要说明">一、简要说明</a></li>
+    <li><a href="#二源码分析">二、源码分析</a>
+      <ol>
+        <li><a href="#21-审计日志拦截器">2.1. 审计日志拦截器</a>
+          <ol>
+            <li><a href="#211-审计日志拦截器的注册">2.1.1 审计日志拦截器的注册</a></li>
+            <li><a href="#212-审计日志拦截器的实现">2.1.2 审计日志拦截器的实现</a></li>
+          </ol>
+        </li>
+        <li><a href="#22-审计日志的持久化">2.2 审计日志的持久化</a>
+          <ol>
+            <li><a href="#221-嵌套的持久化操作">2.2.1 嵌套的持久化操作</a></li>
+            <li><a href="#223-最终的持久化代码">2.2.3 最终的持久化代码</a></li>
+          </ol>
+        </li>
+        <li><a href="#23-审计日志的序列化">2.3 审计日志的序列化</a></li>
+        <li><a href="#24-审计日志的配置参数">2.4 审计日志的配置参数</a></li>
+        <li><a href="#24-实体相关的审计信息">2.4 实体相关的审计信息</a></li>
+      </ol>
+    </li>
+    <li><a href="#三总结">三、总结</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

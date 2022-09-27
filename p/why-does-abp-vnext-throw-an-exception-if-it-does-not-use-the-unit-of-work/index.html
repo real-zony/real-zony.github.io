@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、问题 该问题经常出现在 ABP vNext 框架当中，要复现该问题十分简单，只需要你注入一个 IRepository&amp;lt;T,TKey&amp;gt; 仓储，在任意一个地方调用 IRepository&amp;lt;T,TKey&amp;gt;.ToList() 方法。
+1 2 3 4 5 6 7 [Fact] public void TestMethod() { var rep = GetRequiredService&amp;lt;IHospitalRepository&amp;gt;(); var result = rep.ToList(); } 例如上面的测试代码，不出意外就会提示 System.ObjectDisposedException 异常，具体的异常内容信息：
+1 System.ObjectDisposedException : Cannot access a disposed object. A common cause of this error is disposing a context that was resolved from dependency injection and then later trying to use the same context instance elsewhere in your application. This may occur if you are calling Dispose() on the context, or wrapping the context in a using statement. If you are using dependency injection, you should let the dependency injection container take care of disposing context instances. 其实已经说得十分明白了，因为你要调用的 DbContext 已经被释放了，所以会出现这个异常信息。
+'><title>ABP vNext 不使用工作单元为什么会抛出异常</title>
+
+<link rel='canonical' href='https://example.com/p/why-does-abp-vnext-throw-an-exception-if-it-does-not-use-the-unit-of-work/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='ABP vNext 不使用工作单元为什么会抛出异常'>
+<meta property='og:description' content='一、问题 该问题经常出现在 ABP vNext 框架当中，要复现该问题十分简单，只需要你注入一个 IRepository&amp;lt;T,TKey&amp;gt; 仓储，在任意一个地方调用 IRepository&amp;lt;T,TKey&amp;gt;.ToList() 方法。
+1 2 3 4 5 6 7 [Fact] public void TestMethod() { var rep = GetRequiredService&amp;lt;IHospitalRepository&amp;gt;(); var result = rep.ToList(); } 例如上面的测试代码，不出意外就会提示 System.ObjectDisposedException 异常，具体的异常内容信息：
+1 System.ObjectDisposedException : Cannot access a disposed object. A common cause of this error is disposing a context that was resolved from dependency injection and then later trying to use the same context instance elsewhere in your application. This may occur if you are calling Dispose() on the context, or wrapping the context in a using statement. If you are using dependency injection, you should let the dependency injection container take care of disposing context instances. 其实已经说得十分明白了，因为你要调用的 DbContext 已经被释放了，所以会出现这个异常信息。
+'>
+<meta property='og:url' content='https://example.com/p/why-does-abp-vnext-throw-an-exception-if-it-does-not-use-the-unit-of-work/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='ABP vNext' /><meta property='article:tag' content='工作单元' /><meta property='article:tag' content='Entity Framework Core' /><meta property='article:tag' content='异常处理' /><meta property='article:published_time' content='2019-10-15T13:12:10&#43;00:00'/><meta property='article:modified_time' content='2019-10-15T13:12:10&#43;00:00'/>
+<meta name="twitter:title" content="ABP vNext 不使用工作单元为什么会抛出异常">
+<meta name="twitter:description" content="一、问题 该问题经常出现在 ABP vNext 框架当中，要复现该问题十分简单，只需要你注入一个 IRepository&amp;lt;T,TKey&amp;gt; 仓储，在任意一个地方调用 IRepository&amp;lt;T,TKey&amp;gt;.ToList() 方法。
+1 2 3 4 5 6 7 [Fact] public void TestMethod() { var rep = GetRequiredService&amp;lt;IHospitalRepository&amp;gt;(); var result = rep.ToList(); } 例如上面的测试代码，不出意外就会提示 System.ObjectDisposedException 异常，具体的异常内容信息：
+1 System.ObjectDisposedException : Cannot access a disposed object. A common cause of this error is disposing a context that was resolved from dependency injection and then later trying to use the same context instance elsewhere in your application. This may occur if you are calling Dispose() on the context, or wrapping the context in a using statement. If you are using dependency injection, you should let the dependency injection container take care of disposing context instances. 其实已经说得十分明白了，因为你要调用的 DbContext 已经被释放了，所以会出现这个异常信息。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/why-does-abp-vnext-throw-an-exception-if-it-does-not-use-the-unit-of-work/">ABP vNext 不使用工作单元为什么会抛出异常</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Oct 15, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 5 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一问题">一、问题</h2>
+<p>该问题经常出现在 ABP vNext 框架当中，要复现该问题十分简单，只需要你注入一个 <code>IRepository&lt;T,TKey&gt;</code> 仓储，在任意一个地方调用 <code>IRepository&lt;T,TKey&gt;.ToList()</code> 方法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Fact]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">TestMethod</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">rep</span> <span class="p">=</span> <span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IHospitalRepository</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="n">rep</span><span class="p">.</span><span class="n">ToList</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>例如上面的测试代码，不出意外就会提示 <code>System.ObjectDisposedException</code> 异常，具体的异常内容信息：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">System.ObjectDisposedException : Cannot access a disposed object. A common cause of this error is disposing a context that was resolved from dependency injection and then later trying to use the same context instance elsewhere in your application. This may occur if you are calling Dispose() on the context, or wrapping the context in a using statement. If you are using dependency injection, you should let the dependency injection container take care of disposing context instances.
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>其实已经说得十分明白了，因为你要调用的 <code>DbContext</code> 已经被释放了，所以会出现这个异常信息。</p>
+<h2 id="二原因">二、原因</h2>
+<h3 id="21-为什么能够调用-linq-扩展">2.1 为什么能够调用 LINQ 扩展?</h3>
+<p>我们之所以能够在 <code>IRepository&lt;TEntity,TKey&gt;</code> 接口上面，调用 LINQ 相关的流畅接口，是因为其父级接口 <code>IReadOnlyRepository&lt;TEntity,TKey&gt;</code> 继承了 <code>IQueryable&lt;TEntity&gt;</code> 接口。如果使用的是 Entity Framework Core 框架，那么在解析 <code>IRepository&lt;T,Key&gt;</code> 的时候，我们得到的是一个 <code>EfCoreRepository&lt;TDbContext, TEntity,TKey&gt;</code> 实例。</p>
+<p>针对这个实例，类型 <code>EfCoreRepository&lt;TDbContext, TEntity&gt;</code> 则是它的基类型，继续跳转到其基类 <code>RepositoryBase&lt;TEntity&gt;</code> 我们就能看到它实现了 <code>IQueryable&lt;T&gt;</code> 接口必备的几个属性。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">RepositoryBase</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;</span> <span class="p">:</span> <span class="n">BasicRepositoryBase</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;,</span> <span class="n">IRepository</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">where</span> <span class="n">TEntity</span> <span class="p">:</span> <span class="n">class</span><span class="p">,</span> <span class="n">IEntity</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 忽略的代码。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">Type</span> <span class="n">ElementType</span> <span class="p">=&gt;</span> <span class="n">GetQueryable</span><span class="p">().</span><span class="n">ElementType</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">Expression</span> <span class="n">Expression</span> <span class="p">=&gt;</span> <span class="n">GetQueryable</span><span class="p">().</span><span class="n">Expression</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">IQueryProvider</span> <span class="n">Provider</span> <span class="p">=&gt;</span> <span class="n">GetQueryable</span><span class="p">().</span><span class="n">Provider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 忽略的代码。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">IEnumerator</span> <span class="n">IEnumerable</span><span class="p">.</span><span class="n">GetEnumerator</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">GetEnumerator</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IEnumerator</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;</span> <span class="n">GetEnumerator</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">GetQueryable</span><span class="p">().</span><span class="n">GetEnumerator</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">abstract</span> <span class="n">IQueryable</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;</span> <span class="n">GetQueryable</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 忽略的代码。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-iqueryable-使用的-dbcontext">2.2 IQueryable 使用的 DbContext</h3>
+<p>上一个小节的代码中，我们可以看出最后的 <code>IQueryable&lt;TEntity&gt;</code> 是通过抽象方法 <code>GetQueryable()</code> 取得的。这个抽象方法，在 EF Core 当中的实现如下。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">EfCoreRepository</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">,</span> <span class="n">TEntity</span><span class="p">&gt;</span> <span class="p">:</span> <span class="n">RepositoryBase</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;,</span> <span class="n">IEfCoreRepository</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">where</span> <span class="n">TDbContext</span> <span class="p">:</span> <span class="n">IEfCoreDbContext</span>
+</span></span><span class="line"><span class="cl">    <span class="k">where</span> <span class="n">TEntity</span> <span class="p">:</span> <span class="n">class</span><span class="p">,</span> <span class="n">IEntity</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">DbSet</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;</span> <span class="n">DbSet</span> <span class="p">=&gt;</span> <span class="n">DbContext</span><span class="p">.</span><span class="n">Set</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">DbContext</span> <span class="n">IEfCoreRepository</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;.</span><span class="n">DbContext</span> <span class="p">=&gt;</span> <span class="n">DbContext</span><span class="p">.</span><span class="n">As</span><span class="p">&lt;</span><span class="n">DbContext</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">virtual</span> <span class="n">TDbContext</span> <span class="n">DbContext</span> <span class="p">=&gt;</span> <span class="n">_dbContextProvider</span><span class="p">.</span><span class="n">GetDbContext</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IDbContextProvider</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;</span> <span class="n">_dbContextProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 忽略的代码。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">EfCoreRepository</span><span class="p">(</span><span class="n">IDbContextProvider</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;</span> <span class="n">dbContextProvider</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_dbContextProvider</span> <span class="p">=</span> <span class="n">dbContextProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// ... 忽略的代码。</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 忽略的代码。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">override</span> <span class="n">IQueryable</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;</span> <span class="n">GetQueryable</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">DbSet</span><span class="p">.</span><span class="n">AsQueryable</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 忽略的代码。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>所以我们就可以知道，当调用 <code>IQueryable&lt;TEntity&gt;.ToList()</code> 方法时，实际是使用的 <code>IDbContextProvider&lt;TDbContext&gt;</code> 解析出来的数据库上下文对象。</p>
+<p>跳转到这个 DbContextProvider 的具体实现，可以看到他是通过 <code>IUnitOfWorkManager</code>(<strong>工作单元管理器</strong>) 得到可用的工作单元，然后通过工作单元提供的 <code>IServiceProvider</code> 解析所需要的数据库上下文对象。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">UnitOfWorkDbContextProvider</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;</span> <span class="p">:</span> <span class="n">IDbContextProvider</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">where</span> <span class="n">TDbContext</span> <span class="p">:</span> <span class="n">IEfCoreDbContext</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IUnitOfWorkManager</span> <span class="n">_unitOfWorkManager</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">UnitOfWorkDbContextProvider</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IUnitOfWorkManager</span> <span class="n">unitOfWorkManager</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_unitOfWorkManager</span> <span class="p">=</span> <span class="n">unitOfWorkManager</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 上述代码有所精简。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TDbContext</span> <span class="n">GetDbContext</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">unitOfWork</span> <span class="p">=</span> <span class="n">_unitOfWorkManager</span><span class="p">.</span><span class="n">Current</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// ... 忽略部分代码。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 重点在 CreateDbContext() 方法内部。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">databaseApi</span> <span class="p">=</span> <span class="n">unitOfWork</span><span class="p">.</span><span class="n">GetOrAddDatabaseApi</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">dbContextKey</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="p">()</span> <span class="p">=&gt;</span> <span class="k">new</span> <span class="n">EfCoreDatabaseApi</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">CreateDbContext</span><span class="p">(</span><span class="n">unitOfWork</span><span class="p">,</span> <span class="n">connectionStringName</span><span class="p">,</span> <span class="n">connectionString</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="p">((</span><span class="n">EfCoreDatabaseApi</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;)</span><span class="n">databaseApi</span><span class="p">).</span><span class="n">DbContext</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">TDbContext</span> <span class="n">CreateDbContext</span><span class="p">(</span><span class="n">IUnitOfWork</span> <span class="n">unitOfWork</span><span class="p">,</span> <span class="kt">string</span> <span class="n">connectionStringName</span><span class="p">,</span> <span class="kt">string</span> <span class="n">connectionString</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// ... 忽略部分代码。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">using</span> <span class="p">(</span><span class="n">DbContextCreationContext</span><span class="p">.</span><span class="n">Use</span><span class="p">(</span><span class="n">creationContext</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">dbContext</span> <span class="p">=</span> <span class="n">CreateDbContext</span><span class="p">(</span><span class="n">unitOfWork</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// ... 忽略部分代码。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">dbContext</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">TDbContext</span> <span class="n">CreateDbContext</span><span class="p">(</span><span class="n">IUnitOfWork</span> <span class="n">unitOfWork</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">unitOfWork</span><span class="p">.</span><span class="n">Options</span><span class="p">.</span><span class="n">IsTransactional</span>
+</span></span><span class="line"><span class="cl">            <span class="p">?</span> <span class="n">CreateDbContextWithTransaction</span><span class="p">(</span><span class="n">unitOfWork</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 重点 ！！！</span>
+</span></span><span class="line"><span class="cl">            <span class="p">:</span> <span class="n">unitOfWork</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TDbContext</span> <span class="n">CreateDbContextWithTransaction</span><span class="p">(</span><span class="n">IUnitOfWork</span> <span class="n">unitOfWork</span><span class="p">)</span> 
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// ... 忽略部分代码。        </span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">activeTransaction</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 重点 ！！！</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">dbContext</span> <span class="p">=</span> <span class="n">unitOfWork</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// ... 忽略部分代码。</span>
+</span></span><span class="line"><span class="cl">            
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">dbContext</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">else</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// ... 忽略部分代码。</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 重点 ！！！</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">dbContext</span> <span class="p">=</span> <span class="n">unitOfWork</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// ... 忽略部分代码。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">dbContext</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="23-dbcontext-和工作单元的销毁">2.3 DbContext 和工作单元的销毁</h3>
+<p>可以看到，仓储使用到的数据库上下文对象是通过工作单元的 <code>IServiceProvider</code> 进行解析的。回想之前关于工作单元的文章讲解，不论是手动开启工作单元，还是通过拦截器或者特性的方式开启，最终都是使用的 <code>IUnitOfWorkManager.Begin()</code> 进行构建的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">UnitOfWorkManager</span> <span class="p">:</span> <span class="n">IUnitOfWorkManager</span><span class="p">,</span> <span class="n">ISingletonDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 省略的不相关的代码。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IHybridServiceScopeFactory</span> <span class="n">_serviceScopeFactory</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 省略的不相关的代码。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IUnitOfWork</span> <span class="n">Begin</span><span class="p">(</span><span class="n">UnitOfWorkOptions</span> <span class="n">options</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">requiresNew</span> <span class="p">=</span> <span class="k">false</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// ... 省略的不相关的代码。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">unitOfWork</span> <span class="p">=</span> <span class="n">CreateNewUnitOfWork</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// ... 省略的不相关的代码。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">unitOfWork</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 省略的不相关的代码。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">IUnitOfWork</span> <span class="n">CreateNewUnitOfWork</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">scope</span> <span class="p">=</span> <span class="n">_serviceScopeFactory</span><span class="p">.</span><span class="n">CreateScope</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="k">try</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// ... 省略的不相关的代码。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// 所以 IUnitOfWork 里面获得的 ServiceProvider 是一个子容器。</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">unitOfWork</span> <span class="p">=</span> <span class="n">scope</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IUnitOfWork</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// ... 省略的不相关的代码。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// 工作单元被释放的动作。</span>
+</span></span><span class="line"><span class="cl">            <span class="n">unitOfWork</span><span class="p">.</span><span class="n">Disposed</span> <span class="p">+=</span> <span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">_ambientUnitOfWork</span><span class="p">.</span><span class="n">SetUnitOfWork</span><span class="p">(</span><span class="n">outerUow</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="c1">// 子容器被释放时，通过子容器解析的 DbContext 也被释放了。</span>
+</span></span><span class="line"><span class="cl">                <span class="n">scope</span><span class="p">.</span><span class="n">Dispose</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">unitOfWork</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">catch</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">scope</span><span class="p">.</span><span class="n">Dispose</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="k">throw</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>工作单元的 <code>ServiceProvider</code> 是通过继承 <code>IServiceProviderAccessor</code> 得到的，也就是说在构建工作单元的时候，这个 Provider 就是工作单元管理器创建的子容器。</p>
+<p>那么回到之前的代码，我们得知 DbContext 是通过工作单元的 <code>ServiceProvider</code> 创建的，当工作单元被释放的时候，也会连带这个子容器被释放。那么我们之前解析出来的 DbContext ，也就会随着子容器的释放而被释放。如果要验证上述猜想，只需要编写类似代码即可。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Fact]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">TestMethod</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">scope</span> <span class="p">=</span> <span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IServiceProvider</span><span class="p">&gt;().</span><span class="n">CreateScope</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">dbContext</span> <span class="p">=</span> <span class="n">scope</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IHospitalDbContext</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">scope</span><span class="p">.</span><span class="n">Dispose</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="/p/why-does-abp-vnext-throw-an-exception-if-it-does-not-use-the-unit-of-work/201910100100.gif"
+	width="2170"
+	height="1080"
+	srcset="/p/why-does-abp-vnext-throw-an-exception-if-it-does-not-use-the-unit-of-work/201910100100_huab7e0c5a69abb9bfd232ec18e6b503b4_1478213_480x0_resize_box.gif 480w, /p/why-does-abp-vnext-throw-an-exception-if-it-does-not-use-the-unit-of-work/201910100100_huab7e0c5a69abb9bfd232ec18e6b503b4_1478213_1024x0_resize_box.gif 1024w"
+	loading="lazy"
+	
+		alt="201910100100"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="200"
+		data-flex-basis="482px"
+	
+></p>
+<p>既然如此，工作单元是什么时候被释放的呢&hellip;因为拦截器默认是为仓储建立了拦截器，所以在获得到 DbContext 的时候，拦截器已经将之前的 DbContext 释放掉了。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">Intercept</span><span class="p">(</span><span class="n">IAbpMethodInvocation</span> <span class="n">invocation</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">UnitOfWorkHelper</span><span class="p">.</span><span class="n">IsUnitOfWorkMethod</span><span class="p">(</span><span class="n">invocation</span><span class="p">.</span><span class="n">Method</span><span class="p">,</span> <span class="k">out</span> <span class="kt">var</span> <span class="n">unitOfWorkAttribute</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">invocation</span><span class="p">.</span><span class="n">Proceed</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 我在这里...</span>
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">uow</span> <span class="p">=</span> <span class="n">_unitOfWorkManager</span><span class="p">.</span><span class="n">Begin</span><span class="p">(</span><span class="n">CreateOptions</span><span class="p">(</span><span class="n">invocation</span><span class="p">,</span> <span class="n">unitOfWorkAttribute</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">invocation</span><span class="p">.</span><span class="n">Proceed</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">uow</span><span class="p">.</span><span class="n">Complete</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>要验证 DbContext 是随工作单元一起释放，也十分简单，编写以下代码即可进行测试。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Fact]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">TestMethod</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">rep</span> <span class="p">=</span> <span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IHospitalRepository</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">mgr</span> <span class="p">=</span> <span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IUnitOfWorkManager</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">uow</span> <span class="p">=</span> <span class="n">mgr</span><span class="p">.</span><span class="n">Begin</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">count</span> <span class="p">=</span> <span class="n">rep</span><span class="p">.</span><span class="n">Count</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">uow</span><span class="p">.</span><span class="n">Dispose</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">uow</span><span class="p">.</span><span class="n">Complete</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="/p/why-does-abp-vnext-throw-an-exception-if-it-does-not-use-the-unit-of-work/201910100107.gif"
+	width="2170"
+	height="750"
+	srcset="/p/why-does-abp-vnext-throw-an-exception-if-it-does-not-use-the-unit-of-work/201910100107_hue4c1cc2a2d577396a0c31ff2cb83b46e_532526_480x0_resize_box.gif 480w, /p/why-does-abp-vnext-throw-an-exception-if-it-does-not-use-the-unit-of-work/201910100107_hue4c1cc2a2d577396a0c31ff2cb83b46e_532526_1024x0_resize_box.gif 1024w"
+	loading="lazy"
+	
+		alt="201910100107"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="289"
+		data-flex-basis="694px"
+	
+></p>
+<h2 id="三解决">三、解决</h2>
+<p>解决方法很简单，在有类似操作的外部通过 <code>[UnitOfWork]</code> 特性或者 <code>IUnitOfManager.Begin</code> 开启一个新的工作单元即可。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Fact]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">TestMethod</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">rep</span> <span class="p">=</span> <span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IHospitalRepository</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">mgr</span> <span class="p">=</span> <span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IUnitOfWorkManager</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">uow</span> <span class="p">=</span> <span class="n">mgr</span><span class="p">.</span><span class="n">Begin</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">count</span> <span class="p">=</span> <span class="n">rep</span><span class="p">.</span><span class="n">Count</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">uow</span><span class="p">.</span><span class="n">Complete</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/abp-vnext/">ABP vNext</a>
+        
+            <a href="/tags/%E5%B7%A5%E4%BD%9C%E5%8D%95%E5%85%83/">工作单元</a>
+        
+            <a href="/tags/entity-framework-core/">Entity Framework Core</a>
+        
+            <a href="/tags/%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/">异常处理</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis-integration-of-entityframework-core/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 14. EntityFramework Core 的集成</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-custom-ef-core-repository-throws-exception/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 自定义 Ef Core 仓储引发异常</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---4-unit-of-work/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 4. 工作单元</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一问题">一、问题</a></li>
+    <li><a href="#二原因">二、原因</a>
+      <ol>
+        <li><a href="#21-为什么能够调用-linq-扩展">2.1 为什么能够调用 LINQ 扩展?</a></li>
+        <li><a href="#22-iqueryable-使用的-dbcontext">2.2 IQueryable 使用的 DbContext</a></li>
+        <li><a href="#23-dbcontext-和工作单元的销毁">2.3 DbContext 和工作单元的销毁</a></li>
+      </ol>
+    </li>
+    <li><a href="#三解决">三、解决</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

@@ -1,0 +1,1666 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、简介 ABP vNext 提供了全套的本地化字符串支持，具体用法可以参考官方使用文档。vNext 本身是对 Microsoft 提供的本地化组件进行了实现，通过 JSON 文件提供本地化源，这一点与老 ABP 不太一样，老 ABP 框架是全套自己手撸。vNext 针对服务端和客户端都提供了文字本地化的工具类，这样开发人员可以很快速地开发支持多语言的网站程序。
+二、源码分析 本地化涉及的主要模块有 Volo.Abp.Localization.Abstractions 和 Volo.Abp.Localization，可以看到 Volo 针对包的结构也逐渐向 Microsoft 的构建方式靠拢。有直接依赖的模块是 Volo.Abp.VirtualFileSystem，之所以会引用到这个模块，是因为默认的本地化数据源是通过内嵌 JSON 文件实现的，所以会用到虚拟文件系统读取数据。
+'><title>Abp vNext 源码分析 - 21. 界面与文字的本地化</title>
+
+<link rel='canonical' href='https://example.com/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp vNext 源码分析 - 21. 界面与文字的本地化'>
+<meta property='og:description' content='一、简介 ABP vNext 提供了全套的本地化字符串支持，具体用法可以参考官方使用文档。vNext 本身是对 Microsoft 提供的本地化组件进行了实现，通过 JSON 文件提供本地化源，这一点与老 ABP 不太一样，老 ABP 框架是全套自己手撸。vNext 针对服务端和客户端都提供了文字本地化的工具类，这样开发人员可以很快速地开发支持多语言的网站程序。
+二、源码分析 本地化涉及的主要模块有 Volo.Abp.Localization.Abstractions 和 Volo.Abp.Localization，可以看到 Volo 针对包的结构也逐渐向 Microsoft 的构建方式靠拢。有直接依赖的模块是 Volo.Abp.VirtualFileSystem，之所以会引用到这个模块，是因为默认的本地化数据源是通过内嵌 JSON 文件实现的，所以会用到虚拟文件系统读取数据。
+'>
+<meta property='og:url' content='https://example.com/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='ABP vNext' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='ASP.NET Core' /><meta property='article:tag' content='ASP.NET Core MVC' /><meta property='article:tag' content='本地化' /><meta property='article:published_time' content='2020-09-25T08:28:00&#43;00:00'/><meta property='article:modified_time' content='2020-09-25T08:28:00&#43;00:00'/>
+<meta name="twitter:title" content="Abp vNext 源码分析 - 21. 界面与文字的本地化">
+<meta name="twitter:description" content="一、简介 ABP vNext 提供了全套的本地化字符串支持，具体用法可以参考官方使用文档。vNext 本身是对 Microsoft 提供的本地化组件进行了实现，通过 JSON 文件提供本地化源，这一点与老 ABP 不太一样，老 ABP 框架是全套自己手撸。vNext 针对服务端和客户端都提供了文字本地化的工具类，这样开发人员可以很快速地开发支持多语言的网站程序。
+二、源码分析 本地化涉及的主要模块有 Volo.Abp.Localization.Abstractions 和 Volo.Abp.Localization，可以看到 Volo 针对包的结构也逐渐向 Microsoft 的构建方式靠拢。有直接依赖的模块是 Volo.Abp.VirtualFileSystem，之所以会引用到这个模块，是因为默认的本地化数据源是通过内嵌 JSON 文件实现的，所以会用到虚拟文件系统读取数据。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">Abp vNext 源码分析 - 21. 界面与文字的本地化</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Sep 25, 2020</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 8 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一简介">一、简介</h2>
+<p>ABP vNext 提供了全套的本地化字符串支持，具体用法可以参考<a class="link" href="https://docs.abp.io/en/abp/latest/Localization"  target="_blank" rel="noopener"
+    >官方使用文档</a>。vNext 本身是对 Microsoft 提供的本地化组件进行了实现，通过 JSON 文件提供本地化源，这一点与老 ABP 不太一样，老 ABP 框架是全套自己手撸。vNext 针对服务端和客户端都提供了文字本地化的工具类，这样开发人员可以很快速地开发支持多语言的网站程序。</p>
+<h2 id="二源码分析">二、源码分析</h2>
+<p>本地化涉及的主要模块有 <strong>Volo.Abp.Localization.Abstractions</strong> 和 <strong>Volo.Abp.Localization</strong>，可以看到 Volo 针对包的结构也逐渐向 Microsoft 的构建方式靠拢。有直接依赖的模块是 <strong>Volo.Abp.VirtualFileSystem</strong>，之所以会引用到这个模块，是因为默认的本地化数据源是通过内嵌 JSON 文件实现的，所以会用到虚拟文件系统读取数据。</p>
+<h3 id="21-本地化的抽象接口">2.1 本地化的抽象接口</h3>
+<p>首先打开 <strong>Volo.Abp.Localization.Abstractions</strong> 项目，它的基本结构如下图所示，需要注意的核心类型就是 <code>ILocalizableString</code> 接口和它的两个具体实现 <code>FixedLocalizableString</code> 与 <code>LocalizableString</code>。</p>
+<p>这里的 <code>IAbpStringLocalizerFactoryWithDefaultResourceSupport</code> 接口是为 <code>AbpStringLocalizerFactoryExtensions</code> 服务的，后面会详细解释，主要作用是根据默认资源类型快速创建一个 <code>IStringLocalizer</code> 实例。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/QQ--20210428214436.png"
+	width="1172"
+	height="714"
+	srcset="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/QQ--20210428214436_hub44ba85bf04fa665e125dbb54746354c_285184_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/QQ--20210428214436_hub44ba85bf04fa665e125dbb54746354c_285184_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="QQ&ndash;20210428214436"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="164"
+		data-flex-basis="393px"
+	
+></p>
+<h4 id="211-本地化字符串对象的封装">2.1.1 本地化字符串对象的封装</h4>
+<p>可以看到在该项目内部定义了一个 <code>ILocalizableString</code> 的接口，在 ABP vNext 内部需要用到多语言表示的字符串属性，都是定义的 <code>ILocalizableString</code> 类型。本质上它是针对 Microsoft 提供的 <code>LocalizedString</code> 进行了一层包装，这个接口只提供了一个方法 <code>Localize()</code>，具体的签名见下面的代码。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">ILocalizableString</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">LocalizedString</span> <span class="n">Localize</span><span class="p">(</span><span class="n">IStringLocalizerFactory</span> <span class="n">stringLocalizerFactory</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在 ABP vNext 框架当中，拥有两个实现，分别是 <code>LocalizableString</code> 和 <code>FixedLocalizableString</code>，后者用于创建固定字串的显示。例如 ABP vNext 自带的权限系统，针对权限名称和描述必须传递 <code>ILocalizableString</code> 类型的值，但是开发人员暂时没有提供对应的本地化翻译，这个时候就可以使用 <code>FixedLocalizableString</code> 传递固定字符串。</p>
+<p>实现也是很简单，在调用了 <code>Localize()</code> 方法之后，会根据构造函数的 <strong>Value</strong> 创建一个新的 <code>LocalizedString</code> 对象。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">FixedLocalizableString</span> <span class="p">:</span> <span class="n">ILocalizableString</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Value</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">FixedLocalizableString</span><span class="p">(</span><span class="kt">string</span> <span class="k">value</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Value</span> <span class="p">=</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">LocalizedString</span> <span class="n">Localize</span><span class="p">(</span><span class="n">IStringLocalizerFactory</span> <span class="n">stringLocalizerFactory</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">new</span> <span class="n">LocalizedString</span><span class="p">(</span><span class="n">Value</span><span class="p">,</span> <span class="n">Value</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>用法举例:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">DataDictionaryDefinitionPermissionProvider</span> <span class="p">:</span> <span class="n">PermissionDefinitionProvider</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">Define</span><span class="p">(</span><span class="n">IPermissionDefinitionContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">dataDictionaryGroup</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">AddGroup</span><span class="p">(</span><span class="n">DataDictionaryPermissions</span><span class="p">.</span><span class="n">GroupName</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:DataDictionary&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">dataDictionary</span> <span class="p">=</span> <span class="n">dataDictionaryGroup</span><span class="p">.</span><span class="n">AddPermission</span><span class="p">(</span><span class="n">DataDictionaryPermissions</span><span class="p">.</span><span class="n">DataDictionary</span><span class="p">.</span><span class="n">Default</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:DataDictionary&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="n">dataDictionary</span><span class="p">.</span><span class="n">AddChild</span><span class="p">(</span><span class="n">DataDictionaryPermissions</span><span class="p">.</span><span class="n">DataDictionary</span><span class="p">.</span><span class="n">Create</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:Create&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="n">dataDictionary</span><span class="p">.</span><span class="n">AddChild</span><span class="p">(</span><span class="n">DataDictionaryPermissions</span><span class="p">.</span><span class="n">DataDictionary</span><span class="p">.</span><span class="n">Update</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:Edit&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="n">dataDictionary</span><span class="p">.</span><span class="n">AddChild</span><span class="p">(</span><span class="n">DataDictionaryPermissions</span><span class="p">.</span><span class="n">DataDictionary</span><span class="p">.</span><span class="n">Delete</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:Delete&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">      	<span class="c1">// 这里使用了 FixedLocalizableString 提供本地化字符串。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">dataDictionary</span><span class="p">.</span><span class="n">AddChild</span><span class="p">(</span><span class="n">DataDictionaryPermissions</span><span class="p">.</span><span class="n">DataDictionary</span><span class="p">.</span><span class="n">Management</span><span class="p">,</span> <span class="k">new</span> <span class="n">FixedLocalizableString</span><span class="p">(</span><span class="s">&#34;字典管理&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">static</span> <span class="n">LocalizableString</span> <span class="n">L</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">LocalizableString</span><span class="p">.</span><span class="n">Create</span><span class="p">&lt;</span><span class="n">DataDictionaryResource</span><span class="p">&gt;(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>另一个 <code>LocalizableString</code> 就是正常通过 <code>IStringLocalizerFactory</code> 获取的本地化字符串对象。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">LocalizableString</span> <span class="p">:</span> <span class="n">ILocalizableString</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [CanBeNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Type</span> <span class="n">ResourceType</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">    [NotNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">LocalizableString</span><span class="p">(</span><span class="n">Type</span> <span class="n">resourceType</span><span class="p">,</span> <span class="p">[</span><span class="n">NotNull</span><span class="p">]</span> <span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Name</span> <span class="p">=</span> <span class="n">Check</span><span class="p">.</span><span class="n">NotNullOrEmpty</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">name</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ResourceType</span> <span class="p">=</span> <span class="n">resourceType</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">LocalizedString</span> <span class="n">Localize</span><span class="p">(</span><span class="n">IStringLocalizerFactory</span> <span class="n">stringLocalizerFactory</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">stringLocalizerFactory</span><span class="p">.</span><span class="n">Create</span><span class="p">(</span><span class="n">ResourceType</span><span class="p">)[</span><span class="n">Name</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="n">LocalizableString</span> <span class="n">Create</span><span class="p">&lt;</span><span class="n">TResource</span><span class="p">&gt;([</span><span class="n">NotNull</span><span class="p">]</span> <span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">new</span> <span class="n">LocalizableString</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TResource</span><span class="p">),</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在类型里面定义了一个静态方法，用于目标类型与 KEY 的 <code>LocalizableString</code> 对象，常见于权限定义的地方，在上面的示例代码中有用到过。</p>
+<h4 id="212-本地化资源类型的别名">2.1.2 本地化资源类型的别名</h4>
+<p>TODO</p>
+<h3 id="22-本地化的基础设施">2.2 本地化的基础设施</h3>
+<p>下文指代的基础设施是指 ABP vNext 为了优雅地实现 Microsoft 本地化接口所构建的一系列组件，ABP vNext 的大部分组件都是基于 Microsoft 提供的抽象体系，也是为了更好地兼容。</p>
+<h4 id="221-模块的启动">2.2.1 模块的启动</h4>
+<p>具体的实现模块逻辑也不复杂，首先替换了默认的本地化资源容器工厂。接着往 ABP 的虚拟文件系统添加了当前模块，以便后续访问对应的 JSON 文件，最后往本地化的相关配置项添加了两个本地化资源。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpLocalizationModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">ConfigureServices</span><span class="p">(</span><span class="n">ServiceConfigurationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AbpStringLocalizerFactory</span><span class="p">.</span><span class="n">Replace</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">Configure</span><span class="p">&lt;</span><span class="n">AbpVirtualFileSystemOptions</span><span class="p">&gt;(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">options</span><span class="p">.</span><span class="n">FileSets</span><span class="p">.</span><span class="n">AddEmbedded</span><span class="p">&lt;</span><span class="n">AbpLocalizationModule</span><span class="p">&gt;(</span><span class="s">&#34;Volo.Abp&#34;</span><span class="p">,</span> <span class="s">&#34;Volo/Abp&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">});</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">Configure</span><span class="p">&lt;</span><span class="n">AbpLocalizationOptions</span><span class="p">&gt;(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">options</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">Resources</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">Add</span><span class="p">&lt;</span><span class="n">DefaultResource</span><span class="p">&gt;(</span><span class="s">&#34;en&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="n">options</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">Resources</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">Add</span><span class="p">&lt;</span><span class="n">AbpLocalizationResource</span><span class="p">&gt;(</span><span class="s">&#34;en&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">AddVirtualJson</span><span class="p">(</span><span class="s">&#34;/Localization/Resources/AbpLocalization&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="222-本地化的配置">2.2.2 本地化的配置</h4>
+<p><code>AbpLocalizationOptions</code> 内部定义了本地化系统的相关参数，主要由资源集合(<code>Resources</code>)、默认资源(<code>DefaultResourceType</code>)、全局的本地化数据源提供者(<code>GlobalContributors</code>)、支持的语言(<code>Languages</code>)。</p>
+<blockquote>
+<p><strong>注意:</strong></p>
+<p>当进行本地化操作时，没有指定资源类型的时候会使用默认资源类型。</p>
+</blockquote>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpLocalizationOptions</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">LocalizationResourceDictionary</span> <span class="n">Resources</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Type</span> <span class="n">DefaultResourceType</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ITypeList</span><span class="p">&lt;</span><span class="n">ILocalizationResourceContributor</span><span class="p">&gt;</span> <span class="n">GlobalContributors</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">LanguageInfo</span><span class="p">&gt;</span> <span class="n">Languages</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">NameValue</span><span class="p">&gt;&gt;</span> <span class="n">LanguagesMap</span>  <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">NameValue</span><span class="p">&gt;&gt;</span> <span class="n">LanguageFilesMap</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">AbpLocalizationOptions</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Resources</span> <span class="p">=</span> <span class="k">new</span> <span class="n">LocalizationResourceDictionary</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">GlobalContributors</span> <span class="p">=</span> <span class="k">new</span> <span class="n">TypeList</span><span class="p">&lt;</span><span class="n">ILocalizationResourceContributor</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Languages</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">LanguageInfo</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">LanguagesMap</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">NameValue</span><span class="p">&gt;&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">LanguageFilesMap</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">NameValue</span><span class="p">&gt;&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>从上述代码我们可以知道，要让本地化系统正常工作，我们会接触到下面这几个类型 <code>LocalizationResourceDictionary</code>、<code>LocalizationResource</code>、<code>ILocalizationResourceContributor</code>、<code>LanguageInfo</code>。</p>
+<h4 id="223-本地化资源的定义">2.2.3 本地化资源的定义</h4>
+<p>在使用本地化系统的时候，ABP vNext 文档首先会让我们定义一个类型，并在模块的 <code>ConfigureService()</code> 周期，通过配置项添加到本地化系统当中，就像这样。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">Configure</span><span class="p">&lt;</span><span class="n">AbpLocalizationOptions</span><span class="p">&gt;(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">options</span><span class="p">.</span><span class="n">Resources</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">Add</span><span class="p">&lt;</span><span class="n">DataDictionaryResource</span><span class="p">&gt;(</span><span class="s">&#34;en&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">AddVirtualJson</span><span class="p">(</span><span class="s">&#34;/Localization/Resources&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">});</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里可以看到，ABP vNext 实现了一套流畅方法(Fluent Method)，通过这一系列的操作，我们会生成一个 <code>LocalizationResource</code> 实例，添加到配置系统当中，以便后续进行使用。</p>
+<p>这里的 <code>Add()</code> 方法是由 <code>LocalizationResourceDictionary</code> 提供的，它本质上就是一个字典，只不过由 ABP vNext 封装了一些自定义的方法，方便添加字典项数据。可以看到它的实现也很简单，首先判断字典是否存在对应的 Key，如果不存在就使用资源类型和区域文化信息构造一个新的 <code>LocalizationResource</code> 对象，并将其添加到字典当中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">LocalizationResourceDictionary</span> <span class="p">:</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">,</span> <span class="n">LocalizationResource</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">LocalizationResource</span> <span class="n">Add</span><span class="p">&lt;</span><span class="n">TResouce</span><span class="p">&gt;([</span><span class="n">CanBeNull</span><span class="p">]</span> <span class="kt">string</span> <span class="n">defaultCultureName</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TResouce</span><span class="p">),</span> <span class="n">defaultCultureName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">LocalizationResource</span> <span class="n">Add</span><span class="p">(</span><span class="n">Type</span> <span class="n">resourceType</span><span class="p">,</span> <span class="p">[</span><span class="n">CanBeNull</span><span class="p">]</span> <span class="kt">string</span> <span class="n">defaultCultureName</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">ContainsKey</span><span class="p">(</span><span class="n">resourceType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">throw</span> <span class="k">new</span> <span class="n">AbpException</span><span class="p">(</span><span class="s">&#34;This resource is already added before: &#34;</span> <span class="p">+</span> <span class="n">resourceType</span><span class="p">.</span><span class="n">AssemblyQualifiedName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">this</span><span class="p">[</span><span class="n">resourceType</span><span class="p">]</span> <span class="p">=</span> <span class="k">new</span> <span class="n">LocalizationResource</span><span class="p">(</span><span class="n">resourceType</span><span class="p">,</span> <span class="n">defaultCultureName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>转到 <code>LocalizationResouce</code> 的定义，内部存储了具体的资源类型、资源名称、当前资源默认的区域文化信息、本地化数据源提供者(与全局的不同，这里仅作用于某个具体本地化资源)、继承的基类资源类型集合。</p>
+<p>资源类型和资源名称用于区分不同的本地化资源。默认区域文化信息代表当前资源，当获取指定语言的本地化字符串失败时，会读取默认的区域文化信息对应的本地化字符串。</p>
+<p>这里的 <code>BaseResouceTypes</code> 是为了复用其他资源的本地化字符串，例如你定义了一个 <code>AppleResouceType</code>，但是你想要获取 <code>FruitResouceType</code> 对应的字符串，那么就需要往这个集合添加需要服用的资源类型。ABP vNext 为 <code>LocalizationResource</code> 提供了一个扩展方法 <code>AddBaseTypes()</code> 便于在模块配置时添加需要复用的类型。除此之外 ABP vNext 也提供了特性支持，跟模块定义一样，在类定义上面添加 <code>InheritResourceAttribute</code> 特性，传入需要复用的类型定义即可。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[InheritResource(
+</span></span></span><span class="line"><span class="cl"><span class="na">    typeof(LocalizationTestValidationResource),
+</span></span></span><span class="line"><span class="cl"><span class="na">    typeof(LocalizationTestCountryNamesResource)
+</span></span></span><span class="line"><span class="cl"><span class="na">    )]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">sealed</span> <span class="k">class</span> <span class="nc">LocalizationTestResource</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到在下述代码当中，ABP vNext 会扫描当前 <code>ResouceType</code> 的特性，并将其定义的复用类型添加到基类集合当中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">LocalizationResource</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [NotNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Type</span> <span class="n">ResourceType</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">    [NotNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">ResourceName</span> <span class="p">=&gt;</span> <span class="n">LocalizationResourceNameAttribute</span><span class="p">.</span><span class="n">GetName</span><span class="p">(</span><span class="n">ResourceType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">    [CanBeNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">DefaultCultureName</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">    [NotNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">LocalizationResourceContributorList</span> <span class="n">Contributors</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">    [NotNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;</span> <span class="n">BaseResourceTypes</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">LocalizationResource</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl"><span class="na">        [NotNull]</span> <span class="n">Type</span> <span class="n">resourceType</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl"><span class="na">        [CanBeNull]</span> <span class="kt">string</span> <span class="n">defaultCultureName</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"><span class="na">        [CanBeNull]</span> <span class="n">ILocalizationResourceContributor</span> <span class="n">initialContributor</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ResourceType</span> <span class="p">=</span> <span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="n">resourceType</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">resourceType</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="n">DefaultCultureName</span> <span class="p">=</span> <span class="n">defaultCultureName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">BaseResourceTypes</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Contributors</span> <span class="p">=</span> <span class="k">new</span> <span class="n">LocalizationResourceContributorList</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">initialContributor</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Contributors</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">initialContributor</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">AddBaseResourceTypes</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">AddBaseResourceTypes</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">descriptors</span> <span class="p">=</span> <span class="n">ResourceType</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">GetCustomAttributes</span><span class="p">(</span><span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">OfType</span><span class="p">&lt;</span><span class="n">IInheritedResourceTypesProvider</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">descriptor</span> <span class="k">in</span> <span class="n">descriptors</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">baseResourceType</span> <span class="k">in</span> <span class="n">descriptor</span><span class="p">.</span><span class="n">GetInheritedResourceTypes</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">BaseResourceTypes</span><span class="p">.</span><span class="n">AddIfNotContains</span><span class="p">(</span><span class="n">baseResourceType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>当资源类型(<strong>Resource Type</strong>) 定义好之后，通过上面的一番操作，就能够得到一个 <code>LocalizationResource</code> 实例，并将其添加到了 <code>AbpLocalizationOptions</code> 内的 <code>LocalizationResourceDictionary</code> 对象。开发人员定义了多少个本地化资源类型，就会往这个字典添加多少个 <code>LocaliztaionResource</code> 实例。</p>
+<h4 id="224-本地化的数据源">2.2.4 本地化的数据源</h4>
+<p>不论是配置项还是某个本地化资源定义类，都会存储一组 <code>Contributor</code> 。转到对应的接口定义，这个接口定义了三个公开方法，分别用于初始化(<code>Initialize()</code>)、获取某个具体的本地化字符串(<code>LocalizedString()</code>)、为指定的字典填充本地化资源数据(<code>Fill()</code>)。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">ILocalizationResourceContributor</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">Initialize</span><span class="p">(</span><span class="n">LocalizationResourceInitializationContext</span> <span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">LocalizedString</span> <span class="n">GetOrNull</span><span class="p">(</span><span class="kt">string</span> <span class="n">cultureName</span><span class="p">,</span> <span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">Fill</span><span class="p">(</span><span class="kt">string</span> <span class="n">cultureName</span><span class="p">,</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">LocalizedString</span><span class="p">&gt;</span> <span class="n">dictionary</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>所有的数据源都是由各个 <code>Contributor</code> 提供的，这里以 <code>VirtualFileLocalizationResourceContributorBase</code> 为例，在内部通过虚拟文件系统获取到了文件数据，通过文件数据构造一系列的字典。这里的 <strong>字典有两层</strong>，第一层的 Key 是区域文化信息，Value 是对应区域文化信息的本地化字符串字典。第二层的 Key 是本地化字符串的标识，Value 就是具体的 <code>LocalizedString</code> 实例。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">VirtualFileLocalizationResourceContributorBase</span> <span class="p">:</span> <span class="n">ILocalizationResourceContributor</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">Initialize</span><span class="p">(</span><span class="n">LocalizationResourceInitializationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_virtualFileProvider</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IVirtualFileProvider</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">LocalizedString</span> <span class="n">GetOrNull</span><span class="p">(</span><span class="kt">string</span> <span class="n">cultureName</span><span class="p">,</span> <span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">GetDictionaries</span><span class="p">().</span><span class="n">GetOrDefault</span><span class="p">(</span><span class="n">cultureName</span><span class="p">)?.</span><span class="n">GetOrNull</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">Fill</span><span class="p">(</span><span class="kt">string</span> <span class="n">cultureName</span><span class="p">,</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">LocalizedString</span><span class="p">&gt;</span> <span class="n">dictionary</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">GetDictionaries</span><span class="p">().</span><span class="n">GetOrDefault</span><span class="p">(</span><span class="n">cultureName</span><span class="p">)?.</span><span class="n">Fill</span><span class="p">(</span><span class="n">dictionary</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">ILocalizationDictionary</span><span class="p">&gt;</span> <span class="n">GetDictionaries</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// ... 获取本地化资源的字典，这里的字典按区域文化进行分组。</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">ILocalizationDictionary</span><span class="p">&gt;</span> <span class="n">CreateDictionaries</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">dictionaries</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">ILocalizationDictionary</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">file</span> <span class="k">in</span> <span class="n">_virtualFileProvider</span><span class="p">.</span><span class="n">GetDirectoryContents</span><span class="p">(</span><span class="n">_virtualPath</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// ... 其他代码。</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 根据文件创建某个区域文化的具体的数据源字典。</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">dictionary</span> <span class="p">=</span> <span class="n">CreateDictionaryFromFile</span><span class="p">(</span><span class="n">file</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">dictionaries</span><span class="p">.</span><span class="n">ContainsKey</span><span class="p">(</span><span class="n">dictionary</span><span class="p">.</span><span class="n">CultureName</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">throw</span> <span class="k">new</span> <span class="n">AbpException</span><span class="p">(</span><span class="s">$&#34;{file.GetVirtualOrPhysicalPathOrNull()} dictionary has a culture name &#39;{dictionary.CultureName}&#39; which is already defined!&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="n">dictionaries</span><span class="p">[</span><span class="n">dictionary</span><span class="p">.</span><span class="n">CultureName</span><span class="p">]</span> <span class="p">=</span> <span class="n">dictionary</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">dictionaries</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">abstract</span> <span class="kt">bool</span> <span class="n">CanParseFile</span><span class="p">(</span><span class="n">IFileInfo</span> <span class="n">file</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">virtual</span> <span class="n">ILocalizationDictionary</span> <span class="n">CreateDictionaryFromFile</span><span class="p">(</span><span class="n">IFileInfo</span> <span class="n">file</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">stream</span> <span class="p">=</span> <span class="n">file</span><span class="p">.</span><span class="n">CreateReadStream</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">CreateDictionaryFromFileContent</span><span class="p">(</span><span class="n">Utf8Helper</span><span class="p">.</span><span class="n">ReadStringFromStream</span><span class="p">(</span><span class="n">stream</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">abstract</span> <span class="n">ILocalizationDictionary</span> <span class="n">CreateDictionaryFromFileContent</span><span class="p">(</span><span class="kt">string</span> <span class="n">fileContent</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="225-本地化资源字典">2.2.5 本地化资源字典</h4>
+<p>具体存储本地化字符串标识和展示文本的对象是 <code>ILocalizationDictionary</code>，它的具体实现是 <code>StaticLocalizationDictionary</code>，在其内部有一个 <code>Dictionary&lt;string, LocalizedString&gt;</code> 字典，这个字典就对应的 JSON 文件当中的本地化数据了。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;culture&#34;</span><span class="p">:</span> <span class="s2">&#34;zh-Hans&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;texts&#34;</span><span class="p">:</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;DisplayName:Abp.Localization.DefaultLanguage&#34;</span><span class="p">:</span> <span class="s2">&#34;默认语言&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;Description:Abp.Localization.DefaultLanguage&#34;</span><span class="p">:</span> <span class="s2">&#34;应用程序的默认语言.&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>对应的字典形式就是内部字典的 <code>KEY:Value</code>。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">StaticLocalizationDictionary</span> <span class="p">:</span> <span class="n">ILocalizationDictionary</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">CultureName</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">LocalizedString</span><span class="p">&gt;</span> <span class="n">Dictionary</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">StaticLocalizationDictionary</span><span class="p">(</span><span class="kt">string</span> <span class="n">cultureName</span><span class="p">,</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">LocalizedString</span><span class="p">&gt;</span> <span class="n">dictionary</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">CultureName</span> <span class="p">=</span> <span class="n">cultureName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Dictionary</span> <span class="p">=</span> <span class="n">dictionary</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">LocalizedString</span> <span class="n">GetOrNull</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">Dictionary</span><span class="p">.</span><span class="n">GetOrDefault</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">Fill</span><span class="p">(</span><span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">LocalizedString</span><span class="p">&gt;</span> <span class="n">dictionary</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">item</span> <span class="k">in</span> <span class="n">Dictionary</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">dictionary</span><span class="p">[</span><span class="n">item</span><span class="p">.</span><span class="n">Key</span><span class="p">]</span> <span class="p">=</span> <span class="n">item</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>当最外层的 Contributor 获取文本的时候，实际是结合区域文化信息(Culture Name) 定义到对应的本地化资源字典，再通过 Name 获取资源字典内部对应的 <code>LocalizedString</code> 对象。</p>
+<h3 id="23-同-microsoft-本地化集成">2.3 同 Microsoft 本地化集成</h3>
+<p>2.2 节讲完了 ABP vNext 实现的基础设施，结合某个资源类型附带的 Contributor 组就能够获取到具体的本地化字符串数据，在本节主要讲解 ABP vNext 同 Microsoft 的集成。</p>
+<h4 id="231-istringlocalizer-工厂">2.3.1 IStringLocalizer 工厂</h4>
+<p>在 <code>AbpLocalizationModule</code> 模块中，第一句就是替换了默认的 String Localizer 工厂，并注入了 <code>ResourceManagerStringLocalizerFactory</code> 类型，这个类型主要用于后续的默认行为。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">internal</span> <span class="k">static</span> <span class="k">void</span> <span class="n">Replace</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">services</span><span class="p">.</span><span class="n">Replace</span><span class="p">(</span><span class="n">ServiceDescriptor</span><span class="p">.</span><span class="n">Singleton</span><span class="p">&lt;</span><span class="n">IStringLocalizerFactory</span><span class="p">,</span> <span class="n">AbpStringLocalizerFactory</span><span class="p">&gt;());</span>
+</span></span><span class="line"><span class="cl">  <span class="n">services</span><span class="p">.</span><span class="n">AddSingleton</span><span class="p">&lt;</span><span class="n">ResourceManagerStringLocalizerFactory</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在 Microsoft 提供的 <code>IStringLocalizerFactory</code> 接口中，只定义了两个创建 <code>IStringLocalizer</code> 的方法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IStringLocalizerFactory</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IStringLocalizer</span> <span class="n">Create</span><span class="p">(</span><span class="n">Type</span> <span class="n">resourceSource</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">IStringLocalizer</span> <span class="n">Create</span><span class="p">(</span><span class="kt">string</span> <span class="n">baseName</span><span class="p">,</span> <span class="kt">string</span> <span class="n">location</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>第二个方法 ABP 是直接调用的默认工厂(<code>ResouceManagerStringLocalizerFactory</code>) 提供的方法，而且还加了个 TODO 注明不知道什么时候会被调用。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="n">IStringLocalizer</span> <span class="n">Create</span><span class="p">(</span><span class="kt">string</span> <span class="n">baseName</span><span class="p">,</span> <span class="kt">string</span> <span class="n">location</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">//TODO: Investigate when this is called?</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">InnerFactory</span><span class="p">.</span><span class="n">Create</span><span class="p">(</span><span class="n">baseName</span><span class="p">,</span> <span class="n">location</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里我们着重关注第一个方法，ABP 主要实现的也是第一个方法，它会根据传入的 <code>resourceSource</code> 参数从缓存当中获取(不存在则构造)对应的 <code>IStringLocalizer</code> 。如果在 ABP 提供的资源集合当中，没有查找到对应的 Type，则直接调用默认工厂返回 <code>IStringLocalizer</code>。如果存在则会以 Type 作为 Key，<code>StringLocalizerCacheItem</code>(就是 <code>LocalizationResource</code> 的马甲) 作为 Value，从缓存拿，没拿到就构建一个新的并加入到缓存中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="n">IStringLocalizer</span> <span class="n">Create</span><span class="p">(</span><span class="n">Type</span> <span class="n">resourceType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">resource</span> <span class="p">=</span> <span class="n">AbpLocalizationOptions</span><span class="p">.</span><span class="n">Resources</span><span class="p">.</span><span class="n">GetOrDefault</span><span class="p">(</span><span class="n">resourceType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">resource</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">InnerFactory</span><span class="p">.</span><span class="n">Create</span><span class="p">(</span><span class="n">resourceType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">LocalizerCache</span><span class="p">.</span><span class="n">TryGetValue</span><span class="p">(</span><span class="n">resourceType</span><span class="p">,</span> <span class="k">out</span> <span class="kt">var</span> <span class="n">cacheItem</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">cacheItem</span><span class="p">.</span><span class="n">Localizer</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">lock</span> <span class="p">(</span><span class="n">LocalizerCache</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">LocalizerCache</span><span class="p">.</span><span class="n">GetOrAdd</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">resourceType</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">_</span> <span class="p">=&gt;</span> <span class="n">CreateStringLocalizerCacheItem</span><span class="p">(</span><span class="n">resource</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">).</span><span class="n">Localizer</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="n">StringLocalizerCacheItem</span> <span class="n">CreateStringLocalizerCacheItem</span><span class="p">(</span><span class="n">LocalizationResource</span> <span class="n">resource</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 构造时会将全局配置的 Contributor 添加到对应的组。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">globalContributor</span> <span class="k">in</span> <span class="n">AbpLocalizationOptions</span><span class="p">.</span><span class="n">GlobalContributors</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">resource</span><span class="p">.</span><span class="n">Contributors</span><span class="p">.</span><span class="n">Add</span><span class="p">((</span><span class="n">ILocalizationResourceContributor</span><span class="p">)</span> <span class="n">Activator</span><span class="p">.</span><span class="n">CreateInstance</span><span class="p">(</span><span class="n">globalContributor</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">scope</span> <span class="p">=</span> <span class="n">ServiceProvider</span><span class="p">.</span><span class="n">CreateScope</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">context</span> <span class="p">=</span> <span class="k">new</span> <span class="n">LocalizationResourceInitializationContext</span><span class="p">(</span><span class="n">resource</span><span class="p">,</span> <span class="n">scope</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 调用各个 Contributor 的初始化方法，进行初始化操作。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">contributor</span> <span class="k">in</span> <span class="n">resource</span><span class="p">.</span><span class="n">Contributors</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">contributor</span><span class="p">.</span><span class="n">Initialize</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">new</span> <span class="n">StringLocalizerCacheItem</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="k">new</span> <span class="n">AbpDictionaryBasedStringLocalizer</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">resource</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">resource</span><span class="p">.</span><span class="n">BaseResourceTypes</span><span class="p">.</span><span class="n">Select</span><span class="p">(</span><span class="n">Create</span><span class="p">).</span><span class="n">ToList</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="232-istringlocalizer">2.3.2 IStringLocalizer</h4>
+<p>ABP 针对 <code>IStringLocalizer</code> 的默认实现是 <code>AbpDictionaryBasedStringLocalizer</code>，<code>IStringLocalizer</code> 主要包含两个索引器和一个 <code>GetAllStrings()</code> 方法。</p>
+<p>索引器本身直接就调用的 <code>GetLocalizedString()</code> 与 <code>GetLocalizedStringFormatted()</code> 方法。后者用于处理格式化的参数，内部就是利用的 <code>string.Format()</code> 方法替换占位符的内容。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpDictionaryBasedStringLocalizer</span> <span class="p">:</span> <span class="n">IStringLocalizer</span><span class="p">,</span> <span class="n">IStringLocalizerSupportsInheritance</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">LocalizedString</span> <span class="k">this</span><span class="p">[</span><span class="kt">string</span> <span class="n">name</span><span class="p">]</span> <span class="p">=&gt;</span> <span class="n">GetLocalizedString</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">LocalizedString</span> <span class="k">this</span><span class="p">[</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="k">params</span> <span class="kt">object</span><span class="p">[]</span> <span class="n">arguments</span><span class="p">]</span> <span class="p">=&gt;</span> <span class="n">GetLocalizedStringFormatted</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">arguments</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">virtual</span> <span class="n">LocalizedString</span> <span class="n">GetLocalizedString</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">GetLocalizedString</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">CultureInfo</span><span class="p">.</span><span class="n">CurrentUICulture</span><span class="p">.</span><span class="n">Name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">virtual</span> <span class="n">LocalizedString</span> <span class="n">GetLocalizedString</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="kt">string</span> <span class="n">cultureName</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="k">value</span> <span class="p">=</span> <span class="n">GetLocalizedStringOrNull</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">cultureName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果没有从当前容器取得对应的本地化字符串，就从复用的基类中获取。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="k">value</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">baseLocalizer</span> <span class="k">in</span> <span class="n">BaseLocalizers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">using</span> <span class="p">(</span><span class="n">CultureHelper</span><span class="p">.</span><span class="n">Use</span><span class="p">(</span><span class="n">CultureInfo</span><span class="p">.</span><span class="n">GetCultureInfo</span><span class="p">(</span><span class="n">cultureName</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                    <span class="kt">var</span> <span class="n">baseLocalizedString</span> <span class="p">=</span> <span class="n">baseLocalizer</span><span class="p">[</span><span class="n">name</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">                    <span class="k">if</span> <span class="p">(</span><span class="n">baseLocalizedString</span> <span class="p">!=</span> <span class="k">null</span> <span class="p">&amp;&amp;</span> <span class="p">!</span><span class="n">baseLocalizedString</span><span class="p">.</span><span class="n">ResourceNotFound</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                        <span class="k">return</span> <span class="n">baseLocalizedString</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">                <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">new</span> <span class="n">LocalizedString</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">resourceNotFound</span><span class="p">:</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>转到 <code>GetLocalizedStringOrNull()</code> 方法内部，可以看到获取本地化字符串的具体逻辑。</p>
+<ol>
+<li>首先会从本地化资源定义的 Contributors 中获取本地化字符串。</li>
+<li>如果没有找到则尝试从类似的区域文化信息字典中获取，例如 zh-Hans(简体中文) 源没有拿到则考虑从 zh-Hant(繁体中文)获取。</li>
+<li>还是没有取得，最后会使用默认的区域文化信息匹配对应的本地化字符串，一般来说该值建议设置为 <code>en</code>。</li>
+</ol>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="n">LocalizedString</span> <span class="n">GetLocalizedStringOrNull</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="kt">string</span> <span class="n">cultureName</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">tryDefaults</span> <span class="p">=</span> <span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">//Try to get from original dictionary (with country code)</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">strOriginal</span> <span class="p">=</span> <span class="n">Resource</span><span class="p">.</span><span class="n">Contributors</span><span class="p">.</span><span class="n">GetOrNull</span><span class="p">(</span><span class="n">cultureName</span><span class="p">,</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">strOriginal</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">strOriginal</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">tryDefaults</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">//Try to get from same language dictionary (without country code)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">cultureName</span><span class="p">.</span><span class="n">Contains</span><span class="p">(</span><span class="s">&#34;-&#34;</span><span class="p">))</span> <span class="c1">//Example: &#34;tr-TR&#34; (length=5)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">strLang</span> <span class="p">=</span> <span class="n">Resource</span><span class="p">.</span><span class="n">Contributors</span><span class="p">.</span><span class="n">GetOrNull</span><span class="p">(</span><span class="n">CultureHelper</span><span class="p">.</span><span class="n">GetBaseCultureName</span><span class="p">(</span><span class="n">cultureName</span><span class="p">),</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">strLang</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">strLang</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">//Try to get from default language</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">Resource</span><span class="p">.</span><span class="n">DefaultCultureName</span><span class="p">.</span><span class="n">IsNullOrEmpty</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">strDefault</span> <span class="p">=</span> <span class="n">Resource</span><span class="p">.</span><span class="n">Contributors</span><span class="p">.</span><span class="n">GetOrNull</span><span class="p">(</span><span class="n">Resource</span><span class="p">.</span><span class="n">DefaultCultureName</span><span class="p">,</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">strDefault</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">strDefault</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">//Not found</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="三总结">三、总结</h2>
+<ul>
+<li><a class="link" href="https://www.cnblogs.com/myzony/p/10722506.html"  target="_blank" rel="noopener"
+    >点击我跳转到总目录</a></li>
+</ul>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/abp-vnext/">ABP vNext</a>
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/asp.net-core/">ASP.NET Core</a>
+        
+            <a href="/tags/asp.net-core-mvc/">ASP.NET Core MVC</a>
+        
+            <a href="/tags/%E6%9C%AC%E5%9C%B0%E5%8C%96/">本地化</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-multi-tenancy/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 多租户</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis-integration-of-entityframework-core/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 14. EntityFramework Core 的集成</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一简介">一、简介</a></li>
+    <li><a href="#二源码分析">二、源码分析</a>
+      <ol>
+        <li><a href="#21-本地化的抽象接口">2.1 本地化的抽象接口</a>
+          <ol>
+            <li><a href="#211-本地化字符串对象的封装">2.1.1 本地化字符串对象的封装</a></li>
+            <li><a href="#212-本地化资源类型的别名">2.1.2 本地化资源类型的别名</a></li>
+          </ol>
+        </li>
+        <li><a href="#22-本地化的基础设施">2.2 本地化的基础设施</a>
+          <ol>
+            <li><a href="#221-模块的启动">2.2.1 模块的启动</a></li>
+            <li><a href="#222-本地化的配置">2.2.2 本地化的配置</a></li>
+            <li><a href="#223-本地化资源的定义">2.2.3 本地化资源的定义</a></li>
+            <li><a href="#224-本地化的数据源">2.2.4 本地化的数据源</a></li>
+            <li><a href="#225-本地化资源字典">2.2.5 本地化资源字典</a></li>
+          </ol>
+        </li>
+        <li><a href="#23-同-microsoft-本地化集成">2.3 同 Microsoft 本地化集成</a>
+          <ol>
+            <li><a href="#231-istringlocalizer-工厂">2.3.1 IStringLocalizer 工厂</a></li>
+            <li><a href="#232-istringlocalizer">2.3.2 IStringLocalizer</a></li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+    <li><a href="#三总结">三、总结</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

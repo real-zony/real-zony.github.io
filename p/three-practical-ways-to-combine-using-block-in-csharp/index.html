@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、简介 阅读 Abp 源码的过程中，自己也学习到了一些之前没有接触过的知识。在这里，我在这儿针对研究学习 Abp 框架中，遇到的一些值得分享的知识写几篇文章。如果有什么疑问或者问题，欢迎大家评论指正。
+在本篇主要是 Scoped 范围与 using 语句块的使用。using 语句块大家一定都不陌生，都是与非托管对象一起存在的，它有一个特性就是在 using 语句块结束的时候会调用对象的 IDispose.Dispose() 方法。一般我们会在非托管类型的 Dispose() 方法内部进行资源的释放，类似于 C 语言的 free() 操作。
+例如下面的代码：
+1 2 3 4 5 6 7 8 9 public void TestMethod() { using(var waitDisposeObj = new TestClass()) { // 执行其他操作 xxx } // 出了语句块之后就，自动调用 waitDisposeObj 的 Dispose() 方法。 } 可以看到上面的例子，using 语句块包裹的就是一个范围 (Scoped)。其实这里可以延伸到依赖注入的概念，在依赖注入的生命周期当中有一个 Scoped 的生命周期。(PS: 需要了解的可以去阅读我的 这篇文章)
+'><title>C# 结合 using 语句块的三种实用方法</title>
+
+<link rel='canonical' href='https://example.com/p/three-practical-ways-to-combine-using-block-in-csharp/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='C# 结合 using 语句块的三种实用方法'>
+<meta property='og:description' content='一、简介 阅读 Abp 源码的过程中，自己也学习到了一些之前没有接触过的知识。在这里，我在这儿针对研究学习 Abp 框架中，遇到的一些值得分享的知识写几篇文章。如果有什么疑问或者问题，欢迎大家评论指正。
+在本篇主要是 Scoped 范围与 using 语句块的使用。using 语句块大家一定都不陌生，都是与非托管对象一起存在的，它有一个特性就是在 using 语句块结束的时候会调用对象的 IDispose.Dispose() 方法。一般我们会在非托管类型的 Dispose() 方法内部进行资源的释放，类似于 C 语言的 free() 操作。
+例如下面的代码：
+1 2 3 4 5 6 7 8 9 public void TestMethod() { using(var waitDisposeObj = new TestClass()) { // 执行其他操作 xxx } // 出了语句块之后就，自动调用 waitDisposeObj 的 Dispose() 方法。 } 可以看到上面的例子，using 语句块包裹的就是一个范围 (Scoped)。其实这里可以延伸到依赖注入的概念，在依赖注入的生命周期当中有一个 Scoped 的生命周期。(PS: 需要了解的可以去阅读我的 这篇文章)
+'>
+<meta property='og:url' content='https://example.com/p/three-practical-ways-to-combine-using-block-in-csharp/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='using 语句' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='生命周期' /><meta property='article:published_time' content='2019-01-16T01:27:56&#43;00:00'/><meta property='article:modified_time' content='2019-01-16T01:27:56&#43;00:00'/>
+<meta name="twitter:title" content="C# 结合 using 语句块的三种实用方法">
+<meta name="twitter:description" content="一、简介 阅读 Abp 源码的过程中，自己也学习到了一些之前没有接触过的知识。在这里，我在这儿针对研究学习 Abp 框架中，遇到的一些值得分享的知识写几篇文章。如果有什么疑问或者问题，欢迎大家评论指正。
+在本篇主要是 Scoped 范围与 using 语句块的使用。using 语句块大家一定都不陌生，都是与非托管对象一起存在的，它有一个特性就是在 using 语句块结束的时候会调用对象的 IDispose.Dispose() 方法。一般我们会在非托管类型的 Dispose() 方法内部进行资源的释放，类似于 C 语言的 free() 操作。
+例如下面的代码：
+1 2 3 4 5 6 7 8 9 public void TestMethod() { using(var waitDisposeObj = new TestClass()) { // 执行其他操作 xxx } // 出了语句块之后就，自动调用 waitDisposeObj 的 Dispose() 方法。 } 可以看到上面的例子，using 语句块包裹的就是一个范围 (Scoped)。其实这里可以延伸到依赖注入的概念，在依赖注入的生命周期当中有一个 Scoped 的生命周期。(PS: 需要了解的可以去阅读我的 这篇文章)
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/three-practical-ways-to-combine-using-block-in-csharp/">C# 结合 using 语句块的三种实用方法</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jan 16, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 5 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一简介">一、简介</h2>
+<p>阅读 Abp 源码的过程中，自己也学习到了一些之前没有接触过的知识。在这里，我在这儿针对研究学习 Abp 框架中，遇到的一些值得分享的知识写几篇文章。如果有什么疑问或者问题，欢迎大家评论指正。</p>
+<p>在本篇主要是 Scoped 范围与 using 语句块的使用。using 语句块大家一定都不陌生，都是与非托管对象一起存在的，它有一个特性就是在 using 语句块结束的时候会调用对象的 <code>IDispose.Dispose()</code> 方法。一般我们会在非托管类型的 <code>Dispose()</code> 方法内部进行资源的释放，类似于 C 语言的 <code>free()</code> 操作。</p>
+<p>例如下面的代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">TestMethod</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">using</span><span class="p">(</span><span class="kt">var</span> <span class="n">waitDisposeObj</span> <span class="p">=</span> <span class="k">new</span> <span class="n">TestClass</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 执行其他操作 xxx</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// 出了语句块之后就，自动调用 waitDisposeObj 的 Dispose() 方法。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到上面的例子，using 语句块包裹的就是一个范围 (Scoped)。其实这里可以延伸到依赖注入的概念，在依赖注入的生命周期当中有一个 Scoped 的生命周期。(PS: 需要了解的可以去阅读我的 <strong><a class="link" href="https://www.cnblogs.com/myzony/p/10095036.html"  target="_blank" rel="noopener"
+    >这篇文章</a></strong>)</p>
+<p>一个 Scoped 其实就可以看作是一个 using 语句块包裹的范围，所有解析出来的对象在离开 using 语句块的时候都应该被释放。</p>
+<p>例如下面的代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">TestMethod</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">using</span><span class="p">(</span><span class="kt">var</span> <span class="n">scopedResolver</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ScopedResolver</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">a</span> <span class="p">=</span> <span class="n">scopedResolver</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">A</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">b</span> <span class="p">=</span> <span class="n">scopedResolver</span><span class="p">.</span><span class="n">Reslove</span><span class="p">&lt;</span><span class="n">B</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// 出了语句块之后 a b 对象自动释放</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>其实这里也是利用了 using 语句块的特性，在 <code>ScopedResolver</code> 类型的定义当中，也实现了 <code>IDisopse</code> 接口。所以在 using 语句块结束的时候，会自动调用 <code>ScopedResovler</code> 的 <code>Dispose()</code> 方法，在这个方法内部则对已经解析出来的对象调用其 <code>Dispose()</code> 进行释放。</p>
+<h2 id="二分析">二、分析</h2>
+<h3 id="20-释放委托">2.0 释放委托</h3>
+<p>也是不知道叫什么标题了，这玩意儿是 Abp 封装的一个类型，它的作用就是在 using 语句块结束的时候，执行你传入的委托。</p>
+<p>使用方法如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">completedTask</span> <span class="p">=</span> <span class="k">new</span> <span class="n">DisposeAction</span><span class="p">(()=&gt;</span><span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;using 语句块结束了。&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="n">using</span><span class="p">(</span><span class="n">completedTask</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 其他操作</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 执行完成之后会调用 completedTask 传入的委托。</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>根据上述用法，你也应该猜出来这个 <code>DisposeAction</code> 类型的定义了。该类型继承了 <code>IDispose</code> 接口，并且在内部有一个 <code>Action</code> 字段，用于存储构造函数传入的委托。在执行 <code>Dispose()</code> 方法的时候，执行传入的委托。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">DisposeAction</span> <span class="p">:</span> <span class="n">IDisposable</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">static</span> <span class="k">readonly</span> <span class="n">DisposeAction</span> <span class="n">Empty</span> <span class="p">=</span> <span class="k">new</span> <span class="n">DisposeAction</span><span class="p">(</span><span class="k">null</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="n">Action</span> <span class="n">_action</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">DisposeAction</span><span class="p">([</span><span class="n">CanBeNull</span><span class="p">]</span> <span class="n">Action</span> <span class="n">action</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_action</span> <span class="p">=</span> <span class="n">action</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">Dispose</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 防止在多线程环境下，多次调用 action</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">action</span> <span class="p">=</span> <span class="n">Interlocked</span><span class="p">.</span><span class="n">Exchange</span><span class="p">(</span><span class="k">ref</span> <span class="n">_action</span><span class="p">,</span> <span class="k">null</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">action</span><span class="p">?.</span><span class="n">Invoke</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="21-统一对象释放">2.1 统一对象释放</h3>
+<p>统一对象释放是 Abp 当中的另一种用法，其实按照 Abp 框架的定义，叫做 ScopedResolver(范围解析器)。顾名思义，通过 <code>ScopedResolver</code> 解析出来的对象，都会在 using 语句块结束之后统一进行销毁。</p>
+<p><code>IScopedIocResolver</code> 接口继承自 <code>IIocResolver</code> 和 <code>IDisposable</code> 接口，它的本质就是作为 Ioc 解析器的一种特殊实现，所以它拥有所有 Ioc 解析器的方法，这里就不再赘述。</p>
+<p>它的实现也比较简单，在其内部有一个集合维护每一次通过 <code>IIocResolver</code> 解析出来的对象。在 <code>Dispose()</code> 方法执行的时候，遍历这个集合，调用 Ioc 解析器的 <code>Release()</code> 方法释放对象并从集合中删除对象。下面就是实现的简化版：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">ScopedIocResolver</span> <span class="p">:</span> <span class="n">IScopedIocResolver</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">IIocResolver</span> <span class="n">_iocResolver</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">List</span><span class="p">&lt;</span><span class="kt">object</span><span class="p">&gt;</span> <span class="n">_resolvedObjects</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">ScopedIocResolver</span><span class="p">(</span><span class="n">IIocResolver</span> <span class="n">iocResolver</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_iocResolver</span> <span class="p">=</span> <span class="n">iocResolver</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_resolvedObjects</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="kt">object</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1">// 解析对象</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="kt">object</span> <span class="n">Resolve</span><span class="p">(</span><span class="n">Type</span> <span class="n">type</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">resolvedObject</span> <span class="p">=</span> <span class="n">_iocResolver</span><span class="p">.</span><span class="n">Resolve</span><span class="p">(</span><span class="n">type</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="c1">// 添加到集合，方便后续释放</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_resolvedObjects</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">resolvedObject</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">resolvedObject</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">Release</span><span class="p">(</span><span class="kt">object</span> <span class="n">obj</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 从集合当中移除</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_resolvedObjects</span><span class="p">.</span><span class="n">Remove</span><span class="p">(</span><span class="n">obj</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 通过 Ioc 管理器释放对象</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_iocResolver</span><span class="p">.</span><span class="n">Release</span><span class="p">(</span><span class="n">obj</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">Dispose</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 遍历集合，释放对象</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_resolvedObjects</span><span class="p">.</span><span class="n">ForEach</span><span class="p">(</span><span class="n">_iocResolver</span><span class="p">.</span><span class="n">Release</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>通过 <code>IScopedResolver</code> 解析出来的对象，在 using 语句块结束的时候都会被释放，免去了我们每次手动释放的操作。</p>
+<h3 id="22-临时值变更">2.2 临时值变更</h3>
+<p>暂时想不到一个好一点的标题，暂时用这个标题代替吧。这里以 Abp 的一段实例代码为例，在有的时候我们可能当前的用户没有登录，所以在 <code>IAbpSession</code> 里面的 UserId 等属性肯定是为 NULL 的。而 <code>IAbpSession</code> 在设计的时候，这些属性是不允许更改的。</p>
+<p>那么我们有时候可能会临时更改 <code>IAbpSession</code> 里面关于 UserId 的值怎么办呢？</p>
+<p>这个时候可以通过 <code>IAbpSession</code> 提供的一个 <code>IDisposable Use(int tenantId, long? userId, string userCode)</code> 进行临时更改。他拥有一个 <code>Use()</code> 方法，并且返回一个实现了 <code>IDispose</code> 接口的对象，用法一般是这样：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">TestMethod</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">using</span><span class="p">(</span><span class="n">AbpSession</span><span class="p">.</span><span class="n">Use</span><span class="p">(</span><span class="m">1</span><span class="p">,</span><span class="m">2</span><span class="p">,</span><span class="s">&#34;3&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">       <span class="c1">// 内部临时更改了 AbpSession 的值 </span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// using 语句块结束的时候，调用 Use 返回对象的 Dispose 方法。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>转到其抽象类 <code>AbpSessionBase</code> 实现，可以看到他的实现是这个样子的：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="n">IAmbientScopeProvider</span><span class="p">&lt;</span><span class="n">SessionOverride</span><span class="p">&gt;</span> <span class="n">SessionOverrideScopeProvider</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="n">IDisposable</span> <span class="n">Use</span><span class="p">(</span><span class="kt">int</span> <span class="n">tenantId</span><span class="p">,</span> <span class="kt">long?</span> <span class="n">userId</span><span class="p">,</span> <span class="kt">string</span> <span class="n">userCode</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">SessionOverrideScopeProvider</span><span class="p">.</span><span class="n">BeginScope</span><span class="p">(</span><span class="n">SessionOverrideContextKey</span><span class="p">,</span> <span class="k">new</span> <span class="n">SessionOverride</span><span class="p">(</span><span class="k">null</span><span class="p">,</span> <span class="n">tenantId</span><span class="p">,</span> <span class="n">userId</span><span class="p">,</span> <span class="n">userCode</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>所以在这里，它是通过 <code>SessionOverrideScopeProvider</code> 的 <code>BegionScope()</code> 方法创建了可以被 <code>Dispose()</code> 的对象。</p>
+<p>接着继续跳转，来到 <code>IAmbientScopeProvider</code> 接口定义，这个接口接受一个泛型参数，可以看到之前在 <code>AbpSessionBase</code> 传入了一个 <code>SessionOverride</code>。这个 <code>SessionOverride</code> 就是封装了 UserId 等信息的存储类，也就是说 <code>SessionOverride</code> 就是允许进行临时值更改的类型定义。</p>
+<p>在开始执行 <code>BegionScope()</code> 方法的时候，就针对传入的 <code>value</code> 进行存储，获取 Session 值的时候优先读取存储的值，不存在才执行真正的读取，调用 <code>Dispose()</code> 方法的时候就进行释放。</p>
+<p><img src="/p/three-practical-ways-to-combine-using-block-in-csharp/Snipaste_2019-01-16_09-20-16.png"
+	width="799"
+	height="373"
+	srcset="/p/three-practical-ways-to-combine-using-block-in-csharp/Snipaste_2019-01-16_09-20-16_hu73f6d8a919f66a395e806eac1e30ecfc_22298_480x0_resize_box_3.png 480w, /p/three-practical-ways-to-combine-using-block-in-csharp/Snipaste_2019-01-16_09-20-16_hu73f6d8a919f66a395e806eac1e30ecfc_22298_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="Snipaste_2019-01-16_09-20-16"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="214"
+		data-flex-basis="514px"
+	
+></p>
+<p>所以接口提供了两个方法，第一个我们先看 <code>BegionScope()</code> 方法，接收一个 <code>contextKey</code> 用来区分不同的临时值，第二个参数则是要存储的临时值。</p>
+<p>第二个方法为 <code>GetValue</code>，从一个上下文(后面讲)当中根据 <code>contextKey</code> 获得存储的临时值。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IAmbientScopeProvider</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">T</span> <span class="n">GetValue</span><span class="p">(</span><span class="kt">string</span> <span class="n">contextKey</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">IDisposable</span> <span class="n">BeginScope</span><span class="p">(</span><span class="kt">string</span> <span class="n">contextKey</span><span class="p">,</span> <span class="n">T</span> <span class="k">value</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>针对于该接口，其默认实现是 <code>DataContextAmbientScopeProvider</code> ，它的内部可能略微复杂，牵扯到了另一个接口 <code>IAmbientDataContext</code> 和 <code>ScopeItem</code> 类型。</p>
+<p>这两个类型一个是上下文，一个是包裹具体临时值对象的类型。我们先从 <code>BeginScope()</code> 方法开始看：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="c1">// ScopeItem 的 Id 与其值关联的字典，其键为 Guid，值为具体的 ScopeItem 对象，这里并未与 ContextKey 进行关联。</span>
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">static</span> <span class="k">readonly</span> <span class="n">ConcurrentDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">ScopeItem</span><span class="p">&gt;</span> <span class="n">ScopeDictionary</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ConcurrentDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">ScopeItem</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 数据的上下文对象，管理 ContextKey 与其 Id。</span>
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">readonly</span> <span class="n">IAmbientDataContext</span> <span class="n">_dataContext</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="n">IDisposable</span> <span class="n">BeginScope</span><span class="p">(</span><span class="kt">string</span> <span class="n">contextKey</span><span class="p">,</span> <span class="n">T</span> <span class="k">value</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 将需要临时存储的对象，用 ScopeItem 包装起来，它的外部对象是当前对象 (如果存在的话)。</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">item</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ScopeItem</span><span class="p">(</span><span class="k">value</span><span class="p">,</span> <span class="n">GetCurrentItem</span><span class="p">(</span><span class="n">contextKey</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 将包装好的对象以 Id-对象，的形式存储在字典当中。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(!</span><span class="n">ScopeDictionary</span><span class="p">.</span><span class="n">TryAdd</span><span class="p">(</span><span class="n">item</span><span class="p">.</span><span class="n">Id</span><span class="p">,</span> <span class="n">item</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">throw</span> <span class="k">new</span> <span class="n">AbpException</span><span class="p">(</span><span class="s">&#34;Can not add item! ScopeDictionary.TryAdd returns false!&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 在上下文当中设置当前的 ContextKey 关联的 Id。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">_dataContext</span><span class="p">.</span><span class="n">SetData</span><span class="p">(</span><span class="n">contextKey</span><span class="p">,</span> <span class="n">item</span><span class="p">.</span><span class="n">Id</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 集合释放委托，using 语句块结束时，做释放操作。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="k">new</span> <span class="n">DisposeAction</span><span class="p">(()</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 从字典中移除指定 Id 的对象。</span>
+</span></span><span class="line"><span class="cl">		<span class="n">ScopeDictionary</span><span class="p">.</span><span class="n">TryRemove</span><span class="p">(</span><span class="n">item</span><span class="p">.</span><span class="n">Id</span><span class="p">,</span> <span class="k">out</span> <span class="n">item</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果包装对象没有外部对象，直接设置上下文关联的 Id 为 NULL。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">item</span><span class="p">.</span><span class="n">Outer</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">_dataContext</span><span class="p">.</span><span class="n">SetData</span><span class="p">(</span><span class="n">contextKey</span><span class="p">,</span> <span class="k">null</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果还有外部对象，则设置上下文关联的 Id 为外部对象的 I的。</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_dataContext</span><span class="p">.</span><span class="n">SetData</span><span class="p">(</span><span class="n">contextKey</span><span class="p">,</span> <span class="n">item</span><span class="p">.</span><span class="n">Outer</span><span class="p">.</span><span class="n">Id</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">});</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>从上面的逻辑可以看出来，每次我们加入的临时值都是通过 <code>ScopeItem</code> 包裹起来的。而这个 <code>ScopeItem</code> 与我们的工作单元相似，它会有一个外部连接的对象。这个外部连接对象的作用就是解决 using 语句嵌套问题的，例如我们有以下代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">TestMethod</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">using</span><span class="p">(</span><span class="n">AbpSession</span><span class="p">.</span><span class="n">Use</span><span class="p">(</span><span class="m">1</span><span class="p">,</span><span class="m">2</span><span class="p">,</span><span class="s">&#34;3&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">       <span class="c1">// 一些业务逻辑</span>
+</span></span><span class="line"><span class="cl">       <span class="c1">// ScopeItem.Outer = null;</span>
+</span></span><span class="line"><span class="cl">       <span class="n">using</span><span class="p">(</span><span class="n">AbpSession</span><span class="p">.</span><span class="n">Use</span><span class="p">(</span><span class="m">4</span><span class="p">,</span><span class="m">5</span><span class="p">,</span><span class="s">&#34;6&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">       <span class="p">{</span>
+</span></span><span class="line"><span class="cl">           <span class="c1">// 一些业务逻辑</span>
+</span></span><span class="line"><span class="cl">           <span class="c1">// ScopeItem.Outer = 外部对象;</span>
+</span></span><span class="line"><span class="cl">       <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>那么我们在这里会有同一个 <strong>ContextKey</strong>，都是提供给 <code>AbpSession</code> 使用的。第一次我在 <code>Use()</code> 内部通过 <code>BeginScope()</code> 方法创建了一个 <code>ScopeItem</code> 对象，包装了临时值，这个 <code>ScopeItem</code> 的外部对象为 NULL。第二次我又在内部创建了一个 <code>ScopeItem</code> 对象，包装了第二个临时值，这个时候 <code>ScopeItem</code> 的外部对象就是第一次包装的对象了。</p>
+<p>执行释放操作的时候，首先判断外部对象是否为空。如果为空则直接在上下文当中将绑定的 <code>ScopeItem</code> 的 Id 值设为 NULL，如果不为空，则设置为它的外部对象的 Id。</p>
+<p>还是以上面的代码为例，在 <code>Dispose()</code> 被执行之后，由内而外，到最外层的时候在上下文与 <strong>ContextKey</strong> 关联的 Id 已经被置为 NULL 了。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="n">ScopeItem</span> <span class="n">GetCurrentItem</span><span class="p">(</span><span class="kt">string</span> <span class="n">contextKey</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 从数据上下文获取指定 ContextKey 当前关联的 Id 值。</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">objKey</span> <span class="p">=</span> <span class="n">_dataContext</span><span class="p">.</span><span class="n">GetData</span><span class="p">(</span><span class="n">contextKey</span><span class="p">)</span> <span class="k">as</span> <span class="kt">string</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 不存在则返回 NULL，存在则尝试以 Id 从字典中拿取对象外部，并返回。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">objKey</span> <span class="p">!=</span> <span class="k">null</span> <span class="p">?</span> <span class="n">ScopeDictionary</span><span class="p">.</span><span class="n">GetOrDefault</span><span class="p">(</span><span class="n">objKey</span><span class="p">)</span> <span class="p">:</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>分析了一下 <code>IAmbientDataContext</code> 的实现，感觉与 <code>ICurrentUnitOfWorkProvider</code> 类似，内部都是通过 <code>AsyncLocal</code> 来进行处理的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AsyncLocalAmbientDataContext</span> <span class="p">:</span> <span class="n">IAmbientDataContext</span><span class="p">,</span> <span class="n">ISingletonDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 这里的字典是以 ContextKey 与 ScopeItem 的 Id 构成的。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">static</span> <span class="k">readonly</span> <span class="n">ConcurrentDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">AsyncLocal</span><span class="p">&lt;</span><span class="kt">object</span><span class="p">&gt;&gt;</span> <span class="n">AsyncLocalDictionary</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ConcurrentDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">AsyncLocal</span><span class="p">&lt;</span><span class="kt">object</span><span class="p">&gt;&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">SetData</span><span class="p">(</span><span class="kt">string</span> <span class="n">key</span><span class="p">,</span> <span class="kt">object</span> <span class="k">value</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 设置指定 ContextKey 对应的 Id 值。</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">asyncLocal</span> <span class="p">=</span> <span class="n">AsyncLocalDictionary</span><span class="p">.</span><span class="n">GetOrAdd</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="k">new</span> <span class="n">AsyncLocal</span><span class="p">&lt;</span><span class="kt">object</span><span class="p">&gt;());</span>
+</span></span><span class="line"><span class="cl">		<span class="n">asyncLocal</span><span class="p">.</span><span class="n">Value</span> <span class="p">=</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="kt">object</span> <span class="n">GetData</span><span class="p">(</span><span class="kt">string</span> <span class="n">key</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 获取指定 ContextKey 对应的 Id 值。</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">asyncLocal</span> <span class="p">=</span> <span class="n">AsyncLocalDictionary</span><span class="p">.</span><span class="n">GetOrAdd</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="k">new</span> <span class="n">AsyncLocal</span><span class="p">&lt;</span><span class="kt">object</span><span class="p">&gt;());</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">asyncLocal</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>从开始到这里使用并行字典的情况来看，这里这么做的原因很简单，是为了处理异步上下文切换的情况，确保 <strong>ContextKey</strong> 对应的 Id 是一致的，防止在 Get/Set Data 的时候出现 <strong><a class="link" href="https://www.cnblogs.com/tcjiaan/p/5007737.html"  target="_blank" rel="noopener"
+    >意外的情况</a></strong>。</p>
+<p>最后呢在具体的 Session 实现类 <code>ClaimsAbpSession</code> 当中要获取 UserId 会经过下面的步骤：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="kt">long?</span> <span class="n">UserId</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">get</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 尝试从临时对象中获取数据。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">OverridedValue</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="n">OverridedValue</span><span class="p">.</span><span class="n">UserId</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="c1">// 从 JWT Token 当中获取 UserId 信息。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">userId</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>最后我再贴上 <code>ScopeItem</code> 的定义。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">class</span> <span class="nc">ScopeItem</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Id</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ScopeItem</span> <span class="n">Outer</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">T</span> <span class="n">Value</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ScopeItem</span><span class="p">(</span><span class="n">T</span> <span class="k">value</span><span class="p">,</span> <span class="n">ScopeItem</span> <span class="n">outer</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Id</span> <span class="p">=</span> <span class="n">Guid</span><span class="p">.</span><span class="n">NewGuid</span><span class="p">().</span><span class="n">ToString</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">Value</span> <span class="p">=</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Outer</span> <span class="p">=</span> <span class="n">outer</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这个临时值变更可能是 Abp 用法当中最为复杂的一个，牵扯到了异步上下文和 using 语句嵌套的问题。但仔细阅读源码之后，其实有一种豁然开朗的感觉，也加强了对于 C# 程序设计的理解。</p>
+<h2 id="三结语">三、结语</h2>
+<p>通过学习 Abp 框架，也了解了自己在基础方面的诸多不足。其次也是能够看到一些比较实用新奇的写法，你也可以在自己项目中进行应用，本文主要是起一个抛砖引玉的作用。最近年底了，事情也比较多，博客也是疏于更新。后面会陆续恢复博文更新，尽量 2 天 1 更，新年新气象。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/using-%E8%AF%AD%E5%8F%A5/">using 语句</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F/">生命周期</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-multi-tenancy/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 多租户</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一简介">一、简介</a></li>
+    <li><a href="#二分析">二、分析</a>
+      <ol>
+        <li><a href="#20-释放委托">2.0 释放委托</a></li>
+        <li><a href="#21-统一对象释放">2.1 统一对象释放</a></li>
+        <li><a href="#22-临时值变更">2.2 临时值变更</a></li>
+      </ol>
+    </li>
+    <li><a href="#三结语">三、结语</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

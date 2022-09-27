@@ -1,0 +1,1917 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='0.简介 承接上篇文章我们会在这篇文章详细解说一下 Abp 是如何结合 IPermissionChecker 与 IFeatureChecker 来实现一个完整的多租户系统的权限校验的。
+1.多租户的概念 多租户系统又被称之为 Saas ，比如阿里云就是一个典型的多租户系统，用户本身就是一个租户，可以在上面购买自己的 ECS 实例，并且自己的数据与其他使用者(租户)所隔绝，两者的数据都是不可见的。
+那么 Abp 是如何实现数据隔离的呢？
+1.1 单部署-单数据库 如果你的软件系统仅部署一个实例，并且所有租户的数据都是存放在一个数据库里面的，那么可以通过一个 TenantId (租户 Id) 来进行数据隔离。那么当我们执行 SELECT 操作的时候就会附加上当前登录用户租户 Id 作为过滤条件，那么查出来的数据也仅仅是当前租户的数据，而不会查询到其他租户的数据。
+1.2 单部署-多数据库 Abp 还提供了另外一种方式，即为每一个租户提供一个单独的数据库，在用户登录的时候根据用户对应的租户 ID，从一个数据库连接映射表获取到当前租户对应的数据库连接字符串，并且在查询数据与写入数据的时候，不同租户操作的数据库是不一样的。
+2.多租户系统的权限验证 从上一篇文章我们知道了在权限过滤器与权限拦截器当中，最终会使用 IFeatureChecker 与 IPermissionChecker 来进行权限校验，并且它还持久一个用户会话状态 IAbpSession 用于存储识别当前访问网站的用户是谁。
+2.1 用户会话状态 基本做过网站程序开发的同学都知道用于区分每一个用户，我们需要通过 Session 来保存当前用户的状态，以便进行权限验证或者其他操作。而 Abp 框架则为我们定义了一个统一的会话状态接口 IAbpSession ，用于标识当前用户的状态。在其接口当中主要定义了三个重要的属性，第一个 UserId (用户 Id)，第二个就是 TenantId (租户 Id)，以及用于确定当前用户是租户还是租主的 MultiTenancySides 属性。
+除此之外，还拥有一个 Use() 方法，用户在某些时候临时替换掉当前用户的 UserId 与 TenantId 的值，这个方法在我的《Abp &#43; Grpc 如何实现用户会话状态传递》文章当中有讲到过。
+而针对这个方法的实现又可以扯出一大堆知识，这块我们放在后面再进行精讲，这里我们还是主要通篇讲解一下多租户体系下的数据过滤与权限验证。
+2.1.1 默认会话状态的实现 IAbpSession 当中的值默认是从 JWT 当中取得的，这取决于它的默认实现 ClaimsAbpSession，它还继承了一个抽象父类 AbpSessionBase ，这个父类主要是实现了 Use() 方法，这里略过。'><title>Abp 源码分析：十二、多租户体系与权限验证</title>
+
+<link rel='canonical' href='https://example.com/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp 源码分析：十二、多租户体系与权限验证'>
+<meta property='og:description' content='0.简介 承接上篇文章我们会在这篇文章详细解说一下 Abp 是如何结合 IPermissionChecker 与 IFeatureChecker 来实现一个完整的多租户系统的权限校验的。
+1.多租户的概念 多租户系统又被称之为 Saas ，比如阿里云就是一个典型的多租户系统，用户本身就是一个租户，可以在上面购买自己的 ECS 实例，并且自己的数据与其他使用者(租户)所隔绝，两者的数据都是不可见的。
+那么 Abp 是如何实现数据隔离的呢？
+1.1 单部署-单数据库 如果你的软件系统仅部署一个实例，并且所有租户的数据都是存放在一个数据库里面的，那么可以通过一个 TenantId (租户 Id) 来进行数据隔离。那么当我们执行 SELECT 操作的时候就会附加上当前登录用户租户 Id 作为过滤条件，那么查出来的数据也仅仅是当前租户的数据，而不会查询到其他租户的数据。
+1.2 单部署-多数据库 Abp 还提供了另外一种方式，即为每一个租户提供一个单独的数据库，在用户登录的时候根据用户对应的租户 ID，从一个数据库连接映射表获取到当前租户对应的数据库连接字符串，并且在查询数据与写入数据的时候，不同租户操作的数据库是不一样的。
+2.多租户系统的权限验证 从上一篇文章我们知道了在权限过滤器与权限拦截器当中，最终会使用 IFeatureChecker 与 IPermissionChecker 来进行权限校验，并且它还持久一个用户会话状态 IAbpSession 用于存储识别当前访问网站的用户是谁。
+2.1 用户会话状态 基本做过网站程序开发的同学都知道用于区分每一个用户，我们需要通过 Session 来保存当前用户的状态，以便进行权限验证或者其他操作。而 Abp 框架则为我们定义了一个统一的会话状态接口 IAbpSession ，用于标识当前用户的状态。在其接口当中主要定义了三个重要的属性，第一个 UserId (用户 Id)，第二个就是 TenantId (租户 Id)，以及用于确定当前用户是租户还是租主的 MultiTenancySides 属性。
+除此之外，还拥有一个 Use() 方法，用户在某些时候临时替换掉当前用户的 UserId 与 TenantId 的值，这个方法在我的《Abp &#43; Grpc 如何实现用户会话状态传递》文章当中有讲到过。
+而针对这个方法的实现又可以扯出一大堆知识，这块我们放在后面再进行精讲，这里我们还是主要通篇讲解一下多租户体系下的数据过滤与权限验证。
+2.1.1 默认会话状态的实现 IAbpSession 当中的值默认是从 JWT 当中取得的，这取决于它的默认实现 ClaimsAbpSession，它还继承了一个抽象父类 AbpSessionBase ，这个父类主要是实现了 Use() 方法，这里略过。'>
+<meta property='og:url' content='https://example.com/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='AspNetBoilerplate' /><meta property='article:tag' content='多租户' /><meta property='article:published_time' content='2018-08-14T01:46:57&#43;00:00'/><meta property='article:modified_time' content='2018-08-14T01:46:57&#43;00:00'/>
+<meta name="twitter:title" content="Abp 源码分析：十二、多租户体系与权限验证">
+<meta name="twitter:description" content="0.简介 承接上篇文章我们会在这篇文章详细解说一下 Abp 是如何结合 IPermissionChecker 与 IFeatureChecker 来实现一个完整的多租户系统的权限校验的。
+1.多租户的概念 多租户系统又被称之为 Saas ，比如阿里云就是一个典型的多租户系统，用户本身就是一个租户，可以在上面购买自己的 ECS 实例，并且自己的数据与其他使用者(租户)所隔绝，两者的数据都是不可见的。
+那么 Abp 是如何实现数据隔离的呢？
+1.1 单部署-单数据库 如果你的软件系统仅部署一个实例，并且所有租户的数据都是存放在一个数据库里面的，那么可以通过一个 TenantId (租户 Id) 来进行数据隔离。那么当我们执行 SELECT 操作的时候就会附加上当前登录用户租户 Id 作为过滤条件，那么查出来的数据也仅仅是当前租户的数据，而不会查询到其他租户的数据。
+1.2 单部署-多数据库 Abp 还提供了另外一种方式，即为每一个租户提供一个单独的数据库，在用户登录的时候根据用户对应的租户 ID，从一个数据库连接映射表获取到当前租户对应的数据库连接字符串，并且在查询数据与写入数据的时候，不同租户操作的数据库是不一样的。
+2.多租户系统的权限验证 从上一篇文章我们知道了在权限过滤器与权限拦截器当中，最终会使用 IFeatureChecker 与 IPermissionChecker 来进行权限校验，并且它还持久一个用户会话状态 IAbpSession 用于存储识别当前访问网站的用户是谁。
+2.1 用户会话状态 基本做过网站程序开发的同学都知道用于区分每一个用户，我们需要通过 Session 来保存当前用户的状态，以便进行权限验证或者其他操作。而 Abp 框架则为我们定义了一个统一的会话状态接口 IAbpSession ，用于标识当前用户的状态。在其接口当中主要定义了三个重要的属性，第一个 UserId (用户 Id)，第二个就是 TenantId (租户 Id)，以及用于确定当前用户是租户还是租主的 MultiTenancySides 属性。
+除此之外，还拥有一个 Use() 方法，用户在某些时候临时替换掉当前用户的 UserId 与 TenantId 的值，这个方法在我的《Abp &#43; Grpc 如何实现用户会话状态传递》文章当中有讲到过。
+而针对这个方法的实现又可以扯出一大堆知识，这块我们放在后面再进行精讲，这里我们还是主要通篇讲解一下多租户体系下的数据过滤与权限验证。
+2.1.1 默认会话状态的实现 IAbpSession 当中的值默认是从 JWT 当中取得的，这取决于它的默认实现 ClaimsAbpSession，它还继承了一个抽象父类 AbpSessionBase ，这个父类主要是实现了 Use() 方法，这里略过。">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/">Abp 源码分析：十二、多租户体系与权限验证</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Aug 14, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 10 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="0简介">0.简介</h2>
+<p>承接上篇文章我们会在这篇文章详细解说一下 Abp 是如何结合 <code>IPermissionChecker</code> 与 <code>IFeatureChecker</code> 来实现一个完整的多租户系统的权限校验的。</p>
+<h2 id="1多租户的概念">1.多租户的概念</h2>
+<p>多租户系统又被称之为 <strong>Saas</strong> ，比如阿里云就是一个典型的多租户系统，用户本身就是一个租户，可以在上面购买自己的 ECS 实例，并且自己的数据与其他使用者(租户)所隔绝，两者的数据都是不可见的。</p>
+<p>那么 Abp 是如何实现数据隔离的呢？</p>
+<h3 id="11-单部署-单数据库">1.1 单部署-单数据库</h3>
+<p>如果你的软件系统仅部署一个实例，并且所有租户的数据都是存放在一个数据库里面的，那么可以通过一个 <code>TenantId</code> (租户 Id) 来进行数据隔离。那么当我们执行 SELECT 操作的时候就会附加上当前登录用户租户 Id 作为过滤条件，那么查出来的数据也仅仅是当前租户的数据，而不会查询到其他租户的数据。</p>
+<p><img src="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/TIM--20180814084606.png"
+	width="827"
+	height="331"
+	srcset="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/TIM--20180814084606_hucd17267e65847d1854ff2669308593c1_20114_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/TIM--20180814084606_hucd17267e65847d1854ff2669308593c1_20114_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="TIM&ndash;20180814084606"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="249"
+		data-flex-basis="599px"
+	
+></p>
+<h3 id="12-单部署-多数据库">1.2 单部署-多数据库</h3>
+<p>Abp 还提供了另外一种方式，即为每一个租户提供一个单独的数据库，在用户登录的时候根据用户对应的租户 ID，从一个数据库连接映射表获取到当前租户对应的数据库连接字符串，并且在查询数据与写入数据的时候，不同租户操作的数据库是不一样的。</p>
+<p><img src="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/TIM--20180814084620.png"
+	width="802"
+	height="365"
+	srcset="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/TIM--20180814084620_hub54018043b85e99350536c352b64f77b_26154_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/TIM--20180814084620_hub54018043b85e99350536c352b64f77b_26154_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="TIM&ndash;20180814084620"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="219"
+		data-flex-basis="527px"
+	
+></p>
+<h2 id="2多租户系统的权限验证">2.多租户系统的权限验证</h2>
+<p>从上一篇文章我们知道了在权限过滤器与权限拦截器当中，最终会使用 <code>IFeatureChecker</code> 与 <code>IPermissionChecker</code> 来进行权限校验，并且它还持久一个用户会话状态 <code>IAbpSession</code> 用于存储识别当前访问网站的用户是谁。</p>
+<h3 id="21-用户会话状态">2.1 用户会话状态</h3>
+<p>基本做过网站程序开发的同学都知道用于区分每一个用户，我们需要通过 Session 来保存当前用户的状态，以便进行权限验证或者其他操作。而 Abp 框架则为我们定义了一个统一的会话状态接口 <code>IAbpSession</code> ，用于标识当前用户的状态。在其接口当中主要定义了三个重要的属性，第一个 <code>UserId</code> (用户 Id)，第二个就是 <code>TenantId</code> (租户 Id)，以及用于确定当前用户是租户还是租主的 <code>MultiTenancySides</code> 属性。</p>
+<p>除此之外，还拥有一个 <code>Use()</code> 方法，用户在某些时候临时替换掉当前用户的 <code>UserId</code> 与 <code>TenantId</code> 的值，这个方法在我的《Abp + Grpc 如何实现用户会话状态传递》文章当中有讲到过。</p>
+<p>而针对这个方法的实现又可以扯出一大堆知识，这块我们放在后面再进行精讲，这里我们还是主要通篇讲解一下多租户体系下的数据过滤与权限验证。</p>
+<p><img src="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/1534173881737.png"
+	width="526"
+	height="960"
+	srcset="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/1534173881737_hua367a1e2bede26a04e60cf7fc47bdb13_688629_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/1534173881737_hua367a1e2bede26a04e60cf7fc47bdb13_688629_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1534173881737"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="54"
+		data-flex-basis="131px"
+	
+></p>
+<h4 id="211-默认会话状态的实现">2.1.1 默认会话状态的实现</h4>
+<p><code>IAbpSession</code> 当中的值默认是从 JWT 当中取得的，这取决于它的默认实现 <code>ClaimsAbpSession</code>，它还继承了一个抽象父类 <code>AbpSessionBase</code> ，这个父类主要是实现了 <code>Use()</code> 方法，这里略过。</p>
+<p>在其默认实现里面，重载了 <code>UserId</code> 与 <code>TenantId</code> 的获取方法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="kt">long?</span> <span class="n">UserId</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">get</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">userIdClaim</span> <span class="p">=</span> <span class="n">PrincipalAccessor</span><span class="p">.</span><span class="n">Principal</span><span class="p">?.</span><span class="n">Claims</span><span class="p">.</span><span class="n">FirstOrDefault</span><span class="p">(</span><span class="n">c</span> <span class="p">=&gt;</span> <span class="n">c</span><span class="p">.</span><span class="n">Type</span> <span class="p">==</span> <span class="n">AbpClaimTypes</span><span class="p">.</span><span class="n">UserId</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="kt">long</span> <span class="n">userId</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="kt">long</span><span class="p">.</span><span class="n">TryParse</span><span class="p">(</span><span class="n">userIdClaim</span><span class="p">.</span><span class="n">Value</span><span class="p">,</span> <span class="k">out</span> <span class="n">userId</span><span class="p">))</span> <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">userId</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到这里是通过 <code>PrincipalAccessor</code> 从当前请求的请求头中获取 Token ，并从 <code>Claims</code> 里面获取 Type 值为 <code>AbpClaimTypes.UserId</code> 的对象，将其转换为 <code>long</code> 类型的 <code>UserId</code>，这样就拿到了当前用户登录的 Id 了。</p>
+<h4 id="212-获取当前请求的用户状态">2.1.2 获取当前请求的用户状态</h4>
+<p>这里的 <code>PrincipalAccessor</code> 是一个 <code>IPrincipalAccessor</code> 接口，在 ASP .NET Core 库当中他的实现名字叫做 <code>AspNetCorePrincipalAccessor</code>。其实你应该猜得到，在这个类的构造函数当中，注入了 <code>HttpContext</code> 的访问器对象 <code>IHttpContextAccessor</code>，这样 <code>IAbpSession</code> 就可以轻而易举地获得当前请求上下文当中的具体数据了。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AspNetCorePrincipalAccessor</span> <span class="p">:</span> <span class="n">DefaultPrincipalAccessor</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="n">ClaimsPrincipal</span> <span class="n">Principal</span> <span class="p">=&gt;</span> <span class="n">_httpContextAccessor</span><span class="p">.</span><span class="n">HttpContext</span><span class="p">?.</span><span class="n">User</span> <span class="p">??</span> <span class="k">base</span><span class="p">.</span><span class="n">Principal</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IHttpContextAccessor</span> <span class="n">_httpContextAccessor</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">AspNetCorePrincipalAccessor</span><span class="p">(</span><span class="n">IHttpContextAccessor</span> <span class="n">httpContextAccessor</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_httpContextAccessor</span> <span class="p">=</span> <span class="n">httpContextAccessor</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="213-小结">2.1.3 小结</h4>
+<p>所以，Abp 通过 <code>IAbpSession</code> 可以轻松地知道我们当前用户的状态，包括用户 Id 与租户 Id，它只需要知道这两个东西，就可以很简单的在 <code>IFeatureChecker</code> 和 <code>IPermissionChecker</code> 当中来查询用户所绑定的权限来进行验证。</p>
+<h3 id="22-功能feature">2.2 功能(Feature)</h3>
+<p>首先我们的思绪回到上一章所讲的 <code>AuthorizationHelper</code> 类，在其 <code>AuthorizeAsync()</code> 方法当中，使用 <code>IFeatureChecker</code> 来检测用户是否拥有某种功能。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">AuthorizeAsync</span><span class="p">(</span><span class="n">MethodInfo</span> <span class="n">methodInfo</span><span class="p">,</span> <span class="n">Type</span> <span class="n">type</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 检测功能</span>
+</span></span><span class="line"><span class="cl">    <span class="k">await</span> <span class="n">CheckFeatures</span><span class="p">(</span><span class="n">methodInfo</span><span class="p">,</span> <span class="n">type</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 检测权限</span>
+</span></span><span class="line"><span class="cl">    <span class="k">await</span> <span class="n">CheckPermissions</span><span class="p">(</span><span class="n">methodInfo</span><span class="p">,</span> <span class="n">type</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>然后呢，在 <code>IFeatureChecker.CheckFeatures()</code> 方法的内部，跟 <code>IPermissionChecker</code> 的套路一样，这里仍然是一个扩展方法，遍历方法/类上标记的 <code>[RequiresFeatureAttribute]</code> 特性，调用 <code>IFeatureChecker</code> 的 <code>GetValueAsync()</code> 方法传入功能的名称，然后将其值与 <code>&quot;true&quot;</code> 相比较，为真则是启用了该功能，其他值则说明没有启用。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">bool</span><span class="p">&gt;</span> <span class="n">IsEnabledAsync</span><span class="p">(</span><span class="k">this</span> <span class="n">IFeatureChecker</span> <span class="n">featureChecker</span><span class="p">,</span> <span class="kt">string</span> <span class="n">featureName</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 检查是否启用</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="kt">string</span><span class="p">.</span><span class="n">Equals</span><span class="p">(</span><span class="k">await</span> <span class="n">featureChecker</span><span class="p">.</span><span class="n">GetValueAsync</span><span class="p">(</span><span class="n">featureName</span><span class="p">),</span> <span class="s">&#34;true&#34;</span><span class="p">,</span> <span class="n">StringComparison</span><span class="p">.</span><span class="n">OrdinalIgnoreCase</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>IFeatureChecker</code> 的定义：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IFeatureChecker</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 传入功能名字，获取真这对于当前租户其默认值</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetValueAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 传入租户 Id 与功能名字，获取针对于指定 Id 租户的默认值</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetValueAsync</span><span class="p">(</span><span class="kt">int</span> <span class="n">tenantId</span><span class="p">,</span> <span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>到这一步我们仍然是跟 <code>IFeatureChecker</code> 打交道，那么他的具体实现是怎样的呢？</p>
+<p>先来看一下这个 <code>IFeatureChecker</code> 的依赖关系图：</p>
+<p><img src="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/1534171425841.png"
+	width="943"
+	height="454"
+	srcset="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/1534171425841_hua38a6fbc9e59a21b4743eda0b39ed12f_24188_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/1534171425841_hua38a6fbc9e59a21b4743eda0b39ed12f_24188_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1534171425841"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="207"
+		data-flex-basis="498px"
+	
+></p>
+<p>目前看起来还是比较简单，他拥有一个默认实现 <code>FeatureChecker</code> ，其中 <code>IFeatureValueStore</code> 从名字就可以知道它是用来存储功能列表的，而 <code>IFeatureManager</code> 则是用来管理这些功能的，<code>Feature </code>则是这些功能的定义。</p>
+<p>结合之前在 <code>IsEnabledAsync()</code> 方法的调用，可以看到它先进入的 <code>GetValueAsync(string name)</code> 方法，判断当前用户的租户 Id 是否有值，如果没有值则直接抛出异常，中断权限验证。如果有值得话，传入当前登录用户的租户 Id ，从 <code>IFeatureManager</code> 当中获取到定义的权限，之后呢从 <code>IFeatureValueStore</code> 当中拿到功能具体的值，因为功能是针对租户而言的，所以一个功能针对于多个租户的值肯定是不同的，所以在这里查询具体值的时候需要传入租户 Id。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">FeatureChecker</span> <span class="p">:</span> <span class="n">IFeatureChecker</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IAbpSession</span> <span class="n">AbpSession</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IFeatureValueStore</span> <span class="n">FeatureValueStore</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IFeatureManager</span> <span class="n">_featureManager</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">FeatureChecker</span><span class="p">(</span><span class="n">IFeatureManager</span> <span class="n">featureManager</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_featureManager</span> <span class="p">=</span> <span class="n">featureManager</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">FeatureValueStore</span> <span class="p">=</span> <span class="n">NullFeatureValueStore</span><span class="p">.</span><span class="n">Instance</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AbpSession</span> <span class="p">=</span> <span class="n">NullAbpSession</span><span class="p">.</span><span class="n">Instance</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetValueAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="c1">// 判断当前登录的用户是否拥有租户 ID</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="n">AbpSession</span><span class="p">.</span><span class="n">TenantId</span><span class="p">.</span><span class="n">HasValue</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">throw</span> <span class="k">new</span> <span class="n">AbpException</span><span class="p">(</span><span class="s">&#34;FeatureChecker can not get a feature value by name. TenantId is not set in the IAbpSession!&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	   <span class="c1">// 传入当前登录用户的租户 Id ，获取其值</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">GetValueAsync</span><span class="p">(</span><span class="n">AbpSession</span><span class="p">.</span><span class="n">TenantId</span><span class="p">.</span><span class="n">Value</span><span class="p">,</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetValueAsync</span><span class="p">(</span><span class="kt">int</span> <span class="n">tenantId</span><span class="p">,</span> <span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="c1">// 从功能管理器根据名字查询用户定义的功能</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">feature</span> <span class="p">=</span> <span class="n">_featureManager</span><span class="p">.</span><span class="n">Get</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	    <span class="c1">// 获得功能的值，如果没有值则返回其默认值</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="k">value</span> <span class="p">=</span> <span class="k">await</span> <span class="n">FeatureValueStore</span><span class="p">.</span><span class="n">GetValueOrNullAsync</span><span class="p">(</span><span class="n">tenantId</span><span class="p">,</span> <span class="n">feature</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="k">value</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">feature</span><span class="p">.</span><span class="n">DefaultValue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>聪明的你肯定猜到功能其实是用户在代码当中定义的，而功能的值则是存放在数据库当中，每个租户其值都是不一样的。这是不是让你想到了系列文章《[Abp 源码分析]五、系统设置》 <code>SettingProvider</code> 的实现呢？</p>
+<p>So,这里的 <code>IFeatureStore</code> 的默认实现肯定是从数据库进行配置咯~</p>
+<p><img src="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/1534173553986.png"
+	width="257"
+	height="196"
+	srcset="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/1534173553986_hu7983831518e57886f9c07f75c8885206_33565_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/1534173553986_hu7983831518e57886f9c07f75c8885206_33565_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1534173553986"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="131"
+		data-flex-basis="314px"
+	
+></p>
+<h4 id="221-功能的定义">2.2.1 功能的定义</h4>
+<p>首先功能、权限都是树形结构，他们都可以拥有自己的子节点，这样可以直接实现针对父节点赋值而拥有其子节点的所有权限。这里先来看一下功能的的基本定义：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">Feature</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 附加数据的一个索引器</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">object</span> <span class="k">this</span><span class="p">[</span><span class="kt">string</span> <span class="n">key</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">get</span> <span class="p">=&gt;</span> <span class="n">Attributes</span><span class="p">.</span><span class="n">GetOrDefault</span><span class="p">(</span><span class="n">key</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">set</span> <span class="p">=&gt;</span> <span class="n">Attributes</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="p">=</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 功能的附加数据</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;</span> <span class="n">Attributes</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 父级功能</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Feature</span> <span class="n">Parent</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 功能的名称</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 功能的展示名称，这是一个本地化字符串</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ILocalizableString</span> <span class="n">DisplayName</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 功能的描述，一样的是一个本地化字符串</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ILocalizableString</span> <span class="n">Description</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// 功能的输入类型</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IInputType</span> <span class="n">InputType</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 功能的默认值</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">DefaultValue</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 功能所适用的范围</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">FeatureScopes</span> <span class="n">Scope</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果当前功能的子节点的不可变集合</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">Feature</span><span class="p">&gt;</span> <span class="n">Children</span> <span class="p">=&gt;</span> <span class="n">_children</span><span class="p">.</span><span class="n">ToImmutableList</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Feature</span><span class="p">&gt;</span> <span class="n">_children</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Feature</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="kt">string</span> <span class="n">defaultValue</span><span class="p">,</span> <span class="n">ILocalizableString</span> <span class="n">displayName</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span> <span class="n">ILocalizableString</span> <span class="n">description</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span> <span class="n">FeatureScopes</span> <span class="n">scope</span> <span class="p">=</span> <span class="n">FeatureScopes</span><span class="p">.</span><span class="n">All</span><span class="p">,</span> <span class="n">IInputType</span> <span class="n">inputType</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Name</span> <span class="p">=</span> <span class="n">name</span> <span class="p">??</span> <span class="k">throw</span> <span class="k">new</span> <span class="n">ArgumentNullException</span><span class="p">(</span><span class="s">&#34;name&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">DisplayName</span> <span class="p">=</span> <span class="n">displayName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Description</span> <span class="p">=</span> <span class="n">description</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Scope</span> <span class="p">=</span> <span class="n">scope</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">DefaultValue</span> <span class="p">=</span> <span class="n">defaultValue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">InputType</span> <span class="p">=</span> <span class="n">inputType</span> <span class="p">??</span> <span class="k">new</span> <span class="n">CheckboxInputType</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">_children</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Feature</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Attributes</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Feature</span> <span class="n">CreateChildFeature</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="kt">string</span> <span class="n">defaultValue</span><span class="p">,</span> <span class="n">ILocalizableString</span> <span class="n">displayName</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span> <span class="n">ILocalizableString</span> <span class="n">description</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span> <span class="n">FeatureScopes</span> <span class="n">scope</span> <span class="p">=</span> <span class="n">FeatureScopes</span><span class="p">.</span><span class="n">All</span><span class="p">,</span> <span class="n">IInputType</span> <span class="n">inputType</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">feature</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Feature</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">defaultValue</span><span class="p">,</span> <span class="n">displayName</span><span class="p">,</span> <span class="n">description</span><span class="p">,</span> <span class="n">scope</span><span class="p">,</span> <span class="n">inputType</span><span class="p">)</span> <span class="p">{</span> <span class="n">Parent</span> <span class="p">=</span> <span class="k">this</span> <span class="p">};</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_children</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">feature</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">feature</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="kt">string</span> <span class="n">ToString</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="kt">string</span><span class="p">.</span><span class="n">Format</span><span class="p">(</span><span class="s">&#34;[Feature: {0}]&#34;</span><span class="p">,</span> <span class="n">Name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这玩意儿光看着头还是有点疼的，其实就是关于功能的基础定义，他为啥附带了一个附加描述字典，因为可以存储一些额外的信息，比如说一个短信功能，他的配额和到期时间，至于他的 <code>Scope</code> 则说明了它的生效范围。</p>
+<h4 id="222-功能管理器">2.2.2 功能管理器</h4>
+<p>接着看看 <code>GetValueAsync(int tenantId, string name)</code> 方法的第一句：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">feature</span> <span class="p">=</span> <span class="n">_featureManager</span><span class="p">.</span><span class="n">Get</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>emmm，我要从 <code>IFeatureManager</code> 根据权限名称取得一个具体的 <code>Feature</code> 对象，那我们继续来看一下 <code>IFeatureManager</code> 接口。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IFeatureManager</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 根据名称获得一个具体的功能，这个名称应该是唯一的</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Feature</span> <span class="n">Get</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 根据一个名称获得一个具体的功能，如果没找到则返回 NULL</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Feature</span> <span class="n">GetOrNull</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得所有定义的功能</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">Feature</span><span class="p">&gt;</span> <span class="n">GetAll</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="223-功能管理器实现">2.2.3 功能管理器实现</h4>
+<p>在看具体实现的时候，我们先不慌，先看一下它实现类所继承的东西。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">internal</span> <span class="k">class</span> <span class="nc">FeatureManager</span> <span class="p">:</span> <span class="n">FeatureDefinitionContextBase</span><span class="p">,</span> <span class="n">IFeatureManager</span><span class="p">,</span> <span class="n">ISingletonDependency</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/git2.gif"
+	width="310"
+	height="285"
+	srcset="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/git2_huf973b44b02c5ce5ec8c857b1edc26509_1005263_480x0_resize_box.gif 480w, /p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/git2_huf973b44b02c5ce5ec8c857b1edc26509_1005263_1024x0_resize_box.gif 1024w"
+	loading="lazy"
+	
+		alt="git2"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="108"
+		data-flex-basis="261px"
+	
+></p>
+<p>WTF，他又继承了什么奇奇怪怪的东西。我们又在此来到 <code>FeatureDefinitionContextBase</code> ，经过一番探查总算知道这玩意儿实现自 <code>IFeatureDefinitionContext</code>,看看他的定义：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="c1">// 功能定义上下文，主要功能是提供给 FeatureProvider 来创建功能的</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IFeatureDefinitionContext</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 创建一个功能</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Feature</span> <span class="n">Create</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="kt">string</span> <span class="n">defaultValue</span><span class="p">,</span> <span class="n">ILocalizableString</span> <span class="n">displayName</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span> <span class="n">ILocalizableString</span> <span class="n">description</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span> <span class="n">FeatureScopes</span> <span class="n">scope</span> <span class="p">=</span> <span class="n">FeatureScopes</span><span class="p">.</span><span class="n">All</span><span class="p">,</span> <span class="n">IInputType</span> <span class="n">inputType</span> <span class="p">=</span> <span class="k">null</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 根据名称获得一个功能</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Feature</span> <span class="n">GetOrNull</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 移除一个功能</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">Remove</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>所以，你要把这些功能存放在哪些地方呢？</p>
+<p>其实看到这个玩意儿 name-value，答案呼之欲出，其实现内部肯定是用的一个字典来存储数据的。</p>
+<p>接着我们来到了 <code>FeatureDefinitionContextBase</code> 的默认实现 <code>FeatureDefinitionContextBase</code>，然后发现里面也是别有洞天，Abp 又把字典再次封装了一遍，这次字典的名字叫做 <code>FeatureDictionary</code>，你只需要记住他只提供了一个作用，就是将字典内部的所有功能项与其子功能项按照平级关系存放在字典当中。</p>
+<p>除了内部封装了一个字典之外，在这个上下文当中，实现了创建，获取，和移除功能的方法，然后就没有了。我们再次回到功能管理器，</p>
+<p>功能管理器集成了这个上下文基类，集合之前 <code>IFeatureManager</code> 所定义的接口，它就具备了随时可以修改功能集的权力。那么这些功能是什么时候被定义的，而又是什么时候被初始化到这个字典的呢？</p>
+<p>在前面我们已经说过，Feature 的增加与之前文章所讲的系统设置是一样的，他们都是通过集成一个 Provider ，然后在模块预加载的时候，通过一个 <code>IFeatureConfiguration</code> 的东西被添加到 Abp 系统当中的。所以在 <code>FeatureManager</code> 内部注入了 <code>IFeatureConfiguration</code> 用来拿到用户在模块加载时所配置的功能项集合。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IFeatureConfiguration</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// Used to add/remove &lt;see cref=&#34;FeatureProvider&#34;/&gt;s.</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">ITypeList</span><span class="p">&lt;</span><span class="n">FeatureProvider</span><span class="p">&gt;</span> <span class="n">Providers</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>下面给你演示一下如何添加一个功能项：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AppFeatureProvider</span> <span class="p">:</span> <span class="n">FeatureProvider</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">SetFeatures</span><span class="p">(</span><span class="n">IFeatureDefinitionContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">sampleBooleanFeature</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">Create</span><span class="p">(</span><span class="s">&#34;SampleBooleanFeature&#34;</span><span class="p">,</span> <span class="n">defaultValue</span><span class="p">:</span> <span class="s">&#34;false&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">sampleBooleanFeature</span><span class="p">.</span><span class="n">CreateChildFeature</span><span class="p">(</span><span class="s">&#34;SampleNumericFeature&#34;</span><span class="p">,</span> <span class="n">defaultValue</span><span class="p">:</span> <span class="s">&#34;10&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">Create</span><span class="p">(</span><span class="s">&#34;SampleSelectionFeature&#34;</span><span class="p">,</span> <span class="n">defaultValue</span><span class="p">:</span> <span class="s">&#34;B&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>不用猜测 <code>FeatureProvier</code> 的实现了，他就是一个抽象类，定义了一个 <code>SetFeatures</code> 方法好让你实现而已。</p>
+<p>之后我又在模块的预加载方法吧 <code>AppFeatureProvider</code> 添加到了<code>IFeatureConfiguration</code> 里面：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">XXXModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">PreInitialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="n">Configuration</span><span class="p">.</span><span class="n">Features</span><span class="p">.</span><span class="n">Providers</span><span class="p">.</span><span class="n">Add</span><span class="p">&lt;</span><span class="n">AppFeatureProvider</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>而功能管理器则是在 Abp 核心模块 <code>AbpKernalModule</code> 初始化的时候，跟着权限管理器和系统设置管理器，一起被初始化了。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">PostInitialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">RegisterMissingComponents</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 这里是系统的设置的管理器</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">SettingDefinitionManager</span><span class="p">&gt;().</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 功能管理器在这里</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">FeatureManager</span><span class="p">&gt;().</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 权限管理器</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">PermissionManager</span><span class="p">&gt;().</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">LocalizationManager</span><span class="p">&gt;().</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">NotificationDefinitionManager</span><span class="p">&gt;().</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">NavigationManager</span><span class="p">&gt;().</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">Configuration</span><span class="p">.</span><span class="n">BackgroundJobs</span><span class="p">.</span><span class="n">IsJobExecutionEnabled</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">workerManager</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IBackgroundWorkerManager</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">workerManager</span><span class="p">.</span><span class="n">Start</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">workerManager</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IBackgroundJobManager</span><span class="p">&gt;());</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>看看功能管理器的定义就知道了：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">Initialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">providerType</span> <span class="k">in</span> <span class="n">_featureConfiguration</span><span class="p">.</span><span class="n">Providers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">provider</span> <span class="p">=</span> <span class="n">CreateProvider</span><span class="p">(</span><span class="n">providerType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">provider</span><span class="p">.</span><span class="n">Object</span><span class="p">.</span><span class="n">SetFeatures</span><span class="p">(</span><span class="k">this</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">Features</span><span class="p">.</span><span class="n">AddAllFeatures</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>波澜不惊的我早已看透一切，可以看到这里他通过遍历注入的 <code>FeatureProvider</code> 集合，传入自己，让他们可以向自己注入定义的功能项。</p>
+<h4 id="224-功能的存储">2.2.4 功能的存储</h4>
+<p>继续看 <code>IFeatureChecker</code> 的代码，最后从功能管理器拿到了功能项之后，就要根据租户的 Id 取得它具体的值了。值还能存在哪儿，除了数据库最合适放这种东西，其他的你愿意也可以存在 TXT 里面。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IFeatureValueStore</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 很简洁，你传入当前用户的租户 Id 与 当前需要校验的功能项，我给你他的值</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetValueOrNullAsync</span><span class="p">(</span><span class="kt">int</span> <span class="n">tenantId</span><span class="p">,</span> <span class="n">Feature</span> <span class="n">feature</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>废话不多说，来到 Zero 关于这个功能存储类的定义 <code>AbpFeatureValueStore&lt;TTenant,TUser&gt;</code>，你先不着急看那两个泛型参数，这两个泛型就是你的用户与租户实体，我们先看看这玩意儿继承了啥东西：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpFeatureValueStore</span><span class="p">&lt;</span><span class="n">TTenant</span><span class="p">,</span> <span class="n">TUser</span><span class="p">&gt;</span> <span class="p">:</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IAbpZeroFeatureValueStore</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ITransientDependency</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IEventHandler</span><span class="p">&lt;</span><span class="n">EntityChangedEventData</span><span class="p">&lt;</span><span class="n">Edition</span><span class="p">&gt;&gt;,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IEventHandler</span><span class="p">&lt;</span><span class="n">EntityChangedEventData</span><span class="p">&lt;</span><span class="n">EditionFeatureSetting</span><span class="p">&gt;&gt;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">where</span> <span class="n">TTenant</span> <span class="p">:</span> <span class="n">AbpTenant</span><span class="p">&lt;</span><span class="n">TUser</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">where</span> <span class="n">TUser</span> <span class="p">:</span> <span class="n">AbpUserBase</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到它首先继承了 <code>IAbpZeroFeatureValueStore</code> 接口，这里的 <code>IAbpZeroFeatureValueStore</code> 接口一样的继承的 <code>IFeatureValueStore</code>，所以在 Abp 底层框架能够直接使用。</p>
+<p>其次我们还看到它监听了两个实体变更事件，也就是 Edition 与 EditFeatureSettings 表产生变化的时候，会进入到本类进行处理，其实这里的处理就是发生改变之后，拿到改变实体的 Id，从缓存清除掉脏数据而已。</p>
+<p>然后我们直奔主题，找到方法的实现：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetValueOrNullAsync</span><span class="p">(</span><span class="kt">int</span> <span class="n">tenantId</span><span class="p">,</span> <span class="n">Feature</span> <span class="n">feature</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">GetValueOrNullAsync</span><span class="p">(</span><span class="n">tenantId</span><span class="p">,</span> <span class="n">feature</span><span class="p">.</span><span class="n">Name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>发现又是一个空壳子，继续跳转：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetValueOrNullAsync</span><span class="p">(</span><span class="kt">int</span> <span class="n">tenantId</span><span class="p">,</span> <span class="kt">string</span> <span class="n">featureName</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 首先从租户功能值表获取功能的值</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">cacheItem</span> <span class="p">=</span> <span class="k">await</span> <span class="n">GetTenantFeatureCacheItemAsync</span><span class="p">(</span><span class="n">tenantId</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得到值</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="k">value</span> <span class="p">=</span> <span class="n">cacheItem</span><span class="p">.</span><span class="n">FeatureValues</span><span class="p">.</span><span class="n">GetOrDefault</span><span class="p">(</span><span class="n">featureName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 不等于空，优先获取租户的值而忽略掉版本的值</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="k">value</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果租户功能值表的缓存说我还有版本 Id，那么就去版本级别的功能值表查找功能的值</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">cacheItem</span><span class="p">.</span><span class="n">EditionId</span><span class="p">.</span><span class="n">HasValue</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">value</span> <span class="p">=</span> <span class="k">await</span> <span class="n">GetEditionValueOrNullAsync</span><span class="p">(</span><span class="n">cacheItem</span><span class="p">.</span><span class="n">EditionId</span><span class="p">.</span><span class="n">Value</span><span class="p">,</span> <span class="n">featureName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="k">value</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这才是真正的获取功能值的地方，其余方法就不再详细讲述，这两个从缓存获取的方法，都分别有一个工厂方法从数据库拿去数据的，所以你也不用担心缓存里面不存在值的情况。</p>
+<h4 id="225-小结">2.2.5 小结</h4>
+<p>总的来说功能是针对租户的一个权限，Abp 建议一个父母功能一般定义为 <strong>布尔</strong>功能。只有父母功能可用时，子功能才可用。ABP不强制这样做，但是建议这样做。</p>
+<p>在一个基于 Abp 框架的系统功能权限是可选的，具体使用还是取决于你所开发的业务系统是否有这种需求。</p>
+<h3 id="23-权限permission">2.3 权限(Permission)</h3>
+<h4 id="231-权限的定义">2.3.1 权限的定义</h4>
+<p>权限的定义与 Feature 一样，都是存放了一些基本信息，比如说权限的唯一标识，权限的展示名称与描述，只不过少了 Feature 的附加属性而已。下面我们就会加快进度来说明一下权限相关的知识。</p>
+<h4 id="232-权限检测器">2.3.2 权限检测器</h4>
+<p>权限相比于功能，权限更加细化到了用户与角色，角色通过与权限关联，角色就是一个权限组的集合，用户再跟角色进行关联。看看权限管理器的定义吧：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">PermissionChecker</span><span class="p">&lt;</span><span class="n">TRole</span><span class="p">,</span> <span class="n">TUser</span><span class="p">&gt;</span> <span class="p">:</span> <span class="n">IPermissionChecker</span><span class="p">,</span> <span class="n">ITransientDependency</span><span class="p">,</span> <span class="n">IIocManagerAccessor</span>
+</span></span><span class="line"><span class="cl">        <span class="k">where</span> <span class="n">TRole</span> <span class="p">:</span> <span class="n">AbpRole</span><span class="p">&lt;</span><span class="n">TUser</span><span class="p">&gt;,</span> <span class="k">new</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="k">where</span> <span class="n">TUser</span> <span class="p">:</span> <span class="n">AbpUser</span><span class="p">&lt;</span><span class="n">TUser</span><span class="p">&gt;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>还是相对而言比较简单的，在这里你只需要关注两个东西：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">bool</span><span class="p">&gt;</span> <span class="n">IsGrantedAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">permissionName</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">AbpSession</span><span class="p">.</span><span class="n">UserId</span><span class="p">.</span><span class="n">HasValue</span> <span class="p">&amp;&amp;</span> <span class="k">await</span> <span class="n">_userManager</span><span class="p">.</span><span class="n">IsGrantedAsync</span><span class="p">(</span><span class="n">AbpSession</span><span class="p">.</span><span class="n">UserId</span><span class="p">.</span><span class="n">Value</span><span class="p">,</span> <span class="n">permissionName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">bool</span><span class="p">&gt;</span> <span class="n">IsGrantedAsync</span><span class="p">(</span><span class="kt">long</span> <span class="n">userId</span><span class="p">,</span> <span class="kt">string</span> <span class="n">permissionName</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">await</span> <span class="n">_userManager</span><span class="p">.</span><span class="n">IsGrantedAsync</span><span class="p">(</span><span class="n">userId</span><span class="p">,</span> <span class="n">permissionName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这就是权限校验的实现，第一个是传入当前用户的 Id 扔到 <code>_userManager</code> 进行校验，而第二个则扔一个用户制定的 Id 进行校验。</p>
+<p>看到这里，我们又该到下一节了，讲解一下这个 <code>_userManager</code> 是何方神圣。</p>
+<h4 id="233-用户管理器">2.3.3 用户管理器</h4>
+<p>如果读者接触过 ASP.NET Core MVC 的 Identity 肯定对于 <code>UserManager&lt;,&gt;</code> 不会陌生，没错，这里的 <code>_userManager</code> 就是继承自 <code>UserManager&lt;TUser, long&gt;,</code> 实现的 <code>AbpUserManager&lt;TRole, TUser&gt;</code>。</p>
+<p>继续我们还是看关键方法 <code>IsGrantedAsync()</code>。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">bool</span><span class="p">&gt;</span> <span class="n">IsGrantedAsync</span><span class="p">(</span><span class="kt">long</span> <span class="n">userId</span><span class="p">,</span> <span class="kt">string</span> <span class="n">permissionName</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 传入用户 ID 与需要检测的权限,通过权限管理器获得 Permission 对象</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">await</span> <span class="n">IsGrantedAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">userId</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_permissionManager</span><span class="p">.</span><span class="n">GetPermission</span><span class="p">(</span><span class="n">permissionName</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>还是个空壳子，继续跳转：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">bool</span><span class="p">&gt;</span> <span class="n">IsGrantedAsync</span><span class="p">(</span><span class="kt">long</span> <span class="n">userId</span><span class="p">,</span> <span class="n">Permission</span> <span class="n">permission</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 首先检测当前用户是否拥有租户信息</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">permission</span><span class="p">.</span><span class="n">MultiTenancySides</span><span class="p">.</span><span class="n">HasFlag</span><span class="p">(</span><span class="n">GetCurrentMultiTenancySide</span><span class="p">()))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 然后检测权限依赖的功能，如果功能没有启用，一样的是没权限的</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">permission</span><span class="p">.</span><span class="n">FeatureDependency</span> <span class="p">!=</span> <span class="k">null</span> <span class="p">&amp;&amp;</span> <span class="n">GetCurrentMultiTenancySide</span><span class="p">()</span> <span class="p">==</span> <span class="n">MultiTenancySides</span><span class="p">.</span><span class="n">Tenant</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">FeatureDependencyContext</span><span class="p">.</span><span class="n">TenantId</span> <span class="p">=</span> <span class="n">GetCurrentTenantId</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="k">await</span> <span class="n">permission</span><span class="p">.</span><span class="n">FeatureDependency</span><span class="p">.</span><span class="n">IsSatisfiedAsync</span><span class="p">(</span><span class="n">FeatureDependencyContext</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得当前用户所拥有的权限，没有权限一样滚蛋</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">cacheItem</span> <span class="p">=</span> <span class="k">await</span> <span class="n">GetUserPermissionCacheItemAsync</span><span class="p">(</span><span class="n">userId</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">cacheItem</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 检测当前用户是否被授予了特许权限，没有的话则直接跳过，有的话说明这是个特权用户，拥有这个特殊权限</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">cacheItem</span><span class="p">.</span><span class="n">GrantedPermissions</span><span class="p">.</span><span class="n">Contains</span><span class="p">(</span><span class="n">permission</span><span class="p">.</span><span class="n">Name</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 检测禁用权限名单中是否拥有本权限，如果有，一样的不通过</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">cacheItem</span><span class="p">.</span><span class="n">ProhibitedPermissions</span><span class="p">.</span><span class="n">Contains</span><span class="p">(</span><span class="n">permission</span><span class="p">.</span><span class="n">Name</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 检测用户角色是否拥有改权限</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">roleId</span> <span class="k">in</span> <span class="n">cacheItem</span><span class="p">.</span><span class="n">RoleIds</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="k">await</span> <span class="n">RoleManager</span><span class="p">.</span><span class="n">IsGrantedAsync</span><span class="p">(</span><span class="n">roleId</span><span class="p">,</span> <span class="n">permission</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里我们没有讲解权限管理器与权限的注入是因为他们两个简直一毛一样好吧，你可以看看权限的定义：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">MyAuthorizationProvider</span> <span class="p">:</span> <span class="n">AuthorizationProvider</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">SetPermissions</span><span class="p">(</span><span class="n">IPermissionDefinitionContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">administration</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">CreatePermission</span><span class="p">(</span><span class="s">&#34;Administration&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">userManagement</span> <span class="p">=</span> <span class="n">administration</span><span class="p">.</span><span class="n">CreateChildPermission</span><span class="p">(</span><span class="s">&#34;Administration.UserManagement&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">userManagement</span><span class="p">.</span><span class="n">CreateChildPermission</span><span class="p">(</span><span class="s">&#34;Administration.UserManagement.CreateUser&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">roleManagement</span> <span class="p">=</span> <span class="n">administration</span><span class="p">.</span><span class="n">CreateChildPermission</span><span class="p">(</span><span class="s">&#34;Administration.RoleManagement&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>是不是感觉跟功能的 Provider 很像&hellip;</p>
+<p><img src="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/1534180080642.png"
+	width="720"
+	height="365"
+	srcset="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/1534180080642_hu402769a8e194d3fd401980ff3c5bb483_383203_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/1534180080642_hu402769a8e194d3fd401980ff3c5bb483_383203_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1534180080642"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="197"
+		data-flex-basis="473px"
+	
+></p>
+<h4 id="234-小结">2.3.4 小结</h4>
+<p>权限仅仅会与用于和角色挂钩，与租户无关，它和功能的实现大同小异，但是也是值得我们借鉴学习的。</p>
+<h3 id="3多租户数据过滤">3.多租户数据过滤</h3>
+<p>租户与租户之间是如何进行数据过滤的呢？</p>
+<p>这里简单讲一下单部署-单数据库的做法吧，在 EF Core 当中针对每一个实体都提供了一个全局过滤的方法 <code>HasQueryFilter</code>，有了这个东西，在每次 EF Core 进行查询的时候都会将查询表达式附加上你自定义的过滤器一起进行查询。</p>
+<p>在 Abp 内部定义了一个借口，叫做 <code>IMustHaveTenant</code>，这玩意儿有一个必须实现的属性 <code>TenantId</code>，所以只要在你的实体继承了该接口，肯定就是会有 <code>TenantId</code> 字段咯，那么 Abp 就可以先判断你当前的实体是否实现了 <code>IMusHaveTenant</code> 接口，如果有的话，就给你创建了一个过滤器拼接到你的查询表达式当中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">override</span> <span class="k">void</span> <span class="n">OnModelCreating</span><span class="p">(</span><span class="n">ModelBuilder</span> <span class="n">modelBuilder</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// DbContext 模型创建的时候</span>
+</span></span><span class="line"><span class="cl">    <span class="k">base</span><span class="p">.</span><span class="n">OnModelCreating</span><span class="p">(</span><span class="n">modelBuilder</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 遍历所有 DbContext 定义的实体</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">entityType</span> <span class="k">in</span> <span class="n">modelBuilder</span><span class="p">.</span><span class="n">Model</span><span class="p">.</span><span class="n">GetEntityTypes</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ConfigureGlobalFiltersMethodInfo</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">MakeGenericMethod</span><span class="p">(</span><span class="n">entityType</span><span class="p">.</span><span class="n">ClrType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">Invoke</span><span class="p">(</span><span class="k">this</span><span class="p">,</span> <span class="k">new</span> <span class="kt">object</span><span class="p">[]</span> <span class="p">{</span> <span class="n">modelBuilder</span><span class="p">,</span> <span class="n">entityType</span> <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">void</span> <span class="n">ConfigureGlobalFilters</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;(</span><span class="n">ModelBuilder</span> <span class="n">modelBuilder</span><span class="p">,</span> <span class="n">IMutableEntityType</span> <span class="n">entityType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="k">where</span> <span class="n">TEntity</span> <span class="p">:</span> <span class="k">class</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 判断实体是否实现了租户或者软删除接口，实现了则添加一个过滤器</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">entityType</span><span class="p">.</span><span class="n">BaseType</span> <span class="p">==</span> <span class="k">null</span> <span class="p">&amp;&amp;</span> <span class="n">ShouldFilterEntity</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;(</span><span class="n">entityType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">filterExpression</span> <span class="p">=</span> <span class="n">CreateFilterExpression</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">filterExpression</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">modelBuilder</span><span class="p">.</span><span class="n">Entity</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;().</span><span class="n">HasQueryFilter</span><span class="p">(</span><span class="n">filterExpression</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 数据过滤用的查询表达式构建</span>
+</span></span><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="n">Expression</span><span class="p">&lt;</span><span class="n">Func</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">,</span> <span class="kt">bool</span><span class="p">&gt;&gt;</span> <span class="n">CreateFilterExpression</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">    <span class="k">where</span> <span class="n">TEntity</span> <span class="p">:</span> <span class="k">class</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Expression</span><span class="p">&lt;</span><span class="n">Func</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">,</span> <span class="kt">bool</span><span class="p">&gt;&gt;</span> <span class="n">expression</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">ISoftDelete</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TEntity</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="cm">/* This condition should normally be defined as below:
+</span></span></span><span class="line"><span class="cl"><span class="cm">            * !IsSoftDeleteFilterEnabled || !((ISoftDelete) e).IsDeleted
+</span></span></span><span class="line"><span class="cl"><span class="cm">            * But this causes a problem with EF Core (see https://github.com/aspnet/EntityFrameworkCore/issues/9502)
+</span></span></span><span class="line"><span class="cl"><span class="cm">            * So, we made a workaround to make it working. It works same as above.
+</span></span></span><span class="line"><span class="cl"><span class="cm">            */</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Expression</span><span class="p">&lt;</span><span class="n">Func</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">,</span> <span class="kt">bool</span><span class="p">&gt;&gt;</span> <span class="n">softDeleteFilter</span> <span class="p">=</span> <span class="n">e</span> <span class="p">=&gt;</span> <span class="p">!((</span><span class="n">ISoftDelete</span><span class="p">)</span><span class="n">e</span><span class="p">).</span><span class="n">IsDeleted</span> <span class="p">||</span> <span class="p">((</span><span class="n">ISoftDelete</span><span class="p">)</span><span class="n">e</span><span class="p">).</span><span class="n">IsDeleted</span> <span class="p">!=</span> <span class="n">IsSoftDeleteFilterEnabled</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">expression</span> <span class="p">=</span> <span class="n">expression</span> <span class="p">==</span> <span class="k">null</span> <span class="p">?</span> <span class="n">softDeleteFilter</span> <span class="p">:</span> <span class="n">CombineExpressions</span><span class="p">(</span><span class="n">expression</span><span class="p">,</span> <span class="n">softDeleteFilter</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">IMayHaveTenant</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TEntity</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="cm">/* This condition should normally be defined as below:
+</span></span></span><span class="line"><span class="cl"><span class="cm">            * !IsMayHaveTenantFilterEnabled || ((IMayHaveTenant)e).TenantId == CurrentTenantId
+</span></span></span><span class="line"><span class="cl"><span class="cm">            * But this causes a problem with EF Core (see https://github.com/aspnet/EntityFrameworkCore/issues/9502)
+</span></span></span><span class="line"><span class="cl"><span class="cm">            * So, we made a workaround to make it working. It works same as above.
+</span></span></span><span class="line"><span class="cl"><span class="cm">            */</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Expression</span><span class="p">&lt;</span><span class="n">Func</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">,</span> <span class="kt">bool</span><span class="p">&gt;&gt;</span> <span class="n">mayHaveTenantFilter</span> <span class="p">=</span> <span class="n">e</span> <span class="p">=&gt;</span> <span class="p">((</span><span class="n">IMayHaveTenant</span><span class="p">)</span><span class="n">e</span><span class="p">).</span><span class="n">TenantId</span> <span class="p">==</span> <span class="n">CurrentTenantId</span> <span class="p">||</span> <span class="p">(((</span><span class="n">IMayHaveTenant</span><span class="p">)</span><span class="n">e</span><span class="p">).</span><span class="n">TenantId</span> <span class="p">==</span> <span class="n">CurrentTenantId</span><span class="p">)</span> <span class="p">==</span> <span class="n">IsMayHaveTenantFilterEnabled</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">expression</span> <span class="p">=</span> <span class="n">expression</span> <span class="p">==</span> <span class="k">null</span> <span class="p">?</span> <span class="n">mayHaveTenantFilter</span> <span class="p">:</span> <span class="n">CombineExpressions</span><span class="p">(</span><span class="n">expression</span><span class="p">,</span> <span class="n">mayHaveTenantFilter</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">IMustHaveTenant</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TEntity</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="cm">/* This condition should normally be defined as below:
+</span></span></span><span class="line"><span class="cl"><span class="cm">            * !IsMustHaveTenantFilterEnabled || ((IMustHaveTenant)e).TenantId == CurrentTenantId
+</span></span></span><span class="line"><span class="cl"><span class="cm">            * But this causes a problem with EF Core (see https://github.com/aspnet/EntityFrameworkCore/issues/9502)
+</span></span></span><span class="line"><span class="cl"><span class="cm">            * So, we made a workaround to make it working. It works same as above.
+</span></span></span><span class="line"><span class="cl"><span class="cm">            */</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Expression</span><span class="p">&lt;</span><span class="n">Func</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">,</span> <span class="kt">bool</span><span class="p">&gt;&gt;</span> <span class="n">mustHaveTenantFilter</span> <span class="p">=</span> <span class="n">e</span> <span class="p">=&gt;</span> <span class="p">((</span><span class="n">IMustHaveTenant</span><span class="p">)</span><span class="n">e</span><span class="p">).</span><span class="n">TenantId</span> <span class="p">==</span> <span class="n">CurrentTenantId</span> <span class="p">||</span> <span class="p">(((</span><span class="n">IMustHaveTenant</span><span class="p">)</span><span class="n">e</span><span class="p">).</span><span class="n">TenantId</span> <span class="p">==</span> <span class="n">CurrentTenantId</span><span class="p">)</span> <span class="p">==</span> <span class="n">IsMustHaveTenantFilterEnabled</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">expression</span> <span class="p">=</span> <span class="n">expression</span> <span class="p">==</span> <span class="k">null</span> <span class="p">?</span> <span class="n">mustHaveTenantFilter</span> <span class="p">:</span> <span class="n">CombineExpressions</span><span class="p">(</span><span class="n">expression</span><span class="p">,</span> <span class="n">mustHaveTenantFilter</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">expression</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>上面就是实现了，你每次使用 EF Core 查询某个表的实体都会应用这个过滤表达式。</p>
+<h4 id="31-禁用过滤">3.1 禁用过滤</h4>
+<p>但是可以看到在创建表达式的时候这里还有一些诸如 <code>IsSoftDeleteFilterEnabled</code> 的东西，这个就是用于你在某些时候需要禁用掉软删除过滤器的时候所需要用到的。</p>
+<p>看看是哪儿来的：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="kt">bool</span> <span class="n">IsSoftDeleteFilterEnabled</span> <span class="p">=&gt;</span> <span class="n">CurrentUnitOfWorkProvider</span><span class="p">?.</span><span class="n">Current</span><span class="p">?.</span><span class="n">IsFilterEnabled</span><span class="p">(</span><span class="n">AbpDataFilters</span><span class="p">.</span><span class="n">SoftDelete</span><span class="p">)</span> <span class="p">==</span> <span class="k">true</span><span class="p">;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到这个玩意儿是使用当前的工作单元来进行控制的，检测当前工作单元的过滤器是否被启用，如果实体被打了软删除接口，并且被启用的话，那么就执行过滤，反之亦然。</p>
+<p>这些过滤器都是放在 <code>AbpDataFilters</code> 当中的，现在有以下几种定义：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">AbpDataFilters</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">const</span> <span class="kt">string</span> <span class="n">SoftDelete</span> <span class="p">=</span> <span class="s">&#34;SoftDelete&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">const</span> <span class="kt">string</span> <span class="n">MustHaveTenant</span> <span class="p">=</span> <span class="s">&#34;MustHaveTenant&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">const</span> <span class="kt">string</span> <span class="n">MayHaveTenant</span> <span class="p">=</span> <span class="s">&#34;MayHaveTenant&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">Parameters</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">const</span> <span class="kt">string</span> <span class="n">TenantId</span> <span class="p">=</span> <span class="s">&#34;tenantId&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>而这些过滤器是在 <code>AbpKernelModule</code> 的预加载方法当中被添加到 UOW 的默认配置当中的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">PreInitialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">    <span class="n">AddUnitOfWorkFilters</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">void</span> <span class="n">AddUnitOfWorkFilters</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Configuration</span><span class="p">.</span><span class="n">UnitOfWork</span><span class="p">.</span><span class="n">RegisterFilter</span><span class="p">(</span><span class="n">AbpDataFilters</span><span class="p">.</span><span class="n">SoftDelete</span><span class="p">,</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Configuration</span><span class="p">.</span><span class="n">UnitOfWork</span><span class="p">.</span><span class="n">RegisterFilter</span><span class="p">(</span><span class="n">AbpDataFilters</span><span class="p">.</span><span class="n">MustHaveTenant</span><span class="p">,</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Configuration</span><span class="p">.</span><span class="n">UnitOfWork</span><span class="p">.</span><span class="n">RegisterFilter</span><span class="p">(</span><span class="n">AbpDataFilters</span><span class="p">.</span><span class="n">MayHaveTenant</span><span class="p">,</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这些东西被添加到了 <code>IUnitOfWorkDefaultOptions</code> 之后，每次初始化一个工作单元，其自带的 Filiters 都是从这个 <code>IUnitOfWorkDefaultOptions</code> 拿到的，除非用户显式指定 UowOptions 配置。</p>
+<p><img src="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/TIM--20180814084631.png"
+	width="940"
+	height="474"
+	srcset="/p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/TIM--20180814084631_hu402fcc4c3b67b15c36f21cd61ec8b1d0_36077_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-12-multi-tenant-system-and-permission-verification/TIM--20180814084631_hu402fcc4c3b67b15c36f21cd61ec8b1d0_36077_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="TIM&ndash;20180814084631"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="198"
+		data-flex-basis="475px"
+	
+></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/aspnetboilerplate/">AspNetBoilerplate</a>
+        
+            <a href="/tags/%E5%A4%9A%E7%A7%9F%E6%88%B7/">多租户</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-multi-tenancy/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 多租户</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/why-not-use-async-void/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">为什么不要使用 async void ？</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-mongodb-retrofits-the-default-audit-log-storage-location/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp &#43; MongoDb 改造默认的审计日志存储位置</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-source-code-analysis-seventeen-aspnet-core-integration/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp 源码分析：十七、ASP.NET Core 集成</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/replace-abps-di-framework-with-dryioc/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">使用 DryIoc 替换 Abp 的 DI 框架</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#0简介">0.简介</a></li>
+    <li><a href="#1多租户的概念">1.多租户的概念</a>
+      <ol>
+        <li><a href="#11-单部署-单数据库">1.1 单部署-单数据库</a></li>
+        <li><a href="#12-单部署-多数据库">1.2 单部署-多数据库</a></li>
+      </ol>
+    </li>
+    <li><a href="#2多租户系统的权限验证">2.多租户系统的权限验证</a>
+      <ol>
+        <li><a href="#21-用户会话状态">2.1 用户会话状态</a>
+          <ol>
+            <li><a href="#211-默认会话状态的实现">2.1.1 默认会话状态的实现</a></li>
+            <li><a href="#212-获取当前请求的用户状态">2.1.2 获取当前请求的用户状态</a></li>
+            <li><a href="#213-小结">2.1.3 小结</a></li>
+          </ol>
+        </li>
+        <li><a href="#22-功能feature">2.2 功能(Feature)</a>
+          <ol>
+            <li><a href="#221-功能的定义">2.2.1 功能的定义</a></li>
+            <li><a href="#222-功能管理器">2.2.2 功能管理器</a></li>
+            <li><a href="#223-功能管理器实现">2.2.3 功能管理器实现</a></li>
+            <li><a href="#224-功能的存储">2.2.4 功能的存储</a></li>
+            <li><a href="#225-小结">2.2.5 小结</a></li>
+          </ol>
+        </li>
+        <li><a href="#23-权限permission">2.3 权限(Permission)</a>
+          <ol>
+            <li><a href="#231-权限的定义">2.3.1 权限的定义</a></li>
+            <li><a href="#232-权限检测器">2.3.2 权限检测器</a></li>
+            <li><a href="#233-用户管理器">2.3.3 用户管理器</a></li>
+            <li><a href="#234-小结">2.3.4 小结</a></li>
+          </ol>
+        </li>
+        <li><a href="#3多租户数据过滤">3.多租户数据过滤</a>
+          <ol>
+            <li><a href="#31-禁用过滤">3.1 禁用过滤</a></li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

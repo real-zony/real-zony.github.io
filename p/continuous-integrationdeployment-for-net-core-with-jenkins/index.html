@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='在前后端分离开发的项目当中为了避免重复构建发布，我们需要部署一个持续发布环境，而目前的开发环境服务器都是基于 CentOS 的，因此每次在本地发布之后还需要打包，上传，部署，十分繁琐。故这里采用了比较成熟的Jenkins 作为持续部署环境。
+为了方便安装，我们这里使用了 Docker 来进行安装，至于 Docker 安装的步骤这里不在赘述，详情可以参考**这一篇博文**。
+上面安装的是一个较老的版本，这里推荐参考** Docker 官方文档**来进行安装。
+'><title>使用 Jenkins 为 .Net Core 实现持续集成/部署</title>
+
+<link rel='canonical' href='https://example.com/p/continuous-integrationdeployment-for-net-core-with-jenkins/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='使用 Jenkins 为 .Net Core 实现持续集成/部署'>
+<meta property='og:description' content='在前后端分离开发的项目当中为了避免重复构建发布，我们需要部署一个持续发布环境，而目前的开发环境服务器都是基于 CentOS 的，因此每次在本地发布之后还需要打包，上传，部署，十分繁琐。故这里采用了比较成熟的Jenkins 作为持续部署环境。
+为了方便安装，我们这里使用了 Docker 来进行安装，至于 Docker 安装的步骤这里不在赘述，详情可以参考**这一篇博文**。
+上面安装的是一个较老的版本，这里推荐参考** Docker 官方文档**来进行安装。
+'>
+<meta property='og:url' content='https://example.com/p/continuous-integrationdeployment-for-net-core-with-jenkins/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Jenkins' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='CI/CD' /><meta property='article:tag' content='Docker' /><meta property='article:tag' content='Linux' /><meta property='article:published_time' content='2018-02-07T09:29:00&#43;00:00'/><meta property='article:modified_time' content='2018-02-07T09:29:00&#43;00:00'/>
+<meta name="twitter:title" content="使用 Jenkins 为 .Net Core 实现持续集成/部署">
+<meta name="twitter:description" content="在前后端分离开发的项目当中为了避免重复构建发布，我们需要部署一个持续发布环境，而目前的开发环境服务器都是基于 CentOS 的，因此每次在本地发布之后还需要打包，上传，部署，十分繁琐。故这里采用了比较成熟的Jenkins 作为持续部署环境。
+为了方便安装，我们这里使用了 Docker 来进行安装，至于 Docker 安装的步骤这里不在赘述，详情可以参考**这一篇博文**。
+上面安装的是一个较老的版本，这里推荐参考** Docker 官方文档**来进行安装。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/continuous-integrationdeployment-for-net-core-with-jenkins/">使用 Jenkins 为 .Net Core 实现持续集成/部署</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Feb 07, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 3 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>在前后端分离开发的项目当中为了避免重复构建发布，我们需要部署一个持续发布环境，而目前的开发环境服务器都是基于 CentOS 的，因此每次在本地发布之后还需要打包，上传，部署，十分繁琐。故这里采用了比较成熟的Jenkins 作为持续部署环境。</p>
+<p>为了方便安装，我们这里使用了 Docker 来进行安装，至于 Docker 安装的步骤这里不在赘述，详情可以参考**<a class="link" href="http://blog.myzony.com/Article/ArticleDetail/146"  target="_blank" rel="noopener"
+    >这一篇博文</a>**。</p>
+<p>上面安装的是一个较老的版本，这里推荐参考**<a class="link" href="https://docs.docker.com/install/linux/docker-ce/centos/#uninstall-old-versions"  target="_blank" rel="noopener"
+    > Docker 官方文档</a>**来进行安装。</p>
+<p>安装好 Docker 之后，拉取 Jenkins 的官方镜像。执行如下命令:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">docker pull jenkins/jenkins
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>拉取完毕之后我们基于这个镜像封装一个新的镜像出来，可能会问为什么不能直接使用呢？因为这儿的 jenkins镜像并不包含 docker 环境，所以我们需要封装一个新的镜像让其能够访问宿主机的 Docker 程序。
+构建 Dockerfile 内容如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-dockerfile" data-lang="dockerfile"><span class="line"><span class="cl"><span class="k">FROM</span><span class="s"> jenkins/jenkins:latest</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">USER</span><span class="s"> root</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c">#清除了基础镜像设置的源，切换成阿里云的源</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> <span class="nb">echo</span> <span class="s1">&#39;&#39;</span> &gt; /etc/apt/sources.list.d/jessie-backports.list <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  <span class="o">&amp;&amp;</span> <span class="nb">echo</span> <span class="s2">&#34;deb http://mirrors.aliyun.com/debian jessie main contrib non-free&#34;</span> &gt; /etc/apt/sources.list <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  <span class="o">&amp;&amp;</span> <span class="nb">echo</span> <span class="s2">&#34;deb http://mirrors.aliyun.com/debian jessie-updates main contrib non-free&#34;</span> &gt;&gt; /etc/apt/sources.list <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  <span class="o">&amp;&amp;</span> <span class="nb">echo</span> <span class="s2">&#34;deb http://mirrors.aliyun.com/debian-security jessie/updates main contrib non-free&#34;</span> &gt;&gt; /etc/apt/sources.list<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c">#更新源并安装缺少的包</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> apt-get update <span class="o">&amp;&amp;</span> apt-get install -y libltdl7<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ARG</span> <span class="nv">dockerGid</span><span class="o">=</span><span class="m">999</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">RUN</span> <span class="nb">echo</span> <span class="s2">&#34;docker:x:</span><span class="si">${</span><span class="nv">dockerGid</span><span class="si">}</span><span class="s2">:jenkins&#34;</span> &gt;&gt; /etc/group <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>USER jenkins<span class="err">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>完成之后执行如下命令构建新的 Docker 镜像:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">docker build -t docker/jenkins .
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>下面我们就开始运行我们的 Jenkins 容器了:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker run -d -p 8080:8080 -p 50000:50000 <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    --name<span class="o">=</span>jenkins -v /root/docker/jenkins:/var/jenkins_home <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -v /var/run/docker.sock:/var/run/docker.sock <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -v <span class="k">$(</span>which docker<span class="k">)</span>:/usr/bin/docker <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    docker/jenkins
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里我们将 Jenkins 镜像里面的 /var/jenkins_home 映射到了宿主机的 /root/docker/jenkins 文件夹，在这个文件夹里面都存放的是 Jenkins 的一些配置项等。
+注意，这里可能会出现如下错误：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">touch: cannot touch ‘/var/jenkins_home/copy_reference_file.log’: Permission denied
+</span></span><span class="line"><span class="cl">Can not write to /var/jenkins_home/copy_reference_file.log. Wrong volume permissions?
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这是因为在 docker 内部的 jenkins user 用户没有权限，因为映射的 /root/docker/jenkins/ 文件夹属于root 用户的，而 jenkins user 的 uid 为 1000,执行如下命令:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">sudo chown -R 1000:1000 /home/docker/jenkins
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>之后再次运行 Jenkins 的容器,访问 <a class="link" href="http://xn--ip-fr5c86lx7z:8080/"  target="_blank" rel="noopener"
+    >http://服务器IP:8080/</a> 站点，会提示你输入密钥:
+<img src="/p/continuous-integrationdeployment-for-net-core-with-jenkins/5b2f14afbc420.png"
+	width="700"
+	height="455"
+	srcset="/p/continuous-integrationdeployment-for-net-core-with-jenkins/5b2f14afbc420_hu62fb7b1d48ac0267e5b5ad12b62d1d27_51480_480x0_resize_box_3.png 480w, /p/continuous-integrationdeployment-for-net-core-with-jenkins/5b2f14afbc420_hu62fb7b1d48ac0267e5b5ad12b62d1d27_51480_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="153"
+		data-flex-basis="369px"
+	
+>
+我们来到宿主机执行以下 shell 命令:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker container logs jenkins
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>就可以看到密钥其实已经输出在终端了，复制过来，粘贴进去就可以了。之后就是选择你需要安装的插件，选择第一个默认即可，可能这里因为网络原因会安装失败，可以多重试几次，或者直接忽略掉，后面我们会将如何解决。</p>
+<p>安装完成之后输入用户名密码，就可以开始使用了，可能你刚才会因为网络等原因造成插件安装失败，这里我们来到</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">Jenkins&gt;&gt;系统管理&gt;&gt;管理插件&gt;&gt;高级
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>然后将 升级站点 地址改为 <a class="link" href="http://mirror.xmission.com/jenkins/updates/current/update-center.json"  target="_blank" rel="noopener"
+    >http://mirror.xmission.com/jenkins/updates/current/update-center.json</a>。之后安装之前缺失的插件。</p>
+<p>这里我们项目使用的是 TFS 进行源代码管理，所以我们需要安装 TFS 插件，在 Manage Jenkins 的 Manage Plugin 里面我们找到 Team Foundation Server Plug-in 插件，勾选，点击 Download now and install after restart 按钮，勾选 Restart Jenkins when installation is complete and no jobs are running 。</p>
+<p>安装完成之后 Jenkins 会重启，等待重启完毕之后，来到 Jenkins&raquo;Manage Jenkins&raquo;Configure System 查看 TFS/Team Services 然后添加你的 TFS Collection。
+<img src="/index/5b2f14afb03f8-1664003137096-2.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+>
+保存之后我们就可以新建项目了。</p>
+<p>首先，我们来到首页，选择 New Item:
+<img src="/index/5b2f14afc3833-1664003137096-3.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+>
+然后选择自由风格项目，填上名称.
+<img src="/index/5b2f14b005af3-1664003137097-4.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+>
+在 Source Code Management 上选择 TFS，并且填入你的 TFS 服务器地址，项目路径，与你的账号密码:
+<img src="/index/5b2f14afdd95e-1664003137097-5.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+>
+然后你就可以尝试构建一下，构建成功之后就会在 Workspace 看到你的项目文件被拉下来了。
+<img src="/index/5b2f14b014b91-1664003137097-6.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+>
+那么我们的代码如何构建并且部署呢？因为我们之前在 Jenkins 的 Docker 镜像启动的时候挂载了宿主机的 Docker 程序，我们现在就可以直接基于微软的 dotnetcore 镜像来构建我们的项目。所以，我们先拉取微软的 dotnetcore 镜像，运行如下命令：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker pull microsoft/dotnet:latest
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>拉取镜像之后，我们来编写一个 Dockerfile 文件来让 Jenkins 来执行 Shell 构建。
+如果你还不知道如何编写 Dockerfile 文件，可以参考 <strong><a class="link" href="https://yeasy.gitbooks.io/docker_practice/content/image/build.html"  target="_blank" rel="noopener"
+    >这篇文章</a></strong>。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-dockerfile" data-lang="dockerfile"><span class="line"><span class="cl"><span class="k">FROM</span><span class="s"> microsoft/dotnet:latest</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">WORKDIR</span><span class="s"> /app</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">COPY</span> ./ .<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENV</span> ASPNETCORE_URLS http://+:5000<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">EXPOSE</span><span class="s"> 5000</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> <span class="nb">cd</span> ./HKERP.IdentityServer.Host <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>	<span class="o">&amp;&amp;</span> dotnet restore <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>	<span class="o">&amp;&amp;</span> dotnet build<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">WORKDIR</span><span class="s"> /app/HKERP.IdentityServer.Host</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENTRYPOINT</span> <span class="p">[</span><span class="s2">&#34;dotnet&#34;</span><span class="p">,</span><span class="s2">&#34;run&#34;</span><span class="p">]</span><span class="err">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>然后将这个 Dockerfile 放在你的项目里面，类似于这样：
+<img src="/index/5b2f14afe419b-1664003137097-7.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+>
+然后我们再回到刚才 Jenkins 里面，配置刚才项目，新建一个 Shell Step，就像这样：
+<img src="/index/5b2f14afeaad6-1664003137097-8.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+>
+代码如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl"><span class="cp">#!/bin/sh
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="nb">cd</span> /var/jenkins_home/workspace/API_IdentityServer
+</span></span><span class="line"><span class="cl">docker container prune <span class="s">&lt;&lt; EOF
+</span></span></span><span class="line"><span class="cl"><span class="s">y
+</span></span></span><span class="line"><span class="cl"><span class="s">EOF</span>
+</span></span><span class="line"><span class="cl">docker container ls -a <span class="p">|</span> grep <span class="s2">&#34;api_identityserver&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="o">[</span> <span class="nv">$?</span> -eq <span class="m">0</span> <span class="o">]</span><span class="p">;</span><span class="k">then</span>
+</span></span><span class="line"><span class="cl">	docker container stop api_identityserver
+</span></span><span class="line"><span class="cl">	docker container rm api_identityserver
+</span></span><span class="line"><span class="cl"><span class="k">fi</span>
+</span></span><span class="line"><span class="cl">docker image prune <span class="s">&lt;&lt; EOF
+</span></span></span><span class="line"><span class="cl"><span class="s">y
+</span></span></span><span class="line"><span class="cl"><span class="s">EOF</span>
+</span></span><span class="line"><span class="cl">docker build -t api_identityserver .
+</span></span><span class="line"><span class="cl">docker run -d -p 8083:5000 --name<span class="o">=</span>api_identityserver api_identityserver
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>步骤就是首先清理掉 docker 处于终止状态的容器，然后判断有没有叫 api_identityserver 的容器在运行，如果有就直接停掉，然后清除所有的虚悬镜像，使用当前目录的 dockerfile 构建一个新的 api_identityserver 镜像，使用 api_identityserver 镜像运行一个新的容器。</p>
+<p>这儿我安装了 Jenkins 的一个 Blue Ocean 插件，来看一下：
+<img src="/index/5b2f14aff33ef-1664003137097-9.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+>
+运行一下：
+<img src="/index/5b2f14b02f1ac-1664003137097-10.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="img"
+	
+	
+></p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/jenkins/">Jenkins</a>
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/ci/cd/">CI/CD</a>
+        
+            <a href="/tags/docker/">Docker</a>
+        
+            <a href="/tags/linux/">Linux</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/jenkins-combines-docker-to-implement-low-level-ci/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Jenkins 结合 Docker 实现低配版的 CI&amp;CD</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/docker-container-directory-garbled-problem-with-dotnet-core/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">dotNET Core 的 Docker 容器目录乱码问题</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/ddns-tool-based-on-alibaba-cloud-dns-api/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">基于阿里云 DNS API 实现的 DDNS 工具</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/use-sonarqube-to-analyze-netcore-project-code-problems/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">使用 SonarQube 来分析 NetCore 项目代码问题</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/docker-install-elk/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Docker 安装 ELK</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

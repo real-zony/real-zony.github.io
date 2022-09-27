@@ -1,0 +1,2283 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、简要说明 在上篇文章里面，我们在 ApplicationService 当中看到了权限检测代码，通过注入 IAuthorizationService 就可以实现权限检测。不过跳转到源码才发现，这个接口是 ASP.NET Core 原生提供的 “基于策略” 的权限验证接口，这就说明 ABP vNext 基于原生的授权验证框架进行了自定义扩展。
+让我们来看一下 Volo.Abp.Ddd.Application 项目的依赖结构(权限相关)。
+本篇文章下面的内容基本就会围绕上述框架模块展开，本篇文章通篇较长，因为还涉及到 .NET Core Identity 与 IdentityServer4 这两部分。关于这两部分的内容，我会在本篇文章大概讲述 ABP vNext 的实现，关于更加详细的内容，请查阅官方文档或其他博主的博客。
+'><title>Abp vNext 源码分析 - 7. 权限与验证</title>
+
+<link rel='canonical' href='https://example.com/p/abp-vnext-source-code-analysis---7-permissions-and-verification/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp vNext 源码分析 - 7. 权限与验证'>
+<meta property='og:description' content='一、简要说明 在上篇文章里面，我们在 ApplicationService 当中看到了权限检测代码，通过注入 IAuthorizationService 就可以实现权限检测。不过跳转到源码才发现，这个接口是 ASP.NET Core 原生提供的 “基于策略” 的权限验证接口，这就说明 ABP vNext 基于原生的授权验证框架进行了自定义扩展。
+让我们来看一下 Volo.Abp.Ddd.Application 项目的依赖结构(权限相关)。
+本篇文章下面的内容基本就会围绕上述框架模块展开，本篇文章通篇较长，因为还涉及到 .NET Core Identity 与 IdentityServer4 这两部分。关于这两部分的内容，我会在本篇文章大概讲述 ABP vNext 的实现，关于更加详细的内容，请查阅官方文档或其他博主的博客。
+'>
+<meta property='og:url' content='https://example.com/p/abp-vnext-source-code-analysis---7-permissions-and-verification/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='ABP vNext' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='ASP.NET Core' /><meta property='article:tag' content='ASP.NET Core MVC' /><meta property='article:tag' content='验证与授权' /><meta property='article:published_time' content='2019-08-10T12:36:14&#43;00:00'/><meta property='article:modified_time' content='2019-08-10T12:36:14&#43;00:00'/>
+<meta name="twitter:title" content="Abp vNext 源码分析 - 7. 权限与验证">
+<meta name="twitter:description" content="一、简要说明 在上篇文章里面，我们在 ApplicationService 当中看到了权限检测代码，通过注入 IAuthorizationService 就可以实现权限检测。不过跳转到源码才发现，这个接口是 ASP.NET Core 原生提供的 “基于策略” 的权限验证接口，这就说明 ABP vNext 基于原生的授权验证框架进行了自定义扩展。
+让我们来看一下 Volo.Abp.Ddd.Application 项目的依赖结构(权限相关)。
+本篇文章下面的内容基本就会围绕上述框架模块展开，本篇文章通篇较长，因为还涉及到 .NET Core Identity 与 IdentityServer4 这两部分。关于这两部分的内容，我会在本篇文章大概讲述 ABP vNext 的实现，关于更加详细的内容，请查阅官方文档或其他博主的博客。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-vnext-source-code-analysis---7-permissions-and-verification/">Abp vNext 源码分析 - 7. 权限与验证</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Aug 10, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 13 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一简要说明">一、简要说明</h2>
+<p>在上篇文章里面，我们在 <code>ApplicationService</code> 当中看到了权限检测代码，通过注入 <code>IAuthorizationService</code> 就可以实现权限检测。不过跳转到源码才发现，这个接口是 ASP.NET Core 原生提供的 “基于策略” 的权限验证接口，这就说明 ABP vNext 基于原生的授权验证框架进行了自定义扩展。</p>
+<p>让我们来看一下 <strong>Volo.Abp.Ddd.Application</strong> 项目的依赖结构(权限相关)。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---7-permissions-and-verification/1564413096436.png"
+	width="930"
+	height="1120"
+	srcset="/p/abp-vnext-source-code-analysis---7-permissions-and-verification/1564413096436_hu2ed2767f7c36888918264485f8c8dfb6_100964_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---7-permissions-and-verification/1564413096436_hu2ed2767f7c36888918264485f8c8dfb6_100964_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1564413096436"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="83"
+		data-flex-basis="199px"
+	
+></p>
+<p>本篇文章下面的内容基本就会围绕上述框架模块展开，本篇文章通篇较长，因为还涉及到 <strong><a class="link" href="https://www.cnblogs.com/savorboard/p/aspnetcore-identity.html"  target="_blank" rel="noopener"
+    >.NET Core Identity</a></strong> 与 <strong><a class="link" href="https://www.cnblogs.com/stulzq/p/8119928.html"  target="_blank" rel="noopener"
+    >IdentityServer4</a></strong> 这两部分。关于这两部分的内容，我会在本篇文章大概讲述 ABP vNext 的实现，关于更加详细的内容，请查阅官方文档或其他博主的博客。</p>
+<h2 id="二源码分析">二、源码分析</h2>
+<p>ABP vNext 关于权限验证和权限定义的部分，都存放在 <strong>Volo.Abp.Authorization</strong> 和 <strong>Volo.Abp.Security</strong> 模块内部。源码分析我都比较喜欢倒推，即通过实际的使用场景，<strong>反向推导</strong> 基础实现，所以后面文章编写的顺序也将会以这种方式进行。</p>
+<h3 id="21-security-基础组件库">2.1 Security 基础组件库</h3>
+<p>这里我们先来到 <strong>Volo.Abp.Security</strong>，因为这个模块代码和类型都是最少的。这个项目都没有模块定义，说明里面的东西都是定义的一些基础组件。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---7-permissions-and-verification/1564414185571.png"
+	width="640"
+	height="1068"
+	srcset="/p/abp-vnext-source-code-analysis---7-permissions-and-verification/1564414185571_hueedd912f90c9ac7dc983ac4d99f11fa4_79986_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---7-permissions-and-verification/1564414185571_hueedd912f90c9ac7dc983ac4d99f11fa4_79986_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1564414185571"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="59"
+		data-flex-basis="143px"
+	
+></p>
+<h4 id="211-claims-与-identity-的快捷访问">2.1.1 Claims 与 Identity 的快捷访问</h4>
+<p>先从第一个扩展方法开始，这个扩展方法里面比较简单，它主要是提供对 <code>ClaimsPrincipal</code> 和 <code>IIdentity</code> 的快捷访问方法。比如我要从 <code>ClaimsPrincipal</code> / <code>IIdentity</code> 获取租户 Id、用户 Id 等。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">AbpClaimsIdentityExtensions</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">static</span> <span class="n">Guid</span><span class="p">?</span> <span class="n">FindUserId</span><span class="p">([</span><span class="n">NotNull</span><span class="p">]</span> <span class="k">this</span> <span class="n">ClaimsPrincipal</span> <span class="n">principal</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="n">principal</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">principal</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 根据 AbpClaimTypes.UserId 查找对应的值。</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">userIdOrNull</span> <span class="p">=</span> <span class="n">principal</span><span class="p">.</span><span class="n">Claims</span><span class="p">?.</span><span class="n">FirstOrDefault</span><span class="p">(</span><span class="n">c</span> <span class="p">=&gt;</span> <span class="n">c</span><span class="p">.</span><span class="n">Type</span> <span class="p">==</span> <span class="n">AbpClaimTypes</span><span class="p">.</span><span class="n">UserId</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">userIdOrNull</span> <span class="p">==</span> <span class="k">null</span> <span class="p">||</span> <span class="n">userIdOrNull</span><span class="p">.</span><span class="n">Value</span><span class="p">.</span><span class="n">IsNullOrWhiteSpace</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 返回 Guid 对象。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">Guid</span><span class="p">.</span><span class="n">Parse</span><span class="p">(</span><span class="n">userIdOrNull</span><span class="p">.</span><span class="n">Value</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="212-未授权异常的定义">2.1.2 未授权异常的定义</h4>
+<p>这个异常我们在老版本 ABP 里面也见到过，它就是 <code>AbpAuthorizationException</code> 。只要有任何未授权的操作，都会导致该异常被抛出。后面我们在讲解 ASP.NET Core MVC 的时候就会知道，在默认的错误码处理中，针对于程序抛出的 <code>AbpAuthorizationException</code> ，都会视为 403 或者 401 错误。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">DefaultHttpExceptionStatusCodeFinder</span> <span class="p">:</span> <span class="n">IHttpExceptionStatusCodeFinder</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">virtual</span> <span class="n">HttpStatusCode</span> <span class="n">GetStatusCode</span><span class="p">(</span><span class="n">HttpContext</span> <span class="n">httpContext</span><span class="p">,</span> <span class="n">Exception</span> <span class="n">exception</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="c1">// 根据 HTTP 协议对于状态码的定义，401 表示的是没有登录的用于尝试访问受保护的资源。而 403 则表示用户已经登录，但他没有目标资源的访问权限。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">exception</span> <span class="k">is</span> <span class="n">AbpAuthorizationException</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="n">httpContext</span><span class="p">.</span><span class="n">User</span><span class="p">.</span><span class="n">Identity</span><span class="p">.</span><span class="n">IsAuthenticated</span>
+</span></span><span class="line"><span class="cl">				<span class="p">?</span> <span class="n">HttpStatusCode</span><span class="p">.</span><span class="n">Forbidden</span>
+</span></span><span class="line"><span class="cl">				<span class="p">:</span> <span class="n">HttpStatusCode</span><span class="p">.</span><span class="n">Unauthorized</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>就 <code>AbpAuthorizationException</code> 异常来说，它本身并不复杂，只是一个简单的异常而已。只是因为它的特殊含义，在 ABP vNext 处理异常时都会进行特殊处理。</p>
+<p>只是在这里我说明一下，ABP vNext 将它所有的异常都设置为可序列化的，这里的可序列化不仅仅是将 <code>Serialzable</code> 标签打在类上就行了。ABP vNext 还创建了基于 <code>StreamingContext</code> 的构造函数，方便我们后续对序列化操作进行定制化处理。</p>
+<p>关于运行时序列化的相关文章，可以参考 《CLR Via C#》第 24 章，我也编写了相应的 <strong><a class="link" href="https://www.cnblogs.com/myzony/p/9905717.html"  target="_blank" rel="noopener"
+    >读书笔记</a></strong> 。</p>
+<h4 id="213-当前用户与客户端">2.1.3 当前用户与客户端</h4>
+<p>开发人员经常会在各种地方需要获取当前的用户信息，ABP vNext 将当前用户封装到 <code>ICurrentUser</code> 与其实现 <code>CurrentUser</code> 当中，使用时只需要注入 <code>ICurrentUser</code> 接口即可。</p>
+<p>我们首先康康 <code>ICurrentUser</code> 接口的定义：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">ICurrentUser</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">bool</span> <span class="n">IsAuthenticated</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">	[CanBeNull]</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Guid</span><span class="p">?</span> <span class="n">Id</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">	[CanBeNull]</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">string</span> <span class="n">UserName</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">	[CanBeNull]</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">string</span> <span class="n">PhoneNumber</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="kt">bool</span> <span class="n">PhoneNumberVerified</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">	[CanBeNull]</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">string</span> <span class="n">Email</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="kt">bool</span> <span class="n">EmailVerified</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">Guid</span><span class="p">?</span> <span class="n">TenantId</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">	[NotNull]</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">string</span><span class="p">[]</span> <span class="n">Roles</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">	[CanBeNull]</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Claim</span> <span class="n">FindClaim</span><span class="p">(</span><span class="kt">string</span> <span class="n">claimType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">	[NotNull]</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Claim</span><span class="p">[]</span> <span class="n">FindClaims</span><span class="p">(</span><span class="kt">string</span> <span class="n">claimType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">	[NotNull]</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Claim</span><span class="p">[]</span> <span class="n">GetAllClaims</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="kt">bool</span> <span class="n">IsInRole</span><span class="p">(</span><span class="kt">string</span> <span class="n">roleName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>那么这些值是从哪儿来的呢？从带有 <code>Claim</code> 返回值的方法来看，肯定就是从 <code>HttpContext.User</code> 或者 <code>Thread.CurrentPrincipal</code> 里面拿到的。</p>
+<p>那么它的实现就非常简单了，只需要注入 ABP vNext 为我们提供的 <code>ICurrentPrincipalAccessor</code> 访问器，我们就能够拿到这个身份容器(<code>ClaimsPrincipal</code>)。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">CurrentUser</span> <span class="p">:</span> <span class="n">ICurrentUser</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">virtual</span> <span class="kt">string</span><span class="p">[]</span> <span class="n">Roles</span> <span class="p">=&gt;</span> <span class="n">FindClaims</span><span class="p">(</span><span class="n">AbpClaimTypes</span><span class="p">.</span><span class="n">Role</span><span class="p">).</span><span class="n">Select</span><span class="p">(</span><span class="n">c</span> <span class="p">=&gt;</span> <span class="n">c</span><span class="p">.</span><span class="n">Value</span><span class="p">).</span><span class="n">ToArray</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">ICurrentPrincipalAccessor</span> <span class="n">_principalAccessor</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">CurrentUser</span><span class="p">(</span><span class="n">ICurrentPrincipalAccessor</span> <span class="n">principalAccessor</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_principalAccessor</span> <span class="p">=</span> <span class="n">principalAccessor</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">virtual</span> <span class="n">Claim</span><span class="p">[]</span> <span class="n">FindClaims</span><span class="p">(</span><span class="kt">string</span> <span class="n">claimType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 直接使用 LINQ 查询对应的 Type 就能拿到上述信息。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">_principalAccessor</span><span class="p">.</span><span class="n">Principal</span><span class="p">?.</span><span class="n">Claims</span><span class="p">.</span><span class="n">Where</span><span class="p">(</span><span class="n">c</span> <span class="p">=&gt;</span> <span class="n">c</span><span class="p">.</span><span class="n">Type</span> <span class="p">==</span> <span class="n">claimType</span><span class="p">).</span><span class="n">ToArray</span><span class="p">()</span> <span class="p">??</span> <span class="n">EmptyClaimsArray</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>至于 <code>CurrentUserExtensions</code> 扩展类，里面只是对 <code>ClaimsPrincipal</code> 的搜索方法进行了多种封装而已。</p>
+<blockquote>
+<p>PS：</p>
+<p>除了 <code>ICurrentUser</code> 与 <code>ICurrentClient</code> 之外，在 ABP vNext 里面还有 <code>ICurrentTenant</code> 来获取当前租户信息。通过这三个组件，取代了老 ABP 框架的 <code>IAbpSession</code> 组件，三个组件都没有 <code>IAbpSession.Use()</code> 扩展方法帮助我们临时更改当前用户/租户。</p>
+</blockquote>
+<h4 id="214-claimsprincipal-访问器">2.1.4 ClaimsPrincipal 访问器</h4>
+<p>关于 ClaimsPrincipal 的内容，可以参考杨总的 <strong><a class="link" href="https://www.cnblogs.com/savorboard/p/aspnetcore-identity.html"  target="_blank" rel="noopener"
+    >《ASP.NET Core 之 Identity 入门》</a></strong> 进行了解，大致来说就是存有 <code>Claim</code> 信息的聚合对象。</p>
+<p>关于 ABP vNext 框架预定义的 Claim Type 都存放在 <code>AbpClaimTypes</code> 类型里面的，包括租户 Id、用户 Id 等数据，这些玩意儿最终会被放在 JWT(JSON Web Token) 里面去。</p>
+<p>一般来说 <code>ClaimsPrincipal </code>里面都是从 <code>HttpContext.User</code> 或者 <code>Thread.CurrentPrincipal</code> 得到的，ABP vNext 为我们抽象出了一个快速访问接口 <code>ICurrentPrincipalAccessor</code>。开发人员注入之后，就可以获得当前用户的 <code>ClaimsPrincipal</code> 对象。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">ICurrentPrincipalAccessor</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">ClaimsPrincipal</span> <span class="n">Principal</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>对于 <code>Thread.CurrentPrincipal</code> 的实现：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">ThreadCurrentPrincipalAccessor</span> <span class="p">:</span> <span class="n">ICurrentPrincipalAccessor</span><span class="p">,</span> <span class="n">ISingletonDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">virtual</span> <span class="n">ClaimsPrincipal</span> <span class="n">Principal</span> <span class="p">=&gt;</span> <span class="n">Thread</span><span class="p">.</span><span class="n">CurrentPrincipal</span> <span class="k">as</span> <span class="n">ClaimsPrincipal</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>而针对于 Http 上下文的实现，则是放在 <strong>Volo.Abp.AspNetCore</strong> 模块里面的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">HttpContextCurrentPrincipalAccessor</span> <span class="p">:</span> <span class="n">ThreadCurrentPrincipalAccessor</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 如果没有获取到数据，则使用 Thread.CurrentPrincipal。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">override</span> <span class="n">ClaimsPrincipal</span> <span class="n">Principal</span> <span class="p">=&gt;</span> <span class="n">_httpContextAccessor</span><span class="p">.</span><span class="n">HttpContext</span><span class="p">?.</span><span class="n">User</span> <span class="p">??</span> <span class="k">base</span><span class="p">.</span><span class="n">Principal</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">IHttpContextAccessor</span> <span class="n">_httpContextAccessor</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">HttpContextCurrentPrincipalAccessor</span><span class="p">(</span><span class="n">IHttpContextAccessor</span> <span class="n">httpContextAccessor</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_httpContextAccessor</span> <span class="p">=</span> <span class="n">httpContextAccessor</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h5 id="扩展知识两者的区别">扩展知识：两者的区别？</h5>
+<p><code>Thread.CurrentPrincipal</code> 可以设置/获得当前线程的 <code>ClaimsPrincipal </code>数据，而 <code>HttpContext?.User</code> 一般都是被 ASP.NET Core 中间件所填充的。</p>
+<p>最新的 ASP.NET Core 开发建议是不要使用 <code>Thread.CurrentPrincipal</code> 和 <code>ClaimsPrincipal.Current</code> (内部实现还是使用的前者)。这是因为 <code>Thread.CurrentPrincipal</code> 是一个静态成员&hellip;而这个静态成员在异步代码中会出现各种问题，例如有以下代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="c1">// Create a ClaimsPrincipal and set Thread.CurrentPrincipal</span>
+</span></span><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">identity</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ClaimsIdentity</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="n">identity</span><span class="p">.</span><span class="n">AddClaim</span><span class="p">(</span><span class="k">new</span> <span class="n">Claim</span><span class="p">(</span><span class="n">ClaimTypes</span><span class="p">.</span><span class="n">Name</span><span class="p">,</span> <span class="s">&#34;User1&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="n">Thread</span><span class="p">.</span><span class="n">CurrentPrincipal</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ClaimsPrincipal</span><span class="p">(</span><span class="n">identity</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Check the current user</span>
+</span></span><span class="line"><span class="cl"><span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;Current user: {Thread.CurrentPrincipal?.Identity.Name}&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// For the method to complete asynchronously</span>
+</span></span><span class="line"><span class="cl"><span class="k">await</span> <span class="n">Task</span><span class="p">.</span><span class="n">Yield</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Check the current user after</span>
+</span></span><span class="line"><span class="cl"><span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;Current user: {Thread.CurrentPrincipal?.Identity.Name}&#34;</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>当 <code>await</code> 执行完成之后会产生线程切换，这个时候 Thread.CurrentPrincipal 的值就是 null 了，这就会产生不可预料的后果。</p>
+<p>如果你还想了解更多信息，可以参考以下两篇博文：</p>
+<ul>
+<li>DAVID PINE - <a class="link" href="https://davidpine.net/blog/principal-architecture-changes/"  target="_blank" rel="noopener"
+    >《WHAT HAPPENED TO MY THREAD.CURRENTPRINCIPAL》</a></li>
+<li>SCOTT HANSELMAN - <a class="link" href="https://www.hanselman.com/blog/SystemThreadingThreadCurrentPrincipalVsSystemWebHttpContextCurrentUserOrWhyFormsAuthenticationCanBeSubtle.aspx"  target="_blank" rel="noopener"
+    >《System.Threading.Thread.CurrentPrincipal vs. System.Web.HttpContext.Current.User or why FormsAuthentication can be subtle》</a></li>
+</ul>
+<h4 id="215-字符串加密工具">2.1.5 字符串加密工具</h4>
+<p>这一套东西就比较简单了，是 ABP vNext 为我们提供的一套开箱即用组件。开发人员可以使用 <code>IStringEncryptionService</code> 来加密/解密你的字符串，默认实现是基于 <code>Rfc2898DeriveBytes</code> 的。关于详细信息，你可以阅读具体的代码，这里不再赘述。</p>
+<h3 id="22-权限与校验">2.2 权限与校验</h3>
+<p>在 <strong>Volo.Abp.Authorization</strong> 模块里面就对权限进行了具体定义，并且基于 ASP.NET Core Authentication 进行无缝集成。如果读者对于 ASP.NET Core 认证和授权不太了解，可以去学习一下 <strong>雨夜朦胧</strong> 大神的**<a class="link" href="https://www.cnblogs.com/RainingNight/p/introduce-basic-authentication-in-asp-net-core.html"  target="_blank" rel="noopener"
+    >《ASP.NET Core 认证于授权》</a>**系列文章，这里就不再赘述。</p>
+<h4 id="221-权限的注册">2.2.1 权限的注册</h4>
+<p>在 ABP vNext 框架里面，所有用户定义的权限都是通过继承 <code>PermissionDefinitionProvider</code>，在其内部进行注册的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">PermissionDefinitionProvider</span> <span class="p">:</span> <span class="n">IPermissionDefinitionProvider</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">abstract</span> <span class="k">void</span> <span class="n">Define</span><span class="p">(</span><span class="n">IPermissionDefinitionContext</span> <span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>开发人员继承了这个 Provider 之后，在 <code>Define()</code> 方法里面就可以注册自己的权限了，这里我以 Blog 模块的简化 Provider 为例。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">BloggingPermissionDefinitionProvider</span> <span class="p">:</span> <span class="n">PermissionDefinitionProvider</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">Define</span><span class="p">(</span><span class="n">IPermissionDefinitionContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">bloggingGroup</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">AddGroup</span><span class="p">(</span><span class="n">BloggingPermissions</span><span class="p">.</span><span class="n">GroupName</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:Blogging&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">				<span class="c1">// ... 其他代码。</span>
+</span></span><span class="line"><span class="cl">				
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">tags</span> <span class="p">=</span> <span class="n">bloggingGroup</span><span class="p">.</span><span class="n">AddPermission</span><span class="p">(</span><span class="n">BloggingPermissions</span><span class="p">.</span><span class="n">Tags</span><span class="p">.</span><span class="n">Default</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:Tags&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="n">tags</span><span class="p">.</span><span class="n">AddChild</span><span class="p">(</span><span class="n">BloggingPermissions</span><span class="p">.</span><span class="n">Tags</span><span class="p">.</span><span class="n">Update</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:Edit&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="n">tags</span><span class="p">.</span><span class="n">AddChild</span><span class="p">(</span><span class="n">BloggingPermissions</span><span class="p">.</span><span class="n">Tags</span><span class="p">.</span><span class="n">Delete</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:Delete&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="n">tags</span><span class="p">.</span><span class="n">AddChild</span><span class="p">(</span><span class="n">BloggingPermissions</span><span class="p">.</span><span class="n">Tags</span><span class="p">.</span><span class="n">Create</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:Create&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">comments</span> <span class="p">=</span> <span class="n">bloggingGroup</span><span class="p">.</span><span class="n">AddPermission</span><span class="p">(</span><span class="n">BloggingPermissions</span><span class="p">.</span><span class="n">Comments</span><span class="p">.</span><span class="n">Default</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:Comments&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="n">comments</span><span class="p">.</span><span class="n">AddChild</span><span class="p">(</span><span class="n">BloggingPermissions</span><span class="p">.</span><span class="n">Comments</span><span class="p">.</span><span class="n">Update</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:Edit&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="n">comments</span><span class="p">.</span><span class="n">AddChild</span><span class="p">(</span><span class="n">BloggingPermissions</span><span class="p">.</span><span class="n">Comments</span><span class="p">.</span><span class="n">Delete</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:Delete&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="n">comments</span><span class="p">.</span><span class="n">AddChild</span><span class="p">(</span><span class="n">BloggingPermissions</span><span class="p">.</span><span class="n">Comments</span><span class="p">.</span><span class="n">Create</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:Create&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="c1">// 使用本地化字符串进行文本显示。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">static</span> <span class="n">LocalizableString</span> <span class="n">L</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">LocalizableString</span><span class="p">.</span><span class="n">Create</span><span class="p">&lt;</span><span class="n">BloggingResource</span><span class="p">&gt;(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>从上面的代码就可以看出来，权限被 ABP vNext 分成了 <strong>权限组定义</strong> 和 <strong>权限定义</strong>，这两个东西我们后面进行重点讲述。那么这些 Provider 在什么时候被执行呢？找到权限模块的定义，可以看到如下代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[DependsOn(
+</span></span></span><span class="line"><span class="cl"><span class="na">    typeof(AbpSecurityModule),
+</span></span></span><span class="line"><span class="cl"><span class="na">    typeof(AbpLocalizationAbstractionsModule),
+</span></span></span><span class="line"><span class="cl"><span class="na">    typeof(AbpMultiTenancyModule)
+</span></span></span><span class="line"><span class="cl"><span class="na">    )]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpAuthorizationModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">PreConfigureServices</span><span class="p">(</span><span class="n">ServiceConfigurationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 在 AutoFac 进行组件注册的时候，根据组件的类型定义视情况绑定拦截器。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">.</span><span class="n">OnRegistred</span><span class="p">(</span><span class="n">AuthorizationInterceptorRegistrar</span><span class="p">.</span><span class="n">RegisterIfNeeded</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 在 AutoFac 进行组件注册的时候，根据组件的类型，判断是否是 Provider。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AutoAddDefinitionProviders</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">ConfigureServices</span><span class="p">(</span><span class="n">ServiceConfigurationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 注册认证授权服务。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">.</span><span class="n">AddAuthorization</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 替换掉 ASP.NET Core 提供的权限处理器，转而使用 ABP vNext 提供的权限处理器。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">.</span><span class="n">AddSingleton</span><span class="p">&lt;</span><span class="n">IAuthorizationHandler</span><span class="p">,</span> <span class="n">PermissionRequirementHandler</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 这一部分是添加内置的一些权限值检查，后面我们在将 PermissionChecker 的时候会提到。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Configure</span><span class="p">&lt;</span><span class="n">PermissionOptions</span><span class="p">&gt;(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">options</span><span class="p">.</span><span class="n">ValueProviders</span><span class="p">.</span><span class="n">Add</span><span class="p">&lt;</span><span class="n">UserPermissionValueProvider</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">            <span class="n">options</span><span class="p">.</span><span class="n">ValueProviders</span><span class="p">.</span><span class="n">Add</span><span class="p">&lt;</span><span class="n">RolePermissionValueProvider</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">            <span class="n">options</span><span class="p">.</span><span class="n">ValueProviders</span><span class="p">.</span><span class="n">Add</span><span class="p">&lt;</span><span class="n">ClientPermissionValueProvider</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">static</span> <span class="k">void</span> <span class="n">AutoAddDefinitionProviders</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">definitionProviders</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">services</span><span class="p">.</span><span class="n">OnRegistred</span><span class="p">(</span><span class="n">context</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">IPermissionDefinitionProvider</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ImplementationType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">definitionProviders</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ImplementationType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">});</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 将获取到的 Provider 传递给 PermissionOptions 。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">services</span><span class="p">.</span><span class="n">Configure</span><span class="p">&lt;</span><span class="n">PermissionOptions</span><span class="p">&gt;(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">options</span><span class="p">.</span><span class="n">DefinitionProviders</span><span class="p">.</span><span class="n">AddIfNotContains</span><span class="p">(</span><span class="n">definitionProviders</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到在注册组件的时候，ABP vNext 就会将这些 Provider 传递给 <code>PermissionOptions</code> ，我们根据 <code>DefinitionProviders</code> 字段找到有一个地方会使用到它，就是 <code>PermissionDefinitionManager</code> 类型的 <code>CreatePermissionGroupDefinitions()</code> 方法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">PermissionGroupDefinition</span><span class="p">&gt;</span> <span class="n">CreatePermissionGroupDefinitions</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">//  创建一个权限定义上下文。</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">context</span> <span class="p">=</span> <span class="k">new</span> <span class="n">PermissionDefinitionContext</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 创建一个临时范围用于解析 Provider，Provider 解析完成之后即被释放。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">scope</span> <span class="p">=</span> <span class="n">_serviceProvider</span><span class="p">.</span><span class="n">CreateScope</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 根据之前的类型，通过 IoC 进行解析出实例，指定各个 Provider 的 Define() 方法，会向权限上下文填充权限。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">providers</span> <span class="p">=</span> <span class="n">Options</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">DefinitionProviders</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">Select</span><span class="p">(</span><span class="n">p</span> <span class="p">=&gt;</span> <span class="n">scope</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="k">as</span> <span class="n">IPermissionDefinitionProvider</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">ToList</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">provider</span> <span class="k">in</span> <span class="n">providers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">provider</span><span class="p">.</span><span class="n">Define</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 返回权限组名称 - 权限组定义的字典。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">context</span><span class="p">.</span><span class="n">Groups</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>你可能会奇怪，为什么返回的是一个权限组名字和定义的键值对，而不是返回的权限数据，我们之前添加的权限去哪儿了呢？</p>
+<h4 id="222-权限和权限组的定义">2.2.2 权限和权限组的定义</h4>
+<p>要搞清楚这个问题，我们首先要知道权限与权限组之间的关系是怎样的。回想我们之前在 Provider 里面添加权限的代码，首先我们是构建了一个权限组，然后往权限组里面添加的权限。权限组的作用就是将权限按照组的形式进行划分，方便代码进行访问于管理。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span><span class="lnt">75
+</span><span class="lnt">76
+</span><span class="lnt">77
+</span><span class="lnt">78
+</span><span class="lnt">79
+</span><span class="lnt">80
+</span><span class="lnt">81
+</span><span class="lnt">82
+</span><span class="lnt">83
+</span><span class="lnt">84
+</span><span class="lnt">85
+</span><span class="lnt">86
+</span><span class="lnt">87
+</span><span class="lnt">88
+</span><span class="lnt">89
+</span><span class="lnt">90
+</span><span class="lnt">91
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">PermissionGroupDefinition</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 唯一的权限组标识名称。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 开发人员针对权限组的一些自定义属性。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;</span> <span class="n">Properties</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 权限所对应的本地化名称。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ILocalizableString</span> <span class="n">DisplayName</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">get</span> <span class="p">=&gt;</span> <span class="n">_displayName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">set</span> <span class="p">=&gt;</span> <span class="n">_displayName</span> <span class="p">=</span> <span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="k">value</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="k">value</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">ILocalizableString</span> <span class="n">_displayName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 权限的适用范围，默认是租户/租主都适用。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 默认值: &lt;see cref=&#34;MultiTenancySides.Both&#34;/&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">MultiTenancySides</span> <span class="n">MultiTenancySide</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 权限组下面的所属权限。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">PermissionDefinition</span><span class="p">&gt;</span> <span class="n">Permissions</span> <span class="p">=&gt;</span> <span class="n">_permissions</span><span class="p">.</span><span class="n">ToImmutableList</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">PermissionDefinition</span><span class="p">&gt;</span> <span class="n">_permissions</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 针对于自定义属性的快捷索引器。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">object</span> <span class="k">this</span><span class="p">[</span><span class="kt">string</span> <span class="n">name</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">get</span> <span class="p">=&gt;</span> <span class="n">Properties</span><span class="p">.</span><span class="n">GetOrDefault</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">set</span> <span class="p">=&gt;</span> <span class="n">Properties</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="p">=</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">internal</span> <span class="n">PermissionGroupDefinition</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">name</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">ILocalizableString</span> <span class="n">displayName</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">MultiTenancySides</span> <span class="n">multiTenancySide</span> <span class="p">=</span> <span class="n">MultiTenancySides</span><span class="p">.</span><span class="n">Both</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Name</span> <span class="p">=</span> <span class="n">name</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 没有传递多语言串，则使用权限组的唯一标识作为显示内容。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">DisplayName</span> <span class="p">=</span> <span class="n">displayName</span> <span class="p">??</span> <span class="k">new</span> <span class="n">FixedLocalizableString</span><span class="p">(</span><span class="n">Name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">MultiTenancySide</span> <span class="p">=</span> <span class="n">multiTenancySide</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">Properties</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_permissions</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">PermissionDefinition</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 像权限组添加属于它的权限。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">PermissionDefinition</span> <span class="n">AddPermission</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">name</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">ILocalizableString</span> <span class="n">displayName</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">MultiTenancySides</span> <span class="n">multiTenancySide</span> <span class="p">=</span> <span class="n">MultiTenancySides</span><span class="p">.</span><span class="n">Both</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">permission</span> <span class="p">=</span> <span class="k">new</span> <span class="n">PermissionDefinition</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">displayName</span><span class="p">,</span> <span class="n">multiTenancySide</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">_permissions</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">permission</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">permission</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 递归构建权限集合，因为定义的某个权限内部还拥有子权限。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">PermissionDefinition</span><span class="p">&gt;</span> <span class="n">GetPermissionsWithChildren</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">permissions</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">PermissionDefinition</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">permission</span> <span class="k">in</span> <span class="n">_permissions</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">AddPermissionToListRecursively</span><span class="p">(</span><span class="n">permissions</span><span class="p">,</span> <span class="n">permission</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">permissions</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 递归构建方法。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">void</span> <span class="n">AddPermissionToListRecursively</span><span class="p">(</span><span class="n">List</span><span class="p">&lt;</span><span class="n">PermissionDefinition</span><span class="p">&gt;</span> <span class="n">permissions</span><span class="p">,</span> <span class="n">PermissionDefinition</span> <span class="n">permission</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">permissions</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">permission</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">child</span> <span class="k">in</span> <span class="n">permission</span><span class="p">.</span><span class="n">Children</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">AddPermissionToListRecursively</span><span class="p">(</span><span class="n">permissions</span><span class="p">,</span> <span class="n">child</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="kt">string</span> <span class="n">ToString</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="s">$&#34;[{nameof(PermissionGroupDefinition)} {Name}]&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>通过权限组的定义代码你就会知道，现在我们的所有权限都会归属于某个权限组，这一点从之前 Provider 的 <code>IPermissionDefinitionContext</code> 就可以看出来。在权限上下文内部只允许我们通过 <code>AddGroup()</code> 来添加一个权限组，之后再通过权限组的 <code>AddPermission()</code> 方法添加它里面的权限。</p>
+<p>权限的定义类叫做 <code>PermissionDefinition</code>，这个类型的构造与权限组定义类似，没有什么好说的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">  1
+</span><span class="lnt">  2
+</span><span class="lnt">  3
+</span><span class="lnt">  4
+</span><span class="lnt">  5
+</span><span class="lnt">  6
+</span><span class="lnt">  7
+</span><span class="lnt">  8
+</span><span class="lnt">  9
+</span><span class="lnt"> 10
+</span><span class="lnt"> 11
+</span><span class="lnt"> 12
+</span><span class="lnt"> 13
+</span><span class="lnt"> 14
+</span><span class="lnt"> 15
+</span><span class="lnt"> 16
+</span><span class="lnt"> 17
+</span><span class="lnt"> 18
+</span><span class="lnt"> 19
+</span><span class="lnt"> 20
+</span><span class="lnt"> 21
+</span><span class="lnt"> 22
+</span><span class="lnt"> 23
+</span><span class="lnt"> 24
+</span><span class="lnt"> 25
+</span><span class="lnt"> 26
+</span><span class="lnt"> 27
+</span><span class="lnt"> 28
+</span><span class="lnt"> 29
+</span><span class="lnt"> 30
+</span><span class="lnt"> 31
+</span><span class="lnt"> 32
+</span><span class="lnt"> 33
+</span><span class="lnt"> 34
+</span><span class="lnt"> 35
+</span><span class="lnt"> 36
+</span><span class="lnt"> 37
+</span><span class="lnt"> 38
+</span><span class="lnt"> 39
+</span><span class="lnt"> 40
+</span><span class="lnt"> 41
+</span><span class="lnt"> 42
+</span><span class="lnt"> 43
+</span><span class="lnt"> 44
+</span><span class="lnt"> 45
+</span><span class="lnt"> 46
+</span><span class="lnt"> 47
+</span><span class="lnt"> 48
+</span><span class="lnt"> 49
+</span><span class="lnt"> 50
+</span><span class="lnt"> 51
+</span><span class="lnt"> 52
+</span><span class="lnt"> 53
+</span><span class="lnt"> 54
+</span><span class="lnt"> 55
+</span><span class="lnt"> 56
+</span><span class="lnt"> 57
+</span><span class="lnt"> 58
+</span><span class="lnt"> 59
+</span><span class="lnt"> 60
+</span><span class="lnt"> 61
+</span><span class="lnt"> 62
+</span><span class="lnt"> 63
+</span><span class="lnt"> 64
+</span><span class="lnt"> 65
+</span><span class="lnt"> 66
+</span><span class="lnt"> 67
+</span><span class="lnt"> 68
+</span><span class="lnt"> 69
+</span><span class="lnt"> 70
+</span><span class="lnt"> 71
+</span><span class="lnt"> 72
+</span><span class="lnt"> 73
+</span><span class="lnt"> 74
+</span><span class="lnt"> 75
+</span><span class="lnt"> 76
+</span><span class="lnt"> 77
+</span><span class="lnt"> 78
+</span><span class="lnt"> 79
+</span><span class="lnt"> 80
+</span><span class="lnt"> 81
+</span><span class="lnt"> 82
+</span><span class="lnt"> 83
+</span><span class="lnt"> 84
+</span><span class="lnt"> 85
+</span><span class="lnt"> 86
+</span><span class="lnt"> 87
+</span><span class="lnt"> 88
+</span><span class="lnt"> 89
+</span><span class="lnt"> 90
+</span><span class="lnt"> 91
+</span><span class="lnt"> 92
+</span><span class="lnt"> 93
+</span><span class="lnt"> 94
+</span><span class="lnt"> 95
+</span><span class="lnt"> 96
+</span><span class="lnt"> 97
+</span><span class="lnt"> 98
+</span><span class="lnt"> 99
+</span><span class="lnt">100
+</span><span class="lnt">101
+</span><span class="lnt">102
+</span><span class="lnt">103
+</span><span class="lnt">104
+</span><span class="lnt">105
+</span><span class="lnt">106
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">PermissionDefinition</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 唯一的权限标识名称。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 当前权限的父级权限，这个属性的值只可以通过 AddChild() 方法进行设置。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">PermissionDefinition</span> <span class="n">Parent</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 权限的适用范围，默认是租户/租主都适用。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 默认值: &lt;see cref=&#34;MultiTenancySides.Both&#34;/&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">MultiTenancySides</span> <span class="n">MultiTenancySide</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 适用的权限值提供者，这块我们会在后面进行讲解，为空的时候则使用所有的提供者进行校验。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">List</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">Providers</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span> <span class="c1">//TODO: Rename to AllowedProviders?</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 权限的多语言名称。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ILocalizableString</span> <span class="n">DisplayName</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">get</span> <span class="p">=&gt;</span> <span class="n">_displayName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">set</span> <span class="p">=&gt;</span> <span class="n">_displayName</span> <span class="p">=</span> <span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="k">value</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="k">value</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">ILocalizableString</span> <span class="n">_displayName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获取权限的子级权限。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">PermissionDefinition</span><span class="p">&gt;</span> <span class="n">Children</span> <span class="p">=&gt;</span> <span class="n">_children</span><span class="p">.</span><span class="n">ToImmutableList</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">PermissionDefinition</span><span class="p">&gt;</span> <span class="n">_children</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 开发人员针对权限的一些自定义属性。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;</span> <span class="n">Properties</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 针对于自定义属性的快捷索引器。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">object</span> <span class="k">this</span><span class="p">[</span><span class="kt">string</span> <span class="n">name</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">get</span> <span class="p">=&gt;</span> <span class="n">Properties</span><span class="p">.</span><span class="n">GetOrDefault</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">set</span> <span class="p">=&gt;</span> <span class="n">Properties</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="p">=</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">internal</span> <span class="n">PermissionDefinition</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl"><span class="na">        [NotNull]</span> <span class="kt">string</span> <span class="n">name</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">ILocalizableString</span> <span class="n">displayName</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">MultiTenancySides</span> <span class="n">multiTenancySide</span> <span class="p">=</span> <span class="n">MultiTenancySides</span><span class="p">.</span><span class="n">Both</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Name</span> <span class="p">=</span> <span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">name</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="n">DisplayName</span> <span class="p">=</span> <span class="n">displayName</span> <span class="p">??</span> <span class="k">new</span> <span class="n">FixedLocalizableString</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">MultiTenancySide</span> <span class="p">=</span> <span class="n">multiTenancySide</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">Properties</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Providers</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_children</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">PermissionDefinition</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">PermissionDefinition</span> <span class="n">AddChild</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl"><span class="na">        [NotNull]</span> <span class="kt">string</span> <span class="n">name</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">ILocalizableString</span> <span class="n">displayName</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">MultiTenancySides</span> <span class="n">multiTenancySide</span> <span class="p">=</span> <span class="n">MultiTenancySides</span><span class="p">.</span><span class="n">Both</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">child</span> <span class="p">=</span> <span class="k">new</span> <span class="n">PermissionDefinition</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">name</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">            <span class="n">displayName</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">            <span class="n">multiTenancySide</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Parent</span> <span class="p">=</span> <span class="k">this</span>
+</span></span><span class="line"><span class="cl">        <span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">_children</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">child</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">child</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 设置指定的自定义属性。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">PermissionDefinition</span> <span class="n">WithProperty</span><span class="p">(</span><span class="kt">string</span> <span class="n">key</span><span class="p">,</span> <span class="kt">object</span> <span class="k">value</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Properties</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="p">=</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">this</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 添加一组权限值提供者集合。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">PermissionDefinition</span> <span class="n">WithProviders</span><span class="p">(</span><span class="k">params</span> <span class="kt">string</span><span class="p">[]</span> <span class="n">providers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="n">providers</span><span class="p">.</span><span class="n">IsNullOrEmpty</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Providers</span><span class="p">.</span><span class="n">AddRange</span><span class="p">(</span><span class="n">providers</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">this</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="kt">string</span> <span class="n">ToString</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="s">$&#34;[{nameof(PermissionDefinition)} {Name}]&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="223-权限管理器">2.2.3 权限管理器</h4>
+<p>继续回到权限管理器，权限管理器的接口定义是 <code>IPermissionDefinitionManager</code> ，从接口的方法定义来看，都是获取权限的方法，说明权限管理器主要提供给其他组件进行权限校验操作。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IPermissionDefinitionManager</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 根据权限定义的唯一标识获取权限，一旦不存在就会抛出 AbpException 异常。</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [NotNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="n">PermissionDefinition</span> <span class="n">Get</span><span class="p">([</span><span class="n">NotNull</span><span class="p">]</span> <span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 根据权限定义的唯一标识获取权限，如果权限不存在，则返回 null。</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [CanBeNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="n">PermissionDefinition</span> <span class="n">GetOrNull</span><span class="p">([</span><span class="n">NotNull</span><span class="p">]</span> <span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获取所有的权限。</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">PermissionDefinition</span><span class="p">&gt;</span> <span class="n">GetPermissions</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获取所有的权限组。</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">PermissionGroupDefinition</span><span class="p">&gt;</span> <span class="n">GetGroups</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>接着我们来回答 2.2.1 末尾提出的问题，权限组是根据 Provider 自动创建了，那么权限呢？其实我们在权限管理器里面拿到了权限组，权限定义就很好构建了，直接遍历所有权限组拿它们的 <code>Permissions</code> 属性构建即可。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">PermissionDefinition</span><span class="p">&gt;</span> <span class="n">CreatePermissionDefinitions</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">permissions</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">PermissionDefinition</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  	<span class="c1">// 遍历权限定义组，这个东西在之前就已经构建好了。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">groupDefinition</span> <span class="k">in</span> <span class="n">PermissionGroupDefinitions</span><span class="p">.</span><span class="n">Values</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      	<span class="c1">// 递归子级权限。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">permission</span> <span class="k">in</span> <span class="n">groupDefinition</span><span class="p">.</span><span class="n">Permissions</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">AddPermissionToDictionaryRecursively</span><span class="p">(</span><span class="n">permissions</span><span class="p">,</span> <span class="n">permission</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  	<span class="c1">// 返回权限唯一标识 - 权限定义 的字典。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">permissions</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">AddPermissionToDictionaryRecursively</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">PermissionDefinition</span><span class="p">&gt;</span> <span class="n">permissions</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">    <span class="n">PermissionDefinition</span> <span class="n">permission</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">permissions</span><span class="p">.</span><span class="n">ContainsKey</span><span class="p">(</span><span class="n">permission</span><span class="p">.</span><span class="n">Name</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span> <span class="k">new</span> <span class="n">AbpException</span><span class="p">(</span><span class="s">&#34;Duplicate permission name: &#34;</span> <span class="p">+</span> <span class="n">permission</span><span class="p">.</span><span class="n">Name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">permissions</span><span class="p">[</span><span class="n">permission</span><span class="p">.</span><span class="n">Name</span><span class="p">]</span> <span class="p">=</span> <span class="n">permission</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">child</span> <span class="k">in</span> <span class="n">permission</span><span class="p">.</span><span class="n">Children</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AddPermissionToDictionaryRecursively</span><span class="p">(</span><span class="n">permissions</span><span class="p">,</span> <span class="n">child</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="224-授权策略提供者的实现">2.2.4 授权策略提供者的实现</h4>
+<p>我们发现 ABP vNext 自己实现了 <code>IAbpAuthorizationPolicyProvider</code> 接口，实现的类型就是 <code>AbpAuthorizationPolicyProvider</code> 。</p>
+<p>这个类型它是继承的 <code>DefaultAuthorizationPolicyProvider</code> ，重写了 <code>GetPolicyAsync()</code> 方法，目的就是将 <code>PermissionDefinition</code> 转换为 <code>AuthorizationPolicy</code> 。</p>
+<p>如果去看了 <strong><a class="link" href="https://www.cnblogs.com/RainingNight/p/authorization-in-asp-net-core.html"  target="_blank" rel="noopener"
+    >雨夜朦胧</a></strong> 大神的博客，就知道我们一个授权策略可以由多个条件构成。也就是说某一个 <code>AuthorizationPolicy</code> 可以拥有多个限定条件，当所有限定条件被满足之后，才能算是通过权限验证，例如以下代码。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">ConfigureService</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">services</span><span class="p">.</span><span class="n">AddAuthorization</span><span class="p">(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">options</span><span class="p">.</span><span class="n">AddPolicy</span><span class="p">(</span><span class="s">&#34;User&#34;</span><span class="p">,</span> <span class="n">policy</span> <span class="p">=&gt;</span> <span class="n">policy</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">RequireAssertion</span><span class="p">(</span><span class="n">context</span> <span class="p">=&gt;</span> <span class="n">context</span><span class="p">.</span><span class="n">User</span><span class="p">.</span><span class="n">HasClaim</span><span class="p">(</span><span class="n">c</span> <span class="p">=&gt;</span> <span class="p">(</span><span class="n">c</span><span class="p">.</span><span class="n">Type</span> <span class="p">==</span> <span class="s">&#34;EmployeeNumber&#34;</span> <span class="p">||</span> <span class="n">c</span><span class="p">.</span><span class="n">Type</span> <span class="p">==</span> <span class="s">&#34;Role&#34;</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 这里的意思是，用户角色必须是 Admin，并且他的用户名是 Alice，并且必须要有类型为 EmployeeNumber 的 Claim。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">options</span><span class="p">.</span><span class="n">AddPolicy</span><span class="p">(</span><span class="s">&#34;Employee&#34;</span><span class="p">,</span> <span class="n">policy</span> <span class="p">=&gt;</span> <span class="n">policy</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">RequireRole</span><span class="p">(</span><span class="s">&#34;Admin&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">RequireUserName</span><span class="p">(</span><span class="s">&#34;Alice&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">RequireClaim</span><span class="p">(</span><span class="s">&#34;EmployeeNumber&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">Combine</span><span class="p">(</span><span class="n">commonPolicy</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">});</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里的 <code>RequireRole()</code> 、<code>RequireUserName()</code>、<code>RequireClaim()</code> 都会生成一个 <code>IAuthorizationRequirement</code> 对象，它们在内部有不同的实现规则。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">AuthorizationPolicyBuilder</span> <span class="n">RequireClaim</span><span class="p">(</span><span class="kt">string</span> <span class="n">claimType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">claimType</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span> <span class="k">new</span> <span class="n">ArgumentNullException</span><span class="p">(</span><span class="n">nameof</span><span class="p">(</span><span class="n">claimType</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  	<span class="c1">// 构建了一个 ClaimsAuthorizationRequirement 对象，并添加到策略的 Requirements 组。</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Requirements</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="k">new</span> <span class="n">ClaimsAuthorizationRequirement</span><span class="p">(</span><span class="n">claimType</span><span class="p">,</span> <span class="n">allowedValues</span><span class="p">:</span> <span class="k">null</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">this</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里我们 ABP vNext 则是使用的 <code>PermissionRequirement</code> 作为一个限定条件。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">AuthorizationPolicy</span><span class="p">&gt;</span> <span class="n">GetPolicyAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">policyName</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">policy</span> <span class="p">=</span> <span class="k">await</span> <span class="k">base</span><span class="p">.</span><span class="n">GetPolicyAsync</span><span class="p">(</span><span class="n">policyName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">policy</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">policy</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">permission</span> <span class="p">=</span> <span class="n">_permissionDefinitionManager</span><span class="p">.</span><span class="n">GetOrNull</span><span class="p">(</span><span class="n">policyName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">permission</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// TODO: 可以使用缓存进行优化。</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 通过 Builder 构建一个策略。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">policyBuilder</span> <span class="p">=</span> <span class="k">new</span> <span class="n">AuthorizationPolicyBuilder</span><span class="p">(</span><span class="n">Array</span><span class="p">.</span><span class="n">Empty</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;());</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 创建一个 PermissionRequirement 对象添加到限定条件组中。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">policyBuilder</span><span class="p">.</span><span class="n">Requirements</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="k">new</span> <span class="n">PermissionRequirement</span><span class="p">(</span><span class="n">policyName</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">policyBuilder</span><span class="p">.</span><span class="n">Build</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>与 <code>ClaimsAuthorizationRequirement</code> 不同的是，ABP vNext 并没有将限定条件处理器和限定条件定义放在一起实现，而是分开的，分别构成了 <code>PermissionRequirement</code> 和 <code>PermissionRequirementHandler</code> ，后者在模块配置的时候被注入到 IoC 里面。</p>
+<blockquote>
+<p>PS：</p>
+<p>对于 Handler 来说，我们可以编写多个 Handler 注入到 IoC 容器内部，如下代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">services</span><span class="p">.</span><span class="n">AddSingleton</span><span class="p">&lt;</span><span class="n">IAuthorizationHandler</span><span class="p">,</span> <span class="n">BadgeEntryHandler</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl"><span class="n">services</span><span class="p">.</span><span class="n">AddSingleton</span><span class="p">&lt;</span><span class="n">IAuthorizationHandler</span><span class="p">,</span> <span class="n">HasTemporaryStickerHandler</span><span class="p">&gt;();</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></blockquote>
+<p>首先看限定条件 <code>PermissionRequirement</code> 的定义，非常简单。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">PermissionRequirement</span> <span class="p">:</span> <span class="n">IAuthorizationRequirement</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">PermissionName</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">PermissionRequirement</span><span class="p">([</span><span class="n">NotNull</span><span class="p">]</span><span class="kt">string</span> <span class="n">permissionName</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="n">permissionName</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">permissionName</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">PermissionName</span> <span class="p">=</span> <span class="n">permissionName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在限定条件内部，我们只用了权限的唯一标识来进行处理，接下来看一下权限处理器。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">PermissionRequirementHandler</span> <span class="p">:</span> <span class="n">AuthorizationHandler</span><span class="p">&lt;</span><span class="n">PermissionRequirement</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 这里通过权限检查器来确定当前用户是否拥有某个权限。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IPermissionChecker</span> <span class="n">_permissionChecker</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">PermissionRequirementHandler</span><span class="p">(</span><span class="n">IPermissionChecker</span> <span class="n">permissionChecker</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_permissionChecker</span> <span class="p">=</span> <span class="n">permissionChecker</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">HandleRequirementAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AuthorizationHandlerContext</span> <span class="n">context</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">PermissionRequirement</span> <span class="n">requirement</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    		<span class="c1">// 如果当前用户拥有某个权限，则通过 Contxt.Succeed() 通过授权验证。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="k">await</span> <span class="n">_permissionChecker</span><span class="p">.</span><span class="n">IsGrantedAsync</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">User</span><span class="p">,</span> <span class="n">requirement</span><span class="p">.</span><span class="n">PermissionName</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">context</span><span class="p">.</span><span class="n">Succeed</span><span class="p">(</span><span class="n">requirement</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="225-权限检查器">2.2.5 权限检查器</h4>
+<p>在上面的处理器我们看到了，ABP vNext 是通过权限检查器来校验某个用户是否满足某个授权策略，先看一下 <code>IPermissionChecker</code> 接口的定义，基本都是传入身份证(<code>ClaimsPrincipal</code>)和需要校验的权限进行处理。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IPermissionChecker</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span><span class="p">&lt;</span><span class="kt">bool</span><span class="p">&gt;</span> <span class="n">IsGrantedAsync</span><span class="p">([</span><span class="n">NotNull</span><span class="p">]</span><span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span><span class="p">&lt;</span><span class="kt">bool</span><span class="p">&gt;</span> <span class="n">IsGrantedAsync</span><span class="p">([</span><span class="n">CanBeNull</span><span class="p">]</span> <span class="n">ClaimsPrincipal</span> <span class="n">claimsPrincipal</span><span class="p">,</span> <span class="p">[</span><span class="n">NotNull</span><span class="p">]</span><span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>第一个方法内部就是调用的第二个方法，只不过传递的身份证是通过 <code>ICurrentPrincipalAccessor</code> 拿到的，所以我们的核心还是看第二个方法的实现。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">bool</span><span class="p">&gt;</span> <span class="n">IsGrantedAsync</span><span class="p">(</span><span class="n">ClaimsPrincipal</span> <span class="n">claimsPrincipal</span><span class="p">,</span> <span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">name</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">permission</span> <span class="p">=</span> <span class="n">PermissionDefinitionManager</span><span class="p">.</span><span class="n">Get</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">multiTenancySide</span> <span class="p">=</span> <span class="n">claimsPrincipal</span><span class="p">?.</span><span class="n">GetMultiTenancySide</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">                            <span class="p">??</span> <span class="n">CurrentTenant</span><span class="p">.</span><span class="n">GetMultiTenancySide</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 检查传入的权限是否允许当前的用户模式（租户/租主）进行访问。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">permission</span><span class="p">.</span><span class="n">MultiTenancySide</span><span class="p">.</span><span class="n">HasFlag</span><span class="p">(</span><span class="n">multiTenancySide</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">isGranted</span> <span class="p">=</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 这里是重点哦，这个权限值检测上下文是之前没有说过的东西，说白了就是针对不同维度的权限检测。</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 之前这部分东西是通过权限策略下面的 Requirement 提供的，这里 ABP vNext 将其抽象为 PermissionValueProvider。</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">context</span> <span class="p">=</span> <span class="k">new</span> <span class="n">PermissionValueCheckContext</span><span class="p">(</span><span class="n">permission</span><span class="p">,</span> <span class="n">claimsPrincipal</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">provider</span> <span class="k">in</span> <span class="n">PermissionValueProviderManager</span><span class="p">.</span><span class="n">ValueProviders</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果指定的权限允许的权限值提供者集合不包含当前的 Provider，则跳过处理。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">Permission</span><span class="p">.</span><span class="n">Providers</span><span class="p">.</span><span class="n">Any</span><span class="p">()</span> <span class="p">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">!</span><span class="n">context</span><span class="p">.</span><span class="n">Permission</span><span class="p">.</span><span class="n">Providers</span><span class="p">.</span><span class="n">Contains</span><span class="p">(</span><span class="n">provider</span><span class="p">.</span><span class="n">Name</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 调用 Provider 的检测方法，传入身份证明和权限定义进行具体校验。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="k">await</span> <span class="n">provider</span><span class="p">.</span><span class="n">CheckAsync</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 根据返回的结果，判断是否通过了权限校验。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">result</span> <span class="p">==</span> <span class="n">PermissionGrantResult</span><span class="p">.</span><span class="n">Granted</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">isGranted</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">result</span> <span class="p">==</span> <span class="n">PermissionGrantResult</span><span class="p">.</span><span class="n">Prohibited</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 返回 true 说明已经授权，返回 false 说明是没有授权的。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">isGranted</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="226-permissionvalueprovider">2.2.6 PermissionValueProvider</h4>
+<p>在模块配置方法内部，可以看到通过 <code>Configure&lt;PermissionOptions&gt;()</code> 方法添加了三个 <code>PermissionValueProvider</code> ，即 <code>UserPermissionValueProvider</code>、<code>RolePermissionValueProvider</code>、<code>ClientPermissionValueProvider</code> 。在它们的内部实现，都是通过 <code>IPermissionStore</code> 从持久化存储 <strong>检查传入的用户是否拥有某个权限</strong>。</p>
+<p>这里我们以 <code>UserPermissionValueProvider</code> 为例，来看看它的实现方法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">UserPermissionValueProvider</span> <span class="p">:</span> <span class="n">PermissionValueProvider</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 提供者的名称。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">const</span> <span class="kt">string</span> <span class="n">ProviderName</span> <span class="p">=</span> <span class="s">&#34;User&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">=&gt;</span> <span class="n">ProviderName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">UserPermissionValueProvider</span><span class="p">(</span><span class="n">IPermissionStore</span> <span class="n">permissionStore</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">:</span> <span class="k">base</span><span class="p">(</span><span class="n">permissionStore</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">PermissionGrantResult</span><span class="p">&gt;</span> <span class="n">CheckAsync</span><span class="p">(</span><span class="n">PermissionValueCheckContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 从传入的 Principal 中查找 UserId，不存在则说明没有定义，视为未授权。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">userId</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">Principal</span><span class="p">?.</span><span class="n">FindFirst</span><span class="p">(</span><span class="n">AbpClaimTypes</span><span class="p">.</span><span class="n">UserId</span><span class="p">)?.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">userId</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">PermissionGrantResult</span><span class="p">.</span><span class="n">Undefined</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 调用 IPermissionStore 从持久化存储中，检测指定权限在某个提供者下面是否已经被授予了权限。</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果被授予了权限， 则返回 true，没有则返回 false。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">await</span> <span class="n">PermissionStore</span><span class="p">.</span><span class="n">IsGrantedAsync</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">Permission</span><span class="p">.</span><span class="n">Name</span><span class="p">,</span> <span class="n">Name</span><span class="p">,</span> <span class="n">userId</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">?</span> <span class="n">PermissionGrantResult</span><span class="p">.</span><span class="n">Granted</span>
+</span></span><span class="line"><span class="cl">            <span class="p">:</span> <span class="n">PermissionGrantResult</span><span class="p">.</span><span class="n">Undefined</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里我们先不讲 <code>IPermissionStore</code> 的具体实现，就上述代码来看，ABP vNext 是将权限定义放在了一个管理容器(<code>IPermissionDeftiionManager</code>)。然后又实现了自定义的策略处理器和策略，在处理器的内部又通过 <code>IPermissionChecker</code> 根据不同的 <code>PermissionValueProvider</code> 结合 <code>IPermissionStore</code> 实现了指定用户标识到权限的检测功能。</p>
+<h4 id="227-权限验证拦截器">2.2.7 权限验证拦截器</h4>
+<p>权限验证拦截器的注册都是在 <code>AuthorizationInterceptorRegistrar</code> 的 <code>RegisterIfNeeded()</code> 方法内实现的，只要类型的任何一个方法标注了 <code>AuthorizeAttribute</code> 特性，就会被关联拦截器。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">static</span> <span class="kt">bool</span> <span class="n">AnyMethodHasAuthorizeAttribute</span><span class="p">(</span><span class="n">Type</span> <span class="n">implementationType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">implementationType</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">GetMethods</span><span class="p">(</span><span class="n">BindingFlags</span><span class="p">.</span><span class="n">Instance</span> <span class="p">|</span> <span class="n">BindingFlags</span><span class="p">.</span><span class="n">Public</span> <span class="p">|</span> <span class="n">BindingFlags</span><span class="p">.</span><span class="n">NonPublic</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">Any</span><span class="p">(</span><span class="n">HasAuthorizeAttribute</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">static</span> <span class="kt">bool</span> <span class="n">HasAuthorizeAttribute</span><span class="p">(</span><span class="n">MemberInfo</span> <span class="n">methodInfo</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">methodInfo</span><span class="p">.</span><span class="n">IsDefined</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AuthorizeAttribute</span><span class="p">),</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>拦截器和类型关联之后，会通过 <code>IMethodInvocationAuthorizationService</code> 的 <code>CheckAsync()</code> 方法校验调用者是否拥有指定权限。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">InterceptAsync</span><span class="p">(</span><span class="n">IAbpMethodInvocation</span> <span class="n">invocation</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 防止重复检测。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">AbpCrossCuttingConcerns</span><span class="p">.</span><span class="n">IsApplied</span><span class="p">(</span><span class="n">invocation</span><span class="p">.</span><span class="n">TargetObject</span><span class="p">,</span> <span class="n">AbpCrossCuttingConcerns</span><span class="p">.</span><span class="n">Authorization</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">invocation</span><span class="p">.</span><span class="n">ProceedAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 将被调用的方法传入，验证是否允许访问。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">await</span> <span class="n">AuthorizeAsync</span><span class="p">(</span><span class="n">invocation</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">await</span> <span class="n">invocation</span><span class="p">.</span><span class="n">ProceedAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">AuthorizeAsync</span><span class="p">(</span><span class="n">IAbpMethodInvocation</span> <span class="n">invocation</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">await</span> <span class="n">_methodInvocationAuthorizationService</span><span class="p">.</span><span class="n">CheckAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="k">new</span> <span class="n">MethodInvocationAuthorizationContext</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">invocation</span><span class="p">.</span><span class="n">Method</span>
+</span></span><span class="line"><span class="cl">        <span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在具体的实现当中，首先检测方法是否标注了 <code>IAllowAnonymous</code> 特性，标注了则说明允许匿名访问，直接返回不做任何处理。否则就会从方法获取实现了 <code>IAuthorizeData</code> 接口的特性，从里面拿到 <code>Policy</code> 值，并通过 <code>IAuthorizationService</code> 进行验证。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">CheckAsync</span><span class="p">(</span><span class="n">IAuthorizeData</span> <span class="n">authorizationAttribute</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">authorizationAttribute</span><span class="p">.</span><span class="n">Policy</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果当前调用者没有进行认证，则抛出未登录的异常。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="n">_currentUser</span><span class="p">.</span><span class="n">IsAuthenticated</span> <span class="p">&amp;&amp;</span> <span class="p">!</span><span class="n">_currentClient</span><span class="p">.</span><span class="n">IsAuthenticated</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">throw</span> <span class="k">new</span> <span class="n">AbpAuthorizationException</span><span class="p">(</span><span class="s">&#34;Authorization failed! User has not logged in.&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">else</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 通过 IAuthorizationService 校验当前用户是否拥有 authorizationAttribute.Policy 权限。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">_authorizationService</span><span class="p">.</span><span class="n">CheckAsync</span><span class="p">(</span><span class="n">authorizationAttribute</span><span class="p">.</span><span class="n">Policy</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>针对于 <code>IAuthorizationService</code> ，ABP vNext 还是提供了自己的实现 <code>AbpAuthorizationService</code>，里面没有重写什么方法，而是提供了两个新的属性，这两个属性是为了方便实现 <code>AbpAuthorizationServiceExtensions</code> 提供的扩展方法，这里不再赘述。</p>
+<h2 id="三总结">三、总结</h2>
+<p>关于权限与验证部分我就先讲到这儿，后续文章我会更加详细地为大家分析 ABP vNext 是如何进行权限管理，又是如何将 ABP vNext 和 ASP.NET Identity 、IdentityServer4 进行集成的。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/abp-vnext/">ABP vNext</a>
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/asp.net-core/">ASP.NET Core</a>
+        
+            <a href="/tags/asp.net-core-mvc/">ASP.NET Core MVC</a>
+        
+            <a href="/tags/%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%8E%88%E6%9D%83/">验证与授权</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-multi-tenancy/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 多租户</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一简要说明">一、简要说明</a></li>
+    <li><a href="#二源码分析">二、源码分析</a>
+      <ol>
+        <li><a href="#21-security-基础组件库">2.1 Security 基础组件库</a>
+          <ol>
+            <li><a href="#211-claims-与-identity-的快捷访问">2.1.1 Claims 与 Identity 的快捷访问</a></li>
+            <li><a href="#212-未授权异常的定义">2.1.2 未授权异常的定义</a></li>
+            <li><a href="#213-当前用户与客户端">2.1.3 当前用户与客户端</a></li>
+            <li><a href="#214-claimsprincipal-访问器">2.1.4 ClaimsPrincipal 访问器</a></li>
+            <li><a href="#215-字符串加密工具">2.1.5 字符串加密工具</a></li>
+          </ol>
+        </li>
+        <li><a href="#22-权限与校验">2.2 权限与校验</a>
+          <ol>
+            <li><a href="#221-权限的注册">2.2.1 权限的注册</a></li>
+            <li><a href="#222-权限和权限组的定义">2.2.2 权限和权限组的定义</a></li>
+            <li><a href="#223-权限管理器">2.2.3 权限管理器</a></li>
+            <li><a href="#224-授权策略提供者的实现">2.2.4 授权策略提供者的实现</a></li>
+            <li><a href="#225-权限检查器">2.2.5 权限检查器</a></li>
+            <li><a href="#226-permissionvalueprovider">2.2.6 PermissionValueProvider</a></li>
+            <li><a href="#227-权限验证拦截器">2.2.7 权限验证拦截器</a></li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+    <li><a href="#三总结">三、总结</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

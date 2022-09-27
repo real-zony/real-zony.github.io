@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、背景 目前我们项目是采用的 Ocelot 作为 API 网关，并且在其基础上结合 IdentityServer4 开发了一套 API 开放平台。由于部分项目是基于 ABP 框架进行开发的，接口的平均 QPS 基本是在 2K~3K /S 左右 (E3 1231 16G)。采用 Ocelot 进行请求转发之后，前端反馈接口调用速度变慢了，也没有太过在意，以为是项目接口的问题，一直在接口上面尝试进行优化。
+极限优化接口后仍然没有显著改善，故针对 Ocelot 的性能进行压力测试，得到的结果也是让我比较惊讶。
+'><title>针对 Ocelot 网关的性能测试</title>
+
+<link rel='canonical' href='https://example.com/p/performance-tests-for-ocelot-gateways/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='针对 Ocelot 网关的性能测试'>
+<meta property='og:description' content='一、背景 目前我们项目是采用的 Ocelot 作为 API 网关，并且在其基础上结合 IdentityServer4 开发了一套 API 开放平台。由于部分项目是基于 ABP 框架进行开发的，接口的平均 QPS 基本是在 2K~3K /S 左右 (E3 1231 16G)。采用 Ocelot 进行请求转发之后，前端反馈接口调用速度变慢了，也没有太过在意，以为是项目接口的问题，一直在接口上面尝试进行优化。
+极限优化接口后仍然没有显著改善，故针对 Ocelot 的性能进行压力测试，得到的结果也是让我比较惊讶。
+'>
+<meta property='og:url' content='https://example.com/p/performance-tests-for-ocelot-gateways/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='性能分析' /><meta property='article:tag' content='Ocelot' /><meta property='article:tag' content='API 网关' /><meta property='article:published_time' content='2019-02-19T07:27:28&#43;00:00'/><meta property='article:modified_time' content='2019-02-19T07:27:28&#43;00:00'/>
+<meta name="twitter:title" content="针对 Ocelot 网关的性能测试">
+<meta name="twitter:description" content="一、背景 目前我们项目是采用的 Ocelot 作为 API 网关，并且在其基础上结合 IdentityServer4 开发了一套 API 开放平台。由于部分项目是基于 ABP 框架进行开发的，接口的平均 QPS 基本是在 2K~3K /S 左右 (E3 1231 16G)。采用 Ocelot 进行请求转发之后，前端反馈接口调用速度变慢了，也没有太过在意，以为是项目接口的问题，一直在接口上面尝试进行优化。
+极限优化接口后仍然没有显著改善，故针对 Ocelot 的性能进行压力测试，得到的结果也是让我比较惊讶。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/performance-tests-for-ocelot-gateways/">针对 Ocelot 网关的性能测试</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Feb 19, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 5 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一背景">一、背景</h2>
+<p>目前我们项目是采用的 Ocelot 作为 API 网关，并且在其基础上结合 IdentityServer4 开发了一套 API 开放平台。由于部分项目是基于 ABP 框架进行开发的，接口的平均 QPS 基本是在 2K~3K /S 左右 (E3 1231 16G)。采用 Ocelot 进行请求转发之后，前端反馈接口调用速度变慢了，也没有太过在意，以为是项目接口的问题，一直在接口上面尝试进行优化。</p>
+<p>极限优化接口后仍然没有显著改善，故针对 Ocelot 的性能进行压力测试，得到的结果也是让我比较惊讶。</p>
+<h2 id="二准备工作">二、准备工作</h2>
+<h3 id="21-测试项目准备">2.1 测试项目准备</h3>
+<p>首先新建了一个解决方案，其名字为 <code>OcelotStudy</code> ，其下面有三个项目，分别是两个 API 项目和一个网关项目。</p>
+<p><img src="/p/performance-tests-for-ocelot-gateways/1550558616461.png"
+	width="463"
+	height="252"
+	srcset="/p/performance-tests-for-ocelot-gateways/1550558616461_hufc49adb203abc156c2a9577d21fb83f8_16099_480x0_resize_box_3.png 480w, /p/performance-tests-for-ocelot-gateways/1550558616461_hufc49adb203abc156c2a9577d21fb83f8_16099_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1550558616461"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="183"
+		data-flex-basis="440px"
+	
+></p>
+<p><strong>网关项目编写：</strong></p>
+<p>为 <code>OcelotStudy</code> 项目引入 Ocelot 的 NuGet 包。</p>
+<p><img src="/p/performance-tests-for-ocelot-gateways/1550558742539.png"
+	width="1893"
+	height="346"
+	srcset="/p/performance-tests-for-ocelot-gateways/1550558742539_hu857c33ab79c6541add7c6261f66a7d16_64655_480x0_resize_box_3.png 480w, /p/performance-tests-for-ocelot-gateways/1550558742539_hu857c33ab79c6541add7c6261f66a7d16_64655_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1550558742539"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="547"
+		data-flex-basis="1313px"
+	
+></p>
+<p>在 <code>OcelotStudy</code> 项目的 <code>Program.cs</code> 文件当中显式指定我们网关的监听端口。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.AspNetCore.Hosting</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.Extensions.Hosting</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">OcelotStudy</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">Program</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">CreateHostBuilder</span><span class="p">(</span><span class="n">args</span><span class="p">).</span><span class="n">Build</span><span class="p">().</span><span class="n">Run</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">static</span> <span class="n">IHostBuilder</span> <span class="n">CreateHostBuilder</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Host</span><span class="p">.</span><span class="n">CreateDefaultBuilder</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">ConfigureWebHostDefaults</span><span class="p">(</span><span class="n">webBuilder</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                    <span class="c1">// 指定监听端口为 5000</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">webBuilder</span><span class="p">.</span><span class="n">UseStartup</span><span class="p">&lt;</span><span class="n">Startup</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">                        <span class="p">.</span><span class="n">UseKestrel</span><span class="p">(</span><span class="n">x</span><span class="p">=&gt;</span><span class="n">x</span><span class="p">.</span><span class="n">ListenAnyIP</span><span class="p">(</span><span class="m">5000</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">                <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在 <code>OcelotStudy</code> 项目的 <code>Program.cs</code> 文件当中显式指定我们网关的监听端口。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.AspNetCore.Hosting</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.Extensions.Hosting</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">OcelotStudy</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">Program</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">CreateHostBuilder</span><span class="p">(</span><span class="n">args</span><span class="p">).</span><span class="n">Build</span><span class="p">().</span><span class="n">Run</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">static</span> <span class="n">IHostBuilder</span> <span class="n">CreateHostBuilder</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Host</span><span class="p">.</span><span class="n">CreateDefaultBuilder</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">ConfigureWebHostDefaults</span><span class="p">(</span><span class="n">webBuilder</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                    <span class="c1">// 指定监听端口为 5000</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">webBuilder</span><span class="p">.</span><span class="n">UseStartup</span><span class="p">&lt;</span><span class="n">Startup</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">                        <span class="p">.</span><span class="n">UseKestrel</span><span class="p">(</span><span class="n">x</span><span class="p">=&gt;</span><span class="n">x</span><span class="p">.</span><span class="n">ListenAnyIP</span><span class="p">(</span><span class="m">5000</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">                <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在 <code>Startup.cs</code> 类当中注入 Ocelot 的服务，并应用 Ocelot 的中间件。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.AspNetCore.Builder</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.AspNetCore.Hosting</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.Extensions.Configuration</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.Extensions.DependencyInjection</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.Extensions.Logging</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Ocelot.DependencyInjection</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Ocelot.Middleware</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">OcelotStudy</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">Startup</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">void</span> <span class="n">ConfigureServices</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 禁用日志的控制台输出，防止由于线程同步造成的性能损失</span>
+</span></span><span class="line"><span class="cl">            <span class="n">services</span><span class="p">.</span><span class="n">AddLogging</span><span class="p">(</span><span class="n">op</span> <span class="p">=&gt;</span> <span class="n">op</span><span class="p">.</span><span class="n">ClearProviders</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">            <span class="n">services</span><span class="p">.</span><span class="n">AddMvc</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="n">services</span><span class="p">.</span><span class="n">AddOcelot</span><span class="p">(</span><span class="k">new</span> <span class="n">ConfigurationBuilder</span><span class="p">().</span><span class="n">AddJsonFile</span><span class="p">(</span><span class="s">&#34;Ocelot.json&#34;</span><span class="p">).</span><span class="n">Build</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">async</span> <span class="k">void</span> <span class="n">Configure</span><span class="p">(</span><span class="n">IApplicationBuilder</span> <span class="n">app</span><span class="p">,</span> <span class="n">IHostingEnvironment</span> <span class="n">env</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">app</span><span class="p">.</span><span class="n">UseOcelot</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="n">app</span><span class="p">.</span><span class="n">UseMvc</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在 <code>OcelotStudy</code> 项目下建立 <code>Ocelot.json</code> 文件，内容如下。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;ReRoutes&#34;</span><span class="p">:</span> <span class="p">[</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nt">&#34;DownstreamPathTemplate&#34;</span><span class="p">:</span> <span class="s2">&#34;/api/{everything}&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">      <span class="nt">&#34;DownstreamScheme&#34;</span><span class="p">:</span> <span class="s2">&#34;http&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">      <span class="nt">&#34;DownstreamHostAndPorts&#34;</span><span class="p">:</span> <span class="p">[</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">          <span class="nt">&#34;Host&#34;</span><span class="p">:</span> <span class="s2">&#34;API 1 服务器IP&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">          <span class="nt">&#34;Port&#34;</span><span class="p">:</span> <span class="mi">6000</span>
+</span></span><span class="line"><span class="cl">        <span class="p">},</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">          <span class="nt">&#34;Host&#34;</span><span class="p">:</span> <span class="s2">&#34;API 2 服务器IP&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">          <span class="nt">&#34;Port&#34;</span><span class="p">:</span> <span class="mi">7000</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">      <span class="p">],</span>
+</span></span><span class="line"><span class="cl">      <span class="nt">&#34;UpstreamPathTemplate&#34;</span><span class="p">:</span> <span class="s2">&#34;/{everything}&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">      <span class="nt">&#34;UpstreamHttpMethod&#34;</span><span class="p">:</span> <span class="p">[</span> <span class="s2">&#34;Get&#34;</span><span class="p">,</span> <span class="s2">&#34;Post&#34;</span> <span class="p">],</span>
+</span></span><span class="line"><span class="cl">      <span class="nt">&#34;LoadBalancerOptions&#34;</span><span class="p">:</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nt">&#34;Type&#34;</span><span class="p">:</span> <span class="s2">&#34;RoundRobin&#34;</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">],</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;GlobalConfiguration&#34;</span><span class="p">:</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>测试项目的编写：</strong></p>
+<p>两个测试项目的监听端口分别为 <code>6000</code> 与 <code>7000</code> ，都建立一个 <code>ValuesController</code> 控制器，返回一个字符串用于输出当前请求的 API 服务器信息。</p>
+<p><code>ApiService01</code> 的文件信息：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.AspNetCore.Mvc</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">ApiService01.Controllers</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [Route(&#34;api/[controller]</span><span class="s">&#34;)]
+</span></span></span><span class="line"><span class="cl"><span class="s"></span><span class="na">    [ApiController]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">ValuesController</span> <span class="p">:</span> <span class="n">ControllerBase</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// GET api/values</span>
+</span></span><span class="line"><span class="cl"><span class="na">        [HttpGet]</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="n">ActionResult</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">Get</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="s">&#34;当前请求的 API 接口是 1 号服务器。&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// GET api/values/5</span>
+</span></span><span class="line"><span class="cl"><span class="na">        [HttpGet(&#34;{id}&#34;)]</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="n">ActionResult</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">Get</span><span class="p">(</span><span class="kt">int</span> <span class="n">id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="s">&#34;value&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// POST api/values</span>
+</span></span><span class="line"><span class="cl"><span class="na">        [HttpPost]</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">void</span> <span class="n">Post</span><span class="p">([</span><span class="n">FromBody</span><span class="p">]</span> <span class="kt">string</span> <span class="k">value</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// PUT api/values/5</span>
+</span></span><span class="line"><span class="cl"><span class="na">        [HttpPut(&#34;{id}&#34;)]</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">void</span> <span class="n">Put</span><span class="p">(</span><span class="kt">int</span> <span class="n">id</span><span class="p">,</span> <span class="p">[</span><span class="n">FromBody</span><span class="p">]</span> <span class="kt">string</span> <span class="k">value</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// DELETE api/values/5</span>
+</span></span><span class="line"><span class="cl"><span class="na">        [HttpDelete(&#34;{id}&#34;)]</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">void</span> <span class="n">Delete</span><span class="p">(</span><span class="kt">int</span> <span class="n">id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>ApiService02</code> 的文件信息：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.AspNetCore.Mvc</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">ApiService02.Controllers</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [Route(&#34;api/[controller]</span><span class="s">&#34;)]
+</span></span></span><span class="line"><span class="cl"><span class="s"></span><span class="na">    [ApiController]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">ValuesController</span> <span class="p">:</span> <span class="n">ControllerBase</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// GET api/values</span>
+</span></span><span class="line"><span class="cl"><span class="na">        [HttpGet]</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="n">ActionResult</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">Get</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="s">&#34;当前请求的 API 接口是 2 号服务器。&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// GET api/values/5</span>
+</span></span><span class="line"><span class="cl"><span class="na">        [HttpGet(&#34;{id}&#34;)]</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="n">ActionResult</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">Get</span><span class="p">(</span><span class="kt">int</span> <span class="n">id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="s">&#34;value&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// POST api/values</span>
+</span></span><span class="line"><span class="cl"><span class="na">        [HttpPost]</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">void</span> <span class="n">Post</span><span class="p">([</span><span class="n">FromBody</span><span class="p">]</span> <span class="kt">string</span> <span class="k">value</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// PUT api/values/5</span>
+</span></span><span class="line"><span class="cl"><span class="na">        [HttpPut(&#34;{id}&#34;)]</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">void</span> <span class="n">Put</span><span class="p">(</span><span class="kt">int</span> <span class="n">id</span><span class="p">,</span> <span class="p">[</span><span class="n">FromBody</span><span class="p">]</span> <span class="kt">string</span> <span class="k">value</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// DELETE api/values/5</span>
+</span></span><span class="line"><span class="cl"><span class="na">        [HttpDelete(&#34;{id}&#34;)]</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">void</span> <span class="n">Delete</span><span class="p">(</span><span class="kt">int</span> <span class="n">id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>他们两个的 <code>Startup.cs</code> 与 <code>Program.cs</code> 文件内容基本一致，区别只是监听的端口分别是 <code>6000</code> 和 <code>7000</code> 而已。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.AspNetCore.Hosting</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.Extensions.Hosting</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">ApiService02</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">Program</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">CreateHostBuilder</span><span class="p">(</span><span class="n">args</span><span class="p">).</span><span class="n">Build</span><span class="p">().</span><span class="n">Run</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">static</span> <span class="n">IHostBuilder</span> <span class="n">CreateHostBuilder</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Host</span><span class="p">.</span><span class="n">CreateDefaultBuilder</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">ConfigureWebHostDefaults</span><span class="p">(</span><span class="n">webBuilder</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">webBuilder</span><span class="p">.</span><span class="n">UseStartup</span><span class="p">&lt;</span><span class="n">Startup</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">webBuilder</span><span class="p">.</span><span class="n">UseKestrel</span><span class="p">(</span><span class="n">x</span> <span class="p">=&gt;</span> <span class="n">x</span><span class="p">.</span><span class="n">ListenAnyIP</span><span class="p">(</span><span class="m">6000</span><span class="p">));</span> <span class="c1">// 或者 7000</span>
+</span></span><span class="line"><span class="cl">                <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.AspNetCore.Builder</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.AspNetCore.Hosting</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.Extensions.Configuration</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.Extensions.DependencyInjection</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.Extensions.Logging</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">ApiService02</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">Startup</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="n">Startup</span><span class="p">(</span><span class="n">IConfiguration</span> <span class="n">configuration</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Configuration</span> <span class="p">=</span> <span class="n">configuration</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="n">IConfiguration</span> <span class="n">Configuration</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// This method gets called by the runtime. Use this method to add services to the container.</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">void</span> <span class="n">ConfigureServices</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 禁用日志的控制台输出，防止由于线程同步造成的性能损失</span>
+</span></span><span class="line"><span class="cl">            <span class="n">services</span><span class="p">.</span><span class="n">AddLogging</span><span class="p">(</span><span class="n">op</span> <span class="p">=&gt;</span> <span class="n">op</span><span class="p">.</span><span class="n">ClearProviders</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">            <span class="n">services</span><span class="p">.</span><span class="n">AddMvc</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">void</span> <span class="n">Configure</span><span class="p">(</span><span class="n">IApplicationBuilder</span> <span class="n">app</span><span class="p">,</span> <span class="n">IHostingEnvironment</span> <span class="n">env</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">app</span><span class="p">.</span><span class="n">UseRouting</span><span class="p">(</span><span class="n">routes</span> <span class="p">=&gt;</span> <span class="p">{</span> <span class="n">routes</span><span class="p">.</span><span class="n">MapApplication</span><span class="p">();</span> <span class="p">});</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>以上三个项目都采用 <code>Release</code> 版本进行发布。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">dotnet publish -c Release
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>ApiService01 部署在单独的 E3 1231 v3 16G DDR3 服务器。</p>
+<p>ApiService02 部署在单独的 i3-7100 16G DDR4 服务器。</p>
+<p>OcelotStudy 部署在单独的 E3 1231 v3 16G DDR3 服务器。</p>
+<h2 id="三开始测试">三、开始测试</h2>
+<p>这里我使用的是 <strong><a class="link" href="https://github.com/wg/wrk"  target="_blank" rel="noopener"
+    >WRK</a></strong> 来进行压力测试，OcelotStudy 网关项目的 IP 地址为 <code>172.31.61.41:5000</code> ，故使用以下命令进行测试。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">./wrk -t <span class="m">10</span> -c <span class="m">10000</span> -d 20s --latency --timeout 3s <span class="s2">&#34;http://172.31.61.41:5000/values&#34;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>测试结果：</p>
+<p><img src="/p/performance-tests-for-ocelot-gateways/1550559911126.png"
+	width="1009"
+	height="211"
+	srcset="/p/performance-tests-for-ocelot-gateways/1550559911126_huc750576f5810077c4ed98c1217790c8d_33957_480x0_resize_box_3.png 480w, /p/performance-tests-for-ocelot-gateways/1550559911126_huc750576f5810077c4ed98c1217790c8d_33957_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1550559911126"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="478"
+		data-flex-basis="1147px"
+	
+></p>
+<p>我将 ApiService01 项目放在网关的服务器，直接调用 ApiService01 的接口，其压力测试情况。</p>
+<p><img src="/p/performance-tests-for-ocelot-gateways/20190125141003.gif"
+	width="1106"
+	height="203"
+	srcset="/p/performance-tests-for-ocelot-gateways/20190125141003_huf059af8f213631dd140acceb10a62847_72607_480x0_resize_box.gif 480w, /p/performance-tests-for-ocelot-gateways/20190125141003_huf059af8f213631dd140acceb10a62847_72607_1024x0_resize_box.gif 1024w"
+	loading="lazy"
+	
+		alt="20190125141003"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="544"
+		data-flex-basis="1307px"
+	
+></p>
+<h2 id="四结语">四、结语</h2>
+<p>最后 Ocelot 的 QPS 结果为：<code>3461.53</code></p>
+<p>直接请求 API 接口的 QPS 结果为：<code>38874.50</code></p>
+<p>这样的结果让我感到很意外，不知道是由于 Ocelot 实现机制的原因，还是我的使用方法不对。这样的性能测试结果数据对于 API 网关来说确实不太好看，但也希望今后 Ocelot 能够继续努力。</p>
+<p>如果大家对于我的测试方式有疑问的话，可以在评论区指出，我将按照你所提供的方法再次进行测试。<strong>(PS: 我也不想换啊，多希望是我测错了)</strong></p>
+<h2 id="五原生-apiocelotkong-api-性能比较">五、原生 API、Ocelot、Kong API 性能比较</h2>
+<p>针对于评论区各位朋友所提出的建议，以及我最近针对 Ocelot 的再次测试，整理出来一份测试结果的表格。以下结果均是单节点进行部署，如果使用 LB + API 集群的话是可以有效提升吞吐量。</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:left">使用的网关</th>
+<th style="text-align:left">测试时间</th>
+<th style="text-align:left">并发数</th>
+<th style="text-align:left">总请求</th>
+<th style="text-align:left">QPS</th>
+<th style="text-align:left">超时数量</th>
+<th style="text-align:left">平均响应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">没有使用网关</td>
+<td style="text-align:left">1 分钟</td>
+<td style="text-align:left">15000</td>
+<td style="text-align:left">2495541</td>
+<td style="text-align:left">41518.07</td>
+<td style="text-align:left">1592</td>
+<td style="text-align:left">115.98 ms</td>
+</tr>
+<tr>
+<td style="text-align:left">Kong API</td>
+<td style="text-align:left">1 分钟</td>
+<td style="text-align:left">15000</td>
+<td style="text-align:left">690141</td>
+<td style="text-align:left">11478.06</td>
+<td style="text-align:left">43997</td>
+<td style="text-align:left">860.31 ms</td>
+</tr>
+<tr>
+<td style="text-align:left">Ocelot</td>
+<td style="text-align:left">1 分钟</td>
+<td style="text-align:left">15000</td>
+<td style="text-align:left">277627</td>
+<td style="text-align:left">4618.98</td>
+<td style="text-align:left">1795</td>
+<td style="text-align:left">1.7 s</td>
+</tr>
+<tr>
+<td style="text-align:left">没有使用网关</td>
+<td style="text-align:left">1 分钟</td>
+<td style="text-align:left">5000</td>
+<td style="text-align:left">2530107</td>
+<td style="text-align:left">42111.44</td>
+<td style="text-align:left">0</td>
+<td style="text-align:left">115.48 ms</td>
+</tr>
+<tr>
+<td style="text-align:left">Kong API</td>
+<td style="text-align:left">1 分钟</td>
+<td style="text-align:left">5000</td>
+<td style="text-align:left">866449</td>
+<td style="text-align:left">14418.25</td>
+<td style="text-align:left">3090</td>
+<td style="text-align:left">383.75 ms</td>
+</tr>
+<tr>
+<td style="text-align:left">Ocelot</td>
+<td style="text-align:left">1 分钟</td>
+<td style="text-align:left">5000</td>
+<td style="text-align:left">307226</td>
+<td style="text-align:left">5113.09</td>
+<td style="text-align:left">78</td>
+<td style="text-align:left">932.19 ms</td>
+</tr>
+<tr>
+<td style="text-align:left">没有使用网关</td>
+<td style="text-align:left">10 分钟</td>
+<td style="text-align:left">8000</td>
+<td style="text-align:left">13080964</td>
+<td style="text-align:left">21797.98</td>
+<td style="text-align:left">103</td>
+<td style="text-align:left">364.97 ms</td>
+</tr>
+<tr>
+<td style="text-align:left">Kong API</td>
+<td style="text-align:left">10 分钟</td>
+<td style="text-align:left">8000</td>
+<td style="text-align:left">4809613</td>
+<td style="text-align:left">8014.7</td>
+<td style="text-align:left">305503</td>
+<td style="text-align:left">636.41 ms</td>
+</tr>
+<tr>
+<td style="text-align:left">Ocelot</td>
+<td style="text-align:left">10 分钟</td>
+<td style="text-align:left">8000</td>
+<td style="text-align:left">2558431</td>
+<td style="text-align:left">4263.34</td>
+<td style="text-align:left">2137</td>
+<td style="text-align:left">1.84 s</td>
+</tr>
+</tbody>
+</table></div>
+<p>Ocelot 与 Kong 均部署在一台 32G 12C 3.0Ghz 的 CentOS 服务器上，API 1 与 API 2 部署在 8C 16G 3.0 Ghz 的服务器上，所有环境都是基于 Docker CE 进行部署。</p>
+<p>另外针对于 <strong>Kong API</strong> 不知道是我使用方式不对还是什么情况，其网络吞吐量经常波动，如下图，还请不吝赐教。</p>
+<p><img src="/p/performance-tests-for-ocelot-gateways/1550738909661.png"
+	width="718"
+	height="538"
+	srcset="/p/performance-tests-for-ocelot-gateways/1550738909661_hu90d96307eba4cf3493b003e6967927ab_46278_480x0_resize_box_3.png 480w, /p/performance-tests-for-ocelot-gateways/1550738909661_hu90d96307eba4cf3493b003e6967927ab_46278_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1550738909661"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="133"
+		data-flex-basis="320px"
+	
+></p>
+<p><strong>网关服务器：</strong>
+<img src="/p/performance-tests-for-ocelot-gateways/1550730625797.png"
+	width="734"
+	height="692"
+	srcset="/p/performance-tests-for-ocelot-gateways/1550730625797_hu419e9287da095d5acbf5ab3799e2206c_38713_480x0_resize_box_3.png 480w, /p/performance-tests-for-ocelot-gateways/1550730625797_hu419e9287da095d5acbf5ab3799e2206c_38713_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1550730625797"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="106"
+		data-flex-basis="254px"
+	
+></p>
+<p><strong>API 1 与 API 2 服务器：</strong>
+<img src="/p/performance-tests-for-ocelot-gateways/1550730705645.png"
+	width="737"
+	height="696"
+	srcset="/p/performance-tests-for-ocelot-gateways/1550730705645_hueb8a75a8804ed305fe1f3da04e53ff43_37185_480x0_resize_box_3.png 480w, /p/performance-tests-for-ocelot-gateways/1550730705645_hueb8a75a8804ed305fe1f3da04e53ff43_37185_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1550730705645"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="105"
+		data-flex-basis="254px"
+	
+></p>
+<p><img src="/p/performance-tests-for-ocelot-gateways/1550730725580.png"
+	width="737"
+	height="695"
+	srcset="/p/performance-tests-for-ocelot-gateways/1550730725580_hud3d4762b932a59c7838ad25e557e84c0_40478_480x0_resize_box_3.png 480w, /p/performance-tests-for-ocelot-gateways/1550730725580_hud3d4762b932a59c7838ad25e557e84c0_40478_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1550730725580"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="106"
+		data-flex-basis="254px"
+	
+></p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E6%80%A7%E8%83%BD%E5%88%86%E6%9E%90/">性能分析</a>
+        
+            <a href="/tags/ocelot/">Ocelot</a>
+        
+            <a href="/tags/api-%E7%BD%91%E5%85%B3/">API 网关</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一背景">一、背景</a></li>
+    <li><a href="#二准备工作">二、准备工作</a>
+      <ol>
+        <li><a href="#21-测试项目准备">2.1 测试项目准备</a></li>
+      </ol>
+    </li>
+    <li><a href="#三开始测试">三、开始测试</a></li>
+    <li><a href="#四结语">四、结语</a></li>
+    <li><a href="#五原生-apiocelotkong-api-性能比较">五、原生 API、Ocelot、Kong API 性能比较</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

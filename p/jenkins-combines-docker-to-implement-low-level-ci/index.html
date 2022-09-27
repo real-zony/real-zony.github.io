@@ -1,0 +1,1648 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='随着项目的不断增多，最开始单体项目手动执行 docker build 命令，手动发布项目就不再适用了。一两个项目可能还吃得消，10 多个项目每天让你构建一次还是够呛。即便你的项目少，每次花费在发布上面的时间累计起来都够你改几个 BUG 了。
+所以我们需要自动化这个流程，让项目的发布和测试不再这么繁琐。在这里我使用了 Jenkins 作为基础的 CI/CD Pipeline 工具，关于 Jenkins 的具体介绍这里就不再赘述。在版本管理、构建项目、单元测试、集成测试、环境部署我分别使用到了 Gogs、Docker、Docker Swarm(已与 Docker 整合) 这几个软件协同工作。
+以下步骤我参考了 Continuous Integration with Jenkins and Docker 一文，并使用了作者提供的 groovy 文件和 slave.py 文件。
+关于 Docker-CE 的安装，请参考我的另一篇博文 《Linux 下的 Docker 安装与使用》 。
+'><title>Jenkins 结合 Docker 实现低配版的 CI&amp;CD</title>
+
+<link rel='canonical' href='https://example.com/p/jenkins-combines-docker-to-implement-low-level-ci/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Jenkins 结合 Docker 实现低配版的 CI&amp;CD'>
+<meta property='og:description' content='随着项目的不断增多，最开始单体项目手动执行 docker build 命令，手动发布项目就不再适用了。一两个项目可能还吃得消，10 多个项目每天让你构建一次还是够呛。即便你的项目少，每次花费在发布上面的时间累计起来都够你改几个 BUG 了。
+所以我们需要自动化这个流程，让项目的发布和测试不再这么繁琐。在这里我使用了 Jenkins 作为基础的 CI/CD Pipeline 工具，关于 Jenkins 的具体介绍这里就不再赘述。在版本管理、构建项目、单元测试、集成测试、环境部署我分别使用到了 Gogs、Docker、Docker Swarm(已与 Docker 整合) 这几个软件协同工作。
+以下步骤我参考了 Continuous Integration with Jenkins and Docker 一文，并使用了作者提供的 groovy 文件和 slave.py 文件。
+关于 Docker-CE 的安装，请参考我的另一篇博文 《Linux 下的 Docker 安装与使用》 。
+'>
+<meta property='og:url' content='https://example.com/p/jenkins-combines-docker-to-implement-low-level-ci/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Jenkins' /><meta property='article:tag' content='Docker' /><meta property='article:tag' content='CI/CD' /><meta property='article:tag' content='Docker Compose' /><meta property='article:tag' content='DevOps' /><meta property='article:tag' content='Linux' /><meta property='article:published_time' content='2019-09-25T04:42:11&#43;00:00'/><meta property='article:modified_time' content='2019-09-25T04:42:11&#43;00:00'/>
+<meta name="twitter:title" content="Jenkins 结合 Docker 实现低配版的 CI&amp;CD">
+<meta name="twitter:description" content="随着项目的不断增多，最开始单体项目手动执行 docker build 命令，手动发布项目就不再适用了。一两个项目可能还吃得消，10 多个项目每天让你构建一次还是够呛。即便你的项目少，每次花费在发布上面的时间累计起来都够你改几个 BUG 了。
+所以我们需要自动化这个流程，让项目的发布和测试不再这么繁琐。在这里我使用了 Jenkins 作为基础的 CI/CD Pipeline 工具，关于 Jenkins 的具体介绍这里就不再赘述。在版本管理、构建项目、单元测试、集成测试、环境部署我分别使用到了 Gogs、Docker、Docker Swarm(已与 Docker 整合) 这几个软件协同工作。
+以下步骤我参考了 Continuous Integration with Jenkins and Docker 一文，并使用了作者提供的 groovy 文件和 slave.py 文件。
+关于 Docker-CE 的安装，请参考我的另一篇博文 《Linux 下的 Docker 安装与使用》 。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/jenkins-combines-docker-to-implement-low-level-ci/">Jenkins 结合 Docker 实现低配版的 CI&amp;CD</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Sep 25, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 7 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>随着项目的不断增多，最开始单体项目手动执行 <code>docker build</code> 命令，手动发布项目就不再适用了。一两个项目可能还吃得消，10 多个项目每天让你构建一次还是够呛。即便你的项目少，每次花费在发布上面的时间累计起来都够你改几个 BUG 了。</p>
+<p>所以我们需要自动化这个流程，让项目的发布和测试不再这么繁琐。在这里我使用了 Jenkins 作为基础的 CI/CD Pipeline 工具，关于 Jenkins 的具体介绍这里就不再赘述。在版本管理、构建项目、单元测试、集成测试、环境部署我分别使用到了 <strong>Gogs</strong>、<strong>Docker</strong>、<strong>Docker Swarm(已与 Docker 整合)</strong> 这几个软件协同工作。</p>
+<p>以下步骤我参考了 <strong><a class="link" href="https://code-maze.com/ci-jenkins-docker/#comments"  target="_blank" rel="noopener"
+    >Continuous Integration with Jenkins and Docker</a></strong> 一文，并使用了作者提供的 groovy 文件和 <code>slave.py</code> 文件。</p>
+<p>关于 <strong>Docker-CE</strong> 的安装，请参考我的另一篇博文 <a class="link" href="https://www.cnblogs.com/myzony/p/9071210.html"  target="_blank" rel="noopener"
+    >《Linux 下的 Docker 安装与使用》</a> 。</p>
+<h2 id="一jenkins-的部署">一、Jenkins 的部署</h2>
+<p>既然都用了 Docker，我是不想在实体机上面安装一堆环境，所以我使用了 Docker 的形式来部署 Jenkins 的 Master 和 Slave，省时省力。Master 就是调度管道任务的主机，也是唯一有 UI 供用户操作的。而 Slave 就是具体的工作节点，用于执行具体的管道任务。</p>
+<h3 id="11-构建-master-镜像">1.1 构建 Master 镜像</h3>
+<p>第一步，我们在主机上建立一个 master 文件夹，并使用 <code>vi </code>创建两个 groovy 文件，这两个文件在后面的 Dockerfile 会被使用到，下面是 <code>default-user.groovy</code> 文件的代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-groovy" data-lang="groovy"><span class="line"><span class="cl"><span class="kn">import</span> <span class="nn">jenkins.model.*</span>
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="nn">hudson.security.*</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">def</span> <span class="n">env</span> <span class="o">=</span> <span class="n">System</span><span class="o">.</span><span class="na">getenv</span><span class="o">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">def</span> <span class="n">jenkins</span> <span class="o">=</span> <span class="n">Jenkins</span><span class="o">.</span><span class="na">getInstance</span><span class="o">()</span>
+</span></span><span class="line"><span class="cl"><span class="n">jenkins</span><span class="o">.</span><span class="na">setSecurityRealm</span><span class="o">(</span><span class="k">new</span> <span class="n">HudsonPrivateSecurityRealm</span><span class="o">(</span><span class="kc">false</span><span class="o">))</span>
+</span></span><span class="line"><span class="cl"><span class="n">jenkins</span><span class="o">.</span><span class="na">setAuthorizationStrategy</span><span class="o">(</span><span class="k">new</span> <span class="n">GlobalMatrixAuthorizationStrategy</span><span class="o">())</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">def</span> <span class="n">user</span> <span class="o">=</span> <span class="n">jenkins</span><span class="o">.</span><span class="na">getSecurityRealm</span><span class="o">().</span><span class="na">createAccount</span><span class="o">(</span><span class="n">env</span><span class="o">.</span><span class="na">JENKINS_USER</span><span class="o">,</span> <span class="n">env</span><span class="o">.</span><span class="na">JENKINS_PASS</span><span class="o">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">user</span><span class="o">.</span><span class="na">save</span><span class="o">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">jenkins</span><span class="o">.</span><span class="na">getAuthorizationStrategy</span><span class="o">().</span><span class="na">add</span><span class="o">(</span><span class="n">Jenkins</span><span class="o">.</span><span class="na">ADMINISTER</span><span class="o">,</span> <span class="n">env</span><span class="o">.</span><span class="na">JENKINS_USER</span><span class="o">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">jenkins</span><span class="o">.</span><span class="na">save</span><span class="o">()</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>接着再用 <code>vi</code> 创建一个新的 <code>executors.groovy</code> 文件，并输入以下内容：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-groovy" data-lang="groovy"><span class="line"><span class="cl"><span class="kn">import</span> <span class="nn">jenkins.model.*</span>
+</span></span><span class="line"><span class="cl"><span class="n">Jenkins</span><span class="o">.</span><span class="na">instance</span><span class="o">.</span><span class="na">setNumExecutors</span><span class="o">(</span><span class="mi">0</span><span class="o">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>以上动作完成之后，在 master 文件夹下面应该有两个 groovy 文件。</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569304766695.png"
+	width="1187"
+	height="122"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569304766695_hu610ff5b4b3e945607ef9c8b934cff5f1_30298_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569304766695_hu610ff5b4b3e945607ef9c8b934cff5f1_30298_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569304766695"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="972"
+		data-flex-basis="2335px"
+	
+></p>
+<p>两个 master 所需要的 groovy 文件已经编写完成，下面来编写 master 镜像的 Dockerfile 文件，每一步的作用我已经用中文进行了标注。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-dockerfile" data-lang="dockerfile"><span class="line"><span class="cl"><span class="c"># 使用官方的 Jenkins 镜像作为基础镜像。</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">FROM</span><span class="s"> jenkins/jenkins:latest</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span> <span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c"># 使用内置的 install-plugins.sh 来安装插件。</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> /usr/local/bin/install-plugins.sh git matrix-auth workflow-aggregator docker-workflow blueocean credentials-binding<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span> <span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c"># 设置 Jenkins 的管理员账户和密码。</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENV</span> JENKINS_USER admin<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENV</span> JENKINS_PASS admin<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span> <span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c"># 跳过初始化安装向导。</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENV</span> JAVA_OPTS -Djenkins.install.runSetupWizard<span class="o">=</span>false<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span> <span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c"># 将刚刚编写的两个 groovy 脚本复制到初始化文件夹内。</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">COPY</span> executors.groovy /usr/share/jenkins/ref/init.groovy.d/<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">COPY</span> default-user.groovy /usr/share/jenkins/ref/init.groovy.d/<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c"># 挂载 jenkins_home 目录到 Docker 卷。</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">VOLUME</span><span class="s"> /var/jenkins_home</span><span class="err">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>接着我们通过命令构建出 Master 镜像。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">docker build -t jenkins-master .
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569310062770.png"
+	width="1687"
+	height="710"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569310062770_hua4416823c569a0be8dd13b651cc3078f_195504_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569310062770_hua4416823c569a0be8dd13b651cc3078f_195504_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569310062770"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="237"
+		data-flex-basis="570px"
+	
+></p>
+<h3 id="12-构建-slave-镜像">1.2 构建 Slave 镜像</h3>
+<p>Slave 镜像的核心是一个 <code>slave.py</code> 的 python 脚本，它主要执行的动作是运行 <code>slave.jar</code> 并和 Master 建立通信，这样你的管道任务就能够交给 Slave 进行执行。这个脚本所做的工作流程如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">st=&gt;start: 脚本执行
+</span></span><span class="line"><span class="cl">stop=&gt;end: 容器停止
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">op1=&gt;operation: 导入 &#34;jenkins&#34; 的 python 模块
+</span></span><span class="line"><span class="cl">op2=&gt;operation: 等待 Master 启动
+</span></span><span class="line"><span class="cl">cond1=&gt;condition: Master 是否可用
+</span></span><span class="line"><span class="cl">op3=&gt;operation: 下载 slave.jar 文件到容器内
+</span></span><span class="line"><span class="cl">op4=&gt;operation: 通过 JLNP 连接到 Master 节点
+</span></span><span class="line"><span class="cl">op5=&gt;operation: 使用凭据通过授权验证
+</span></span><span class="line"><span class="cl">op6=&gt;operation: 成功运行 Slave
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">st-&gt;op1-&gt;op2-&gt;cond1
+</span></span><span class="line"><span class="cl">cond1(no)-&gt;op2
+</span></span><span class="line"><span class="cl">cond1(yes)-&gt;op3-&gt;op4-&gt;op5-&gt;op6-&gt;stop
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>我们再建立一个 slave 文件夹，并使用 <code>vi</code> 将 python 脚本复制进去。</p>
+<p><code>slave.py</code> 的内容：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span><span class="lnt">75
+</span><span class="lnt">76
+</span><span class="lnt">77
+</span><span class="lnt">78
+</span><span class="lnt">79
+</span><span class="lnt">80
+</span><span class="lnt">81
+</span><span class="lnt">82
+</span><span class="lnt">83
+</span><span class="lnt">84
+</span><span class="lnt">85
+</span><span class="lnt">86
+</span><span class="lnt">87
+</span><span class="lnt">88
+</span><span class="lnt">89
+</span><span class="lnt">90
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="kn">from</span> <span class="nn">jenkins</span> <span class="kn">import</span> <span class="n">Jenkins</span><span class="p">,</span> <span class="n">JenkinsError</span><span class="p">,</span> <span class="n">NodeLaunchMethod</span>
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="nn">os</span>
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="nn">signal</span>
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="nn">sys</span>
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="nn">urllib</span>
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="nn">subprocess</span>
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="nn">shutil</span>
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="nn">requests</span>
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="nn">time</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">slave_jar</span> <span class="o">=</span> <span class="s1">&#39;/var/lib/jenkins/slave.jar&#39;</span>
+</span></span><span class="line"><span class="cl"><span class="n">slave_name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;SLAVE_NAME&#39;</span><span class="p">]</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;SLAVE_NAME&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;&#39;</span> <span class="k">else</span> <span class="s1">&#39;docker-slave-&#39;</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;HOSTNAME&#39;</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl"><span class="n">jnlp_url</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;JENKINS_URL&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;/computer/&#39;</span> <span class="o">+</span> <span class="n">slave_name</span> <span class="o">+</span> <span class="s1">&#39;/slave-agent.jnlp&#39;</span>
+</span></span><span class="line"><span class="cl"><span class="n">slave_jar_url</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;JENKINS_URL&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;/jnlpJars/slave.jar&#39;</span>
+</span></span><span class="line"><span class="cl"><span class="nb">print</span><span class="p">(</span><span class="n">slave_jar_url</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">process</span> <span class="o">=</span> <span class="kc">None</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">def</span> <span class="nf">clean_dir</span><span class="p">(</span><span class="nb">dir</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">dirs</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="nb">dir</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">            <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">f</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dirs</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">d</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">def</span> <span class="nf">slave_create</span><span class="p">(</span><span class="n">node_name</span><span class="p">,</span> <span class="n">working_dir</span><span class="p">,</span> <span class="n">executors</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">    <span class="n">j</span> <span class="o">=</span> <span class="n">Jenkins</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;JENKINS_URL&#39;</span><span class="p">],</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;JENKINS_USER&#39;</span><span class="p">],</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;JENKINS_PASS&#39;</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl">    <span class="n">j</span><span class="o">.</span><span class="n">node_create</span><span class="p">(</span><span class="n">node_name</span><span class="p">,</span> <span class="n">working_dir</span><span class="p">,</span> <span class="n">num_executors</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">executors</span><span class="p">),</span> <span class="n">labels</span> <span class="o">=</span> <span class="n">labels</span><span class="p">,</span> <span class="n">launcher</span> <span class="o">=</span> <span class="n">NodeLaunchMethod</span><span class="o">.</span><span class="n">JNLP</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">def</span> <span class="nf">slave_delete</span><span class="p">(</span><span class="n">node_name</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">    <span class="n">j</span> <span class="o">=</span> <span class="n">Jenkins</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;JENKINS_URL&#39;</span><span class="p">],</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;JENKINS_USER&#39;</span><span class="p">],</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;JENKINS_PASS&#39;</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl">    <span class="n">j</span><span class="o">.</span><span class="n">node_delete</span><span class="p">(</span><span class="n">node_name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">def</span> <span class="nf">slave_download</span><span class="p">(</span><span class="n">target</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">slave_jar</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">slave_jar</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">loader</span> <span class="o">=</span> <span class="n">urllib</span><span class="o">.</span><span class="n">URLopener</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="n">loader</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;JENKINS_URL&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;/jnlpJars/slave.jar&#39;</span><span class="p">,</span> <span class="s1">&#39;/var/lib/jenkins/slave.jar&#39;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">def</span> <span class="nf">slave_run</span><span class="p">(</span><span class="n">slave_jar</span><span class="p">,</span> <span class="n">jnlp_url</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">    <span class="n">params</span> <span class="o">=</span> <span class="p">[</span> <span class="s1">&#39;java&#39;</span><span class="p">,</span> <span class="s1">&#39;-jar&#39;</span><span class="p">,</span> <span class="n">slave_jar</span><span class="p">,</span> <span class="s1">&#39;-jnlpUrl&#39;</span><span class="p">,</span> <span class="n">jnlp_url</span> <span class="p">]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;JENKINS_SLAVE_ADDRESS&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;&#39;</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">        <span class="n">params</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span> <span class="s1">&#39;-connectTo&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;JENKINS_SLAVE_ADDRESS&#39;</span> <span class="p">]</span> <span class="p">])</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;SLAVE_SECRET&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">        <span class="n">params</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span> <span class="s1">&#39;-jnlpCredentials&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;JENKINS_USER&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;:&#39;</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;JENKINS_PASS&#39;</span><span class="p">]</span> <span class="p">])</span>
+</span></span><span class="line"><span class="cl">    <span class="k">else</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">        <span class="n">params</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span> <span class="s1">&#39;-secret&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;SLAVE_SECRET&#39;</span><span class="p">]</span> <span class="p">])</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">def</span> <span class="nf">signal_handler</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="n">process</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">        <span class="n">process</span><span class="o">.</span><span class="n">send_signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span><span class="p">,</span> <span class="n">signal_handler</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGTERM</span><span class="p">,</span> <span class="n">signal_handler</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">def</span> <span class="nf">master_ready</span><span class="p">(</span><span class="n">url</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">    <span class="k">try</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">        <span class="n">r</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">verify</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">r</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="n">requests</span><span class="o">.</span><span class="n">codes</span><span class="o">.</span><span class="n">ok</span>
+</span></span><span class="line"><span class="cl">    <span class="k">except</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="kc">False</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">while</span> <span class="ow">not</span> <span class="n">master_ready</span><span class="p">(</span><span class="n">slave_jar_url</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">print</span><span class="p">(</span><span class="s2">&#34;Master not ready yet, sleeping for 10sec!&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">slave_download</span><span class="p">(</span><span class="n">slave_jar</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nb">print</span> <span class="s1">&#39;Downloaded Jenkins slave jar.&#39;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;SLAVE_WORING_DIR&#39;</span><span class="p">]:</span>
+</span></span><span class="line"><span class="cl">    <span class="n">os</span><span class="o">.</span><span class="n">setcwd</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;SLAVE_WORING_DIR&#39;</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;CLEAN_WORKING_DIR&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;true&#39;</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="n">clean_dir</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">print</span> <span class="s2">&#34;Cleaned up working directory.&#34;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;SLAVE_NAME&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="n">slave_create</span><span class="p">(</span><span class="n">slave_name</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">(),</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;SLAVE_EXECUTORS&#39;</span><span class="p">],</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;SLAVE_LABELS&#39;</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">print</span> <span class="s1">&#39;Created temporary Jenkins slave.&#39;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">process</span> <span class="o">=</span> <span class="n">slave_run</span><span class="p">(</span><span class="n">slave_jar</span><span class="p">,</span> <span class="n">jnlp_url</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nb">print</span> <span class="s1">&#39;Started Jenkins slave with name &#34;&#39;</span> <span class="o">+</span> <span class="n">slave_name</span> <span class="o">+</span> <span class="s1">&#39;&#34; and labels [&#39;</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;SLAVE_LABELS&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;].&#39;</span>
+</span></span><span class="line"><span class="cl"><span class="n">process</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nb">print</span> <span class="s1">&#39;Jenkins slave stopped.&#39;</span>
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;SLAVE_NAME&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="n">slave_delete</span><span class="p">(</span><span class="n">slave_name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">print</span> <span class="s1">&#39;Removed temporary Jenkins slave.&#39;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>上述脚本的工作基本与流程图的一致，因为 Jenkins 针对 Python 提供了 SDK ，所以原作者使用 Python 来编写的 “代理” 程序。不过 Jenkins 也有 RESTful API，你也可以使用 .NET Core 编写类似的 “代理” 程序。</p>
+<p>接着我们来编写 Slave 镜像的 Dockerfile 文件，因为国内服务器访问 Ubuntu 的源很慢，经常因为超时导致构建失败，这里切换成了阿里云的源，其内容如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-dockerfile" data-lang="dockerfile"><span class="line"><span class="cl"><span class="k">FROM</span><span class="s"> ubuntu:16.04</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span> <span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c"># 安装 Docker CLI。</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> sed -i s@/archive.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list <span class="o">&amp;&amp;</span> apt-get clean<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> apt-get update --fix-missing <span class="o">&amp;&amp;</span> apt-get install -y apt-transport-https ca-certificates curl openjdk-8-jre python python-pip git<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c"># 使用阿里云的镜像源。</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> curl -fsSL http://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg <span class="p">|</span> apt-key add -<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> <span class="nb">echo</span> <span class="s2">&#34;deb [arch=amd64] http://mirrors.aliyun.com/docker-ce/linux/ubuntu xenial stable&#34;</span> &gt; /etc/apt/sources.list.d/docker.list<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> apt-get update --fix-missing <span class="o">&amp;&amp;</span> apt-get install -y docker-ce --allow-unauthenticated<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> easy_install jenkins-webapi<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c"># 安装 Docker-Compose 工具。</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> curl -L https://github.com/docker/compose/releases/download/1.21.2/docker-compose-<span class="sb">`</span>uname -s<span class="sb">`</span>-<span class="sb">`</span>uname -m<span class="sb">`</span> &gt; /usr/local/bin/docker-compose <span class="o">&amp;&amp;</span> chmod +x /usr/local/bin/docker-compose<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> mkdir -p /home/jenkins<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> mkdir -p /var/lib/jenkins<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c"># 将 slave.py 文件添加到容器。</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ADD</span> slave.py /var/lib/jenkins/slave.py<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">WORKDIR</span><span class="s"> /home/jenkins</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c"># 配置 Jenkins Master 的一些连接参数和 Slave 信息。</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENV</span> JENKINS_URL <span class="s2">&#34;http://jenkins&#34;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENV</span> JENKINS_SLAVE_ADDRESS <span class="s2">&#34;&#34;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENV</span> JENKINS_USER <span class="s2">&#34;admin&#34;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENV</span> JENKINS_PASS <span class="s2">&#34;admin&#34;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENV</span> SLAVE_NAME <span class="s2">&#34;&#34;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENV</span> SLAVE_SECRET <span class="s2">&#34;&#34;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENV</span> SLAVE_EXECUTORS <span class="s2">&#34;1&#34;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENV</span> SLAVE_LABELS <span class="s2">&#34;docker&#34;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENV</span> SLAVE_WORING_DIR <span class="s2">&#34;&#34;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENV</span> CLEAN_WORKING_DIR <span class="s2">&#34;true&#34;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span> <span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">CMD</span> <span class="p">[</span> <span class="s2">&#34;python&#34;</span><span class="p">,</span> <span class="s2">&#34;-u&#34;</span><span class="p">,</span> <span class="s2">&#34;/var/lib/jenkins/slave.py&#34;</span> <span class="p">]</span><span class="err">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>继续使用 <code>docker build</code> 构建 Slave 镜像：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker build -t jenkins-slave .
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="13-编写-docker-compose-文件">1.3 编写 Docker Compose 文件</h3>
+<p>这里的 Docker Compose 文件，我取名叫 <code>docker-compose.jenkins.yaml</code> ，主要工作是为了启动 Master 和 Slave 容器。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s1">&#39;3.1&#39;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">services</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">jenkins</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">container_name</span><span class="p">:</span><span class="w"> </span><span class="l">jenkins</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">ports</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">            </span>- <span class="s1">&#39;8080:8080&#39;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">            </span>- <span class="s1">&#39;50000:50000&#39;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l">jenkins-master</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">jenkins-slave</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">container_name</span><span class="p">:</span><span class="w"> </span><span class="l">jenkins-slave</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">restart</span><span class="p">:</span><span class="w"> </span><span class="l">always</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">environment</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">            </span>- <span class="s1">&#39;JENKINS_URL=http://jenkins:8080&#39;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l">jenkins-slave</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">volumes</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">            </span>- <span class="l">/var/run/docker.sock:/var/run/docker.sock </span><span class="w"> </span><span class="c"># 将宿主机的 Docker Daemon 挂载到容器内部。</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">            </span>- <span class="l">/home/jenkins:/home/jenkins</span><span class="w"> </span><span class="c"># 将数据挂载出来，方便后续进行释放。</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">depends_on</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">            </span>- <span class="l">jenkins</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>执行 Docker Compose 之后，我们通过 <code>宿主机 IP:8080</code> 就可以访问到 Jenkins 内部了，如下图。</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569317919395.png"
+	width="3840"
+	height="1877"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569317919395_huf468a4d59467a253cefa6dcd361e50c2_80151_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569317919395_huf468a4d59467a253cefa6dcd361e50c2_80151_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569317919395"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="204"
+		data-flex-basis="490px"
+	
+></p>
+<h2 id="二gogs-的部署">二、Gogs 的部署</h2>
+<p>我们内部开发使用的 Git 仓库是使用 Gogs 进行搭建的，Gogs 官方提供了 Docker 镜像，那我们可以直接编写一个 Docker Compose 快速部署 Gogs。</p>
+<p><code>docker-compose.gogs.yaml</code> 文件内容如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s1">&#39;3.1&#39;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">services</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">gogs</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l">gogs/gogs</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">container_name</span><span class="p">:</span><span class="w"> </span><span class="s1">&#39;gogs&#39;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">expose</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="s1">&#39;3000:3000&#39;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">expose</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="m">22</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="l">/var/lib/docker/Persistence/Gogs:/data	# 挂载数据卷。</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">restart</span><span class="p">:</span><span class="w"> </span><span class="l">always</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>执行以下命令后，即可启动 Gogs 程序，访问 <code>宿主机 IP:3000</code> 按照配置说明安装 Gogs 即可，之后你就可以创建远程仓库了。</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569309071060.png"
+	width="2482"
+	height="1591"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569309071060_hu0fdd500473f20cf8c47d71376dbeba69_248403_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569309071060_hu0fdd500473f20cf8c47d71376dbeba69_248403_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569309071060"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="156"
+		data-flex-basis="374px"
+	
+></p>
+<h2 id="三gogs-与-jenkins-的集成">三、Gogs 与 Jenkins 的集成</h2>
+<p>虽然大部分都推荐 Jenkins 的 Gogs Webhook 插件，不过这个插件很久不更新了，而且不支持 <strong>版本发布</strong> 事件。针对于该问题虽然官方有 <a class="link" href="https://github.com/jenkinsci/gogs-webhook-plugin/pull/62"  target="_blank" rel="noopener"
+    >PR #62</a>，但一直没有合并，等到合并的时候都是猴年马月了。这里还是建议使用 <strong>Generic Webhook Trigger</strong> ，用这个插件来触发 Jenkins 的管道任务。</p>
+<h3 id="31-创建流水线项目">3.1 创建流水线项目</h3>
+<p>首先找到 Jenkins 的插件中心，搜索 Generic Webhook Trigger 插件，并进行安装。</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/20190924210101.gif"
+	width="1920"
+	height="882"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/20190924210101_hud4323201595f837ed2c008c2975e63cc_1360368_480x0_resize_box.gif 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/20190924210101_hud4323201595f837ed2c008c2975e63cc_1360368_1024x0_resize_box.gif 1024w"
+	loading="lazy"
+	
+		alt="20190924210101"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="217"
+		data-flex-basis="522px"
+	
+></p>
+<p>继续新建一个管道任务，取名叫做 TestProject，类型选择 Pipeline 。</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/20190924210701.gif"
+	width="1920"
+	height="623"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/20190924210701_hu3435afd9011b083822ed8b3e00d1574a_284015_480x0_resize_box.gif 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/20190924210701_hu3435afd9011b083822ed8b3e00d1574a_284015_1024x0_resize_box.gif 1024w"
+	loading="lazy"
+	
+		alt="20190924210701"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="308"
+		data-flex-basis="739px"
+	
+></p>
+<p>首先配置项目的数据来源，选择 SCM，并且配置 Git 远程仓库的地址，如果是私有仓库则还需要设置用户名和密码。</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569330833479.png"
+	width="2886"
+	height="1498"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569330833479_huf375df774c6d8359d4b998504cf49c2b_267894_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569330833479_huf375df774c6d8359d4b998504cf49c2b_267894_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569330833479"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="192"
+		data-flex-basis="462px"
+	
+></p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569330858800.png"
+	width="2873"
+	height="1092"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569330858800_hu2a8b18bb77abc4f7894f60818761fabe_117614_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569330858800_hu2a8b18bb77abc4f7894f60818761fabe_117614_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569330858800"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="263"
+		data-flex-basis="631px"
+	
+></p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569330897596.png"
+	width="1854"
+	height="275"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569330897596_hucbde5b5a5a9c898ea35a2aaf23443bff_37749_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569330897596_hucbde5b5a5a9c898ea35a2aaf23443bff_37749_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569330897596"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="674"
+		data-flex-basis="1618px"
+	
+></p>
+<h3 id="32-jenkins-的-webhook-配置">3.2 Jenkins 的 Webhook 配置</h3>
+<p>流水线项目建立完成后，我们就可以开始设置 Generic WebHook Trigger 的一些参数，以便让远程的 Gogs 能够触发构建任务。</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569331415017.png"
+	width="2924"
+	height="646"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569331415017_hud2284df3cf1724649a123ca347391870_88867_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569331415017_hud2284df3cf1724649a123ca347391870_88867_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569331415017"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="452"
+		data-flex-basis="1086px"
+	
+></p>
+<p>我们为 TestProject 创建一个 Token，这个 Token 是跟流水线任务绑定了，说白了就是流水线任务的一个标识。建议使用随机 Guid 作为 Token，不然其他人都可以随便触发你的流水线任务进行构建了。</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569334122415.png"
+	width="2865"
+	height="1530"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569334122415_hu26f931aa342f51c8c56adfa84b9ab9a5_300448_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569334122415_hu26f931aa342f51c8c56adfa84b9ab9a5_300448_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569334122415"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="187"
+		data-flex-basis="449px"
+	
+></p>
+<h3 id="33-gogs-的-webhook-配置">3.3 Gogs 的 Webhook 配置</h3>
+<p>接着来到刚刚我们建好的仓库，找到 <strong>仓库设置-&gt;管理 Web 钩子-&gt;添加 Web 钩子-&gt;Gogs</strong> 。</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569311317013.png"
+	width="2436"
+	height="998"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569311317013_hu4dd11577ea45f4613396f553ec32a489_160767_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569311317013_hu4dd11577ea45f4613396f553ec32a489_160767_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569311317013"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="244"
+		data-flex-basis="585px"
+	
+></p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569331737902.png"
+	width="2155"
+	height="1869"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569331737902_hu0fb3ad5524967b89dfb8d01dc5415872_381628_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569331737902_hu0fb3ad5524967b89dfb8d01dc5415872_381628_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569331737902"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="115"
+		data-flex-basis="276px"
+	
+></p>
+<p>因为触发构建不可能每次提交都触发，一般来说都是创建了某个合并请求，或者发布新版本的时候就会触发流水线任务。因此这里你可以根据自己的情况来选择触发事件，这里我以合并请求为例，你可以在钩子设置页面点击 <strong>测试推送</strong>。这样就可以看到 Gogs 发送给 Jenkins 的 JSON 结构是怎样的，你就能够在 Jenkins 那边有条件的进行处理。</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569331889328.png"
+	width="1581"
+	height="649"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569331889328_hu6030bfb72df541ba091fd7c66f62c796_61601_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569331889328_hu6030bfb72df541ba091fd7c66f62c796_61601_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569331889328"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="243"
+		data-flex-basis="584px"
+	
+></p>
+<p>不过测试推送只能够针对普通的 push 事件进行测试，像 <strong>合并请求</strong> 或者 <strong>版本发布</strong> 这种事件只能自己模拟操作了。在这里我新建了一个用户，Fork 了另一个帐号建立的 TestProject 仓库。</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569333744053.png"
+	width="2049"
+	height="1008"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569333744053_hufe8f55118e891bd0117265ad5014f6a0_184477_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569333744053_hufe8f55118e891bd0117265ad5014f6a0_184477_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569333744053"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="203"
+		data-flex-basis="487px"
+	
+></p>
+<p>在 Fork 的仓库里面，我新建了一个 Readme.md 文件，然后点击创建合并，这个时候你看 Gogs 的 WebHook 推送记录就有一条新的数据推送给 Jenkins，同时你也可以在 Jenkins 看到流水线任务被触发了。</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569333872900.png"
+	width="2339"
+	height="1509"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569333872900_hu4e24f3ba2f2b3df865e4035f27c70f58_136895_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569333872900_hu4e24f3ba2f2b3df865e4035f27c70f58_136895_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569333872900"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="155"
+		data-flex-basis="372px"
+	
+></p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569333943683.png"
+	width="1635"
+	height="1650"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569333943683_huee82677301f48e64d8c4dbdb2ff39299_217576_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569333943683_huee82677301f48e64d8c4dbdb2ff39299_217576_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569333943683"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="99"
+		data-flex-basis="237px"
+	
+></p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569333895518.png"
+	width="1382"
+	height="1211"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569333895518_hudc7b8ceb3619443fe25a75fdd362b699_206931_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569333895518_hudc7b8ceb3619443fe25a75fdd362b699_206931_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569333895518"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="114"
+		data-flex-basis="273px"
+	
+></p>
+<h3 id="34-限定任务触发条件">3.4 限定任务触发条件</h3>
+<p>通过上面的步骤，我们已经将 Gogs 和 Jenkins 中的具体任务进行了绑定。不过还有一个比较尴尬的问题是，Gogs 的合并事件不仅仅包括创建合并，它的原始描述是这样说的。</p>
+<blockquote>
+<p>合并请求事件包括合并被开启、关闭、重新开启、编辑、指派、取消指派、更新标签、清除标签、设置里程碑、取消设置里程碑或代码同步。</p>
+</blockquote>
+<p>如果我们仅仅是依靠上面的配置，那么上述所有行为都会触发构建操作，这肯定不是我们想要的效果。还好 Generic Webhook 为我们提供了变量获取，以及 Webhook 过滤。</p>
+<p>我们从 Gogs 发往 Jenkins 的请求中可以看到，在 JSON 内部包含了一个 <code>action</code> 字段，里面就是本次的操作标识。那么我们就可以想到通过判断 <code>action</code> 字段是否等于 <code>opened </code>来触发流水线任务。</p>
+<p>首先，我们增加 4 个 <strong>Post content parameters</strong> 参数，分别获取到 Gogs 传递过来的 <code>action</code> 和 PR 的 Id，这里我解释一下几个文本框的意思。</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569335075858.png"
+	width="2796"
+	height="1006"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569335075858_hub1d8addb29ac2db4259ecdf23bd05ac3_190077_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569335075858_hub1d8addb29ac2db4259ecdf23bd05ac3_190077_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569335075858"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="277"
+		data-flex-basis="667px"
+	
+></p>
+<p>除了这两个 Post 参数以外，在请求头中，Gogs 还携带了具体事件，我们将其一起作为过滤条件。<strong>需要注意的是，针对于请求头的参数，在转换成变量时，插件会将字符转为小写，并会使用 &lsquo;_&rsquo; 代替 &lsquo;-&rsquo;。</strong></p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569335210285.png"
+	width="2745"
+	height="587"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569335210285_huf51df76435bbe6616e9b6282da9735f3_103070_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569335210285_huf51df76435bbe6616e9b6282da9735f3_103070_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569335210285"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="467"
+		data-flex-basis="1122px"
+	
+></p>
+<p>最后我们编写一个 <strong>Optional filter</strong> ，它的 Expression 参数是正则表达式，下面的 Text 即是源字符串。实现很简单，当 Text 里面的内容满足正则表达式的时候，就会触发流水线任务。</p>
+<p>所以我们的 Text 字符串就是由上面三个变量的值组成，然后和我们预期的值进行匹配即可。</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569335465457.png"
+	width="2422"
+	height="468"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569335465457_hu4f02a3d67ef3907121c5a6eeee390333_93947_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569335465457_hu4f02a3d67ef3907121c5a6eeee390333_93947_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569335465457"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="517"
+		data-flex-basis="1242px"
+	
+></p>
+<blockquote>
+<p>当然，你还想整一些更加炫酷的功能，可以使用 Jenkins 提供的 Http Request 之类的插件。因为 Gogs 提供了 API 接口，你就可以在构建完成之后，回写给 Gogs，用于提示构建结果。</p>
+<p>这样的话，这种功能就有点像 Github 上面的机器人帐号了。</p>
+</blockquote>
+<h2 id="四完整的项目示例">四、完整的项目示例</h2>
+<p>在上一节我们通过 Jenkins 的插件完成了远程仓库推送通知，当我们合并代码时，Jenkins 会自动触发执行我们的管道任务。接下来我将建立一个 .NET Core 项目，该项目拥有一个 Controller，接收到请求之后输出 “Hello World”。随后为该项目建立一个 xUnit 的测试项目，用于执行单元测试。</p>
+<p>整个项目的结构如下图：</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569319357702.png"
+	width="652"
+	height="582"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569319357702_hub5fbb990ae23cdbfcec8ec51f9c825e9_27201_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569319357702_hub5fbb990ae23cdbfcec8ec51f9c825e9_27201_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569319357702"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="112"
+		data-flex-basis="268px"
+	
+></p>
+<p>我们需要编写一个 <code>UnitTest.Dockerfile</code> 镜像，用于执行 xUnit 单元测试。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-dockerfile" data-lang="dockerfile"><span class="line"><span class="cl"><span class="k">FROM</span><span class="s"> mcr.microsoft.com/dotnet/core/sdk:2.2</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c"># 还原 NuGet 包。</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">WORKDIR</span><span class="s"> /home/app</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">COPY</span> ./ ./<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> dotnet restore<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENTRYPOINT</span> <span class="p">[</span><span class="s2">&#34;dotnet&#34;</span><span class="p">,</span> <span class="s2">&#34;test&#34;</span> <span class="p">,</span> <span class="s2">&#34;--verbosity=normal&#34;</span><span class="p">]</span><span class="err">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>之后为部署操作编写一个 <code>Deploy.Dockerfile</code> ，这个 Dockerfile 首先还原了 NuGet 包，然后通过 <code>dotnet publish</code> 命令发布了我们的网站。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-dockerfile" data-lang="dockerfile"><span class="line"><span class="cl"><span class="k">FROM</span><span class="s"> mcr.microsoft.com/dotnet/core/sdk:2.2 as build-image</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c"># 还原 NuGet 包。</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">WORKDIR</span><span class="s"> /home/app</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">COPY</span> ./ ./<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> dotnet restore<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c"># 发布镜像。</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">COPY</span> ./ ./<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> dotnet publish ./TestProject.WebApi/TestProject.WebApi.csproj -o /publish/<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">FROM</span><span class="s"> mcr.microsoft.com/dotnet/core/aspnet:2.2</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">WORKDIR</span><span class="s"> /publish</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">COPY</span> --from<span class="o">=</span>build-image /publish .<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENTRYPOINT</span> <span class="p">[</span><span class="s2">&#34;dotnet&#34;</span><span class="p">,</span> <span class="s2">&#34;TestProject.WebApi.dll&#34;</span><span class="p">]</span><span class="err">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>两个 Dockerfile 编写完成之后，将其存放在项目的根目录，以便 Slave 进行构建。</p>
+<p>Dockerfile 编写好了，那么我们还要分别为两个镜像编写 Docker Compose 文件，用于执行单元测试和部署行为，用于部署的文件名称叫做 <code>docker-compose.Deploy.yaml</code>，内容如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s1">&#39;3.1&#39;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">services</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">backend</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">container_name</span><span class="p">:</span><span class="w"> </span><span class="l">dev-test-backend</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l">dev-test:B${BUILD_NUMBER}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w"> 
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="s1">&#39;5000:5000&#39;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">restart</span><span class="p">:</span><span class="w"> </span><span class="l">always</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>然后我们需要编写运行单元测试的 Docker Compose 文件，名字叫做 <code>docker-compose.UnitTest.yaml</code>，内容如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s1">&#39;3.1&#39;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">services</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">backend</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">container_name</span><span class="p">:</span><span class="w"> </span><span class="l">dev-test-unit-test</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l">dev-test:TEST${BUILD_NUMBER}</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="五编写-jenkinsfile">五、编写 Jenkinsfile</h2>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">node(&#39;docker&#39;) {
+</span></span><span class="line"><span class="cl"> 
+</span></span><span class="line"><span class="cl">    stage &#39;签出代码&#39;
+</span></span><span class="line"><span class="cl">        checkout scm
+</span></span><span class="line"><span class="cl">    stage &#39;单元测试&#39;
+</span></span><span class="line"><span class="cl">        sh &#34;docker build -t dev-test:TEST${BUILD_NUMBER} -f UnitTest.Dockerfile .&#34;
+</span></span><span class="line"><span class="cl">        sh &#34;docker-compose -f docker-compose.UnitTest.yaml up --force-recreate --abort-on-container-exit&#34;
+</span></span><span class="line"><span class="cl">        sh &#34;docker-compose -f docker-compose.UnitTest.yaml down -v&#34;
+</span></span><span class="line"><span class="cl">    stage &#39;部署项目&#39;
+</span></span><span class="line"><span class="cl">        sh &#34;docker build -t dev-test:B${BUILD_NUMBER} -f Deploy.Dockerfile .&#34;
+</span></span><span class="line"><span class="cl">        sh &#39;docker-compose -f docker-compose.Deploy.yaml up -d&#39;
+</span></span><span class="line"><span class="cl">}
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="六最后的效果">六、最后的效果</h2>
+<p>上述操作完成之后，将这些文件放在项目根目录。</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569342792065.png"
+	width="1982"
+	height="737"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569342792065_hu358f8da16c3be33ab3fab64c57a6129c_169831_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569342792065_hu358f8da16c3be33ab3fab64c57a6129c_169831_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569342792065"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="268"
+		data-flex-basis="645px"
+	
+></p>
+<p>回到 Jenkins，你可以手动执行一下任务，然后项目就被成功执行了。</p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569342849864.png"
+	width="3831"
+	height="1362"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569342849864_hu96e02516599d5f0fe503257b4b97e1e7_320697_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569342849864_hu96e02516599d5f0fe503257b4b97e1e7_320697_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569342849864"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="281"
+		data-flex-basis="675px"
+	
+></p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569342887871.png"
+	width="3740"
+	height="1808"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569342887871_hu99442620474d692a7b59fa8df01e7b4c_435041_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569342887871_hu99442620474d692a7b59fa8df01e7b4c_435041_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569342887871"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="206"
+		data-flex-basis="496px"
+	
+></p>
+<p><img src="/p/jenkins-combines-docker-to-implement-low-level-ci/1569342899658.png"
+	width="3775"
+	height="868"
+	srcset="/p/jenkins-combines-docker-to-implement-low-level-ci/1569342899658_hub2aef015a7251f2972a330850af6a8ad_106869_480x0_resize_box_3.png 480w, /p/jenkins-combines-docker-to-implement-low-level-ci/1569342899658_hub2aef015a7251f2972a330850af6a8ad_106869_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1569342899658"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="434"
+		data-flex-basis="1043px"
+	
+></p>
+<p>至此，我们的 “低配版” CI、CD 环境就搭建成功了。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/jenkins/">Jenkins</a>
+        
+            <a href="/tags/docker/">Docker</a>
+        
+            <a href="/tags/ci/cd/">CI/CD</a>
+        
+            <a href="/tags/docker-compose/">Docker Compose</a>
+        
+            <a href="/tags/devops/">DevOps</a>
+        
+            <a href="/tags/linux/">Linux</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/continuous-integrationdeployment-for-net-core-with-jenkins/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">使用 Jenkins 为 .Net Core 实现持续集成/部署</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/install-docker-compose-on-centos-7x/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">CentOS 7.x 安装 Docker-Compose</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/harbor-212-installation-and-deployment/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Harbor 2.1.2 安装部署</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/docker-container-directory-garbled-problem-with-dotnet-core/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">dotNET Core 的 Docker 容器目录乱码问题</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/docker-install-elk/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Docker 安装 ELK</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一jenkins-的部署">一、Jenkins 的部署</a>
+      <ol>
+        <li><a href="#11-构建-master-镜像">1.1 构建 Master 镜像</a></li>
+        <li><a href="#12-构建-slave-镜像">1.2 构建 Slave 镜像</a></li>
+        <li><a href="#13-编写-docker-compose-文件">1.3 编写 Docker Compose 文件</a></li>
+      </ol>
+    </li>
+    <li><a href="#二gogs-的部署">二、Gogs 的部署</a></li>
+    <li><a href="#三gogs-与-jenkins-的集成">三、Gogs 与 Jenkins 的集成</a>
+      <ol>
+        <li><a href="#31-创建流水线项目">3.1 创建流水线项目</a></li>
+        <li><a href="#32-jenkins-的-webhook-配置">3.2 Jenkins 的 Webhook 配置</a></li>
+        <li><a href="#33-gogs-的-webhook-配置">3.3 Gogs 的 Webhook 配置</a></li>
+        <li><a href="#34-限定任务触发条件">3.4 限定任务触发条件</a></li>
+      </ol>
+    </li>
+    <li><a href="#四完整的项目示例">四、完整的项目示例</a></li>
+    <li><a href="#五编写-jenkinsfile">五、编写 Jenkinsfile</a></li>
+    <li><a href="#六最后的效果">六、最后的效果</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

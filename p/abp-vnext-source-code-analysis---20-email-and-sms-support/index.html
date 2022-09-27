@@ -1,0 +1,1642 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、简介 ABP vNext 使用 Volo.Abp.Sms 包和 Volo.Abp.Emailing 包将短信和电子邮件作为基础设施进行了抽象，开发人员仅需要在使用的时候注入 ISmsSender 或 IEmailSender 即可实现短信发送和邮件发送。
+二、源码分析 2.1 启动模块 短信发送的抽象层比较简单，AbpSmsModule 模块内部并无任何操作，仅作为空模块进行定义。
+电子邮件的 AbpEmailingModule 模块内，主要添加了一些本地化资源支持。另一个动作就是添加了一个 BackgroundEmailSendingJob 后台作业，这个后台作业主要是用于后续发送电子邮件使用。因为邮件发送这个动作实时性要求并不高，在实际的业务实践当中，我们基本会将其加入到一个后台队列慢慢发送，所以这里 ABP 为我们实现了 BackgroundEmailSendingJob。
+'><title>Abp vNext 源码分析 - 20. 电子邮件与短信支持</title>
+
+<link rel='canonical' href='https://example.com/p/abp-vnext-source-code-analysis---20-email-and-sms-support/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp vNext 源码分析 - 20. 电子邮件与短信支持'>
+<meta property='og:description' content='一、简介 ABP vNext 使用 Volo.Abp.Sms 包和 Volo.Abp.Emailing 包将短信和电子邮件作为基础设施进行了抽象，开发人员仅需要在使用的时候注入 ISmsSender 或 IEmailSender 即可实现短信发送和邮件发送。
+二、源码分析 2.1 启动模块 短信发送的抽象层比较简单，AbpSmsModule 模块内部并无任何操作，仅作为空模块进行定义。
+电子邮件的 AbpEmailingModule 模块内，主要添加了一些本地化资源支持。另一个动作就是添加了一个 BackgroundEmailSendingJob 后台作业，这个后台作业主要是用于后续发送电子邮件使用。因为邮件发送这个动作实时性要求并不高，在实际的业务实践当中，我们基本会将其加入到一个后台队列慢慢发送，所以这里 ABP 为我们实现了 BackgroundEmailSendingJob。
+'>
+<meta property='og:url' content='https://example.com/p/abp-vnext-source-code-analysis---20-email-and-sms-support/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='ABP vNext' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='ASP.NET Core' /><meta property='article:tag' content='ASP.NET Core MVC' /><meta property='article:published_time' content='2021-06-28T01:43:29&#43;00:00'/><meta property='article:modified_time' content='2021-06-28T01:43:29&#43;00:00'/>
+<meta name="twitter:title" content="Abp vNext 源码分析 - 20. 电子邮件与短信支持">
+<meta name="twitter:description" content="一、简介 ABP vNext 使用 Volo.Abp.Sms 包和 Volo.Abp.Emailing 包将短信和电子邮件作为基础设施进行了抽象，开发人员仅需要在使用的时候注入 ISmsSender 或 IEmailSender 即可实现短信发送和邮件发送。
+二、源码分析 2.1 启动模块 短信发送的抽象层比较简单，AbpSmsModule 模块内部并无任何操作，仅作为空模块进行定义。
+电子邮件的 AbpEmailingModule 模块内，主要添加了一些本地化资源支持。另一个动作就是添加了一个 BackgroundEmailSendingJob 后台作业，这个后台作业主要是用于后续发送电子邮件使用。因为邮件发送这个动作实时性要求并不高，在实际的业务实践当中，我们基本会将其加入到一个后台队列慢慢发送，所以这里 ABP 为我们实现了 BackgroundEmailSendingJob。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">Abp vNext 源码分析 - 20. 电子邮件与短信支持</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jun 28, 2021</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 8 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一简介">一、简介</h2>
+<p>ABP vNext 使用 <em>Volo.Abp.Sms</em> 包和 <em>Volo.Abp.Emailing</em> 包将短信和电子邮件作为基础设施进行了抽象，开发人员仅需要在使用的时候注入 <code>ISmsSender</code> 或 <code>IEmailSender</code> 即可实现短信发送和邮件发送。</p>
+<h2 id="二源码分析">二、源码分析</h2>
+<h3 id="21-启动模块">2.1 启动模块</h3>
+<p>短信发送的抽象层比较简单，<code>AbpSmsModule</code> 模块内部并无任何操作，仅作为空模块进行定义。</p>
+<p>电子邮件的 <code>AbpEmailingModule</code> 模块内，主要添加了一些本地化资源支持。另一个动作就是添加了一个 <code>BackgroundEmailSendingJob</code> 后台作业，这个后台作业主要是用于后续发送电子邮件使用。因为邮件发送这个动作实时性要求并不高，在实际的业务实践当中，我们基本会将其加入到一个后台队列慢慢发送，所以这里 ABP 为我们实现了 <code>BackgroundEmailSendingJob</code>。</p>
+<p><em>BackgroundEmailSendingJob.cs</em>:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">BackgroundEmailSendingJob</span> <span class="p">:</span> <span class="n">AsyncBackgroundJob</span><span class="p">&lt;</span><span class="n">BackgroundEmailSendingJobArgs</span><span class="p">&gt;,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IEmailSender</span> <span class="n">EmailSender</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">BackgroundEmailSendingJob</span><span class="p">(</span><span class="n">IEmailSender</span> <span class="n">emailSender</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">EmailSender</span> <span class="p">=</span> <span class="n">emailSender</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">ExecuteAsync</span><span class="p">(</span><span class="n">BackgroundEmailSendingJobArgs</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">args</span><span class="p">.</span><span class="n">From</span><span class="p">.</span><span class="n">IsNullOrWhiteSpace</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">EmailSender</span><span class="p">.</span><span class="n">SendAsync</span><span class="p">(</span><span class="n">args</span><span class="p">.</span><span class="n">To</span><span class="p">,</span> <span class="n">args</span><span class="p">.</span><span class="n">Subject</span><span class="p">,</span> <span class="n">args</span><span class="p">.</span><span class="n">Body</span><span class="p">,</span> <span class="n">args</span><span class="p">.</span><span class="n">IsBodyHtml</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">else</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">EmailSender</span><span class="p">.</span><span class="n">SendAsync</span><span class="p">(</span><span class="n">args</span><span class="p">.</span><span class="n">From</span><span class="p">,</span> <span class="n">args</span><span class="p">.</span><span class="n">To</span><span class="p">,</span> <span class="n">args</span><span class="p">.</span><span class="n">Subject</span><span class="p">,</span> <span class="n">args</span><span class="p">.</span><span class="n">Body</span><span class="p">,</span> <span class="n">args</span><span class="p">.</span><span class="n">IsBodyHtml</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这个后台任务的逻辑也不复杂，就使用 <code>IEmailSender</code> 发送邮件，我们在任何地方需要后台发送邮件的时，只需要注入 <code>IBackgroundJobManager</code>，使用 <code>BackgroundEmailSendingJobArgs</code> 作为参数添加入队一个后台作业即可。</p>
+<p>使用 <code>IBackgroundJobManager</code> 添加一个新的邮件发送欢迎邮件:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">DemoClass</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IBackgroundJobManager</span> <span class="n">_backgroundJobManager</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IUserInfoRepository</span> <span class="n">_userRep</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">DemoClass</span><span class="p">(</span><span class="n">IBackgroundJobManager</span> <span class="n">backgroundJobManager</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IUserInfoRepository</span> <span class="n">userRep</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_backgroundJobManager</span> <span class="p">=</span> <span class="n">backgroundJobManager</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_userRep</span> <span class="p">=</span> <span class="n">userRep</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">SendWelcomeEmailAsync</span><span class="p">(</span><span class="n">Guid</span> <span class="n">userId</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">userInfo</span> <span class="p">=</span> <span class="k">await</span> <span class="n">_userRep</span><span class="p">.</span><span class="n">GetByIdAsync</span><span class="p">(</span><span class="n">userId</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">_backgroundJobManager</span><span class="p">.</span><span class="n">EnqueueAsync</span><span class="p">(</span><span class="k">new</span> <span class="n">BackgroundEmailSendingJobArgs</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">To</span> <span class="p">=</span> <span class="n">userInfo</span><span class="p">.</span><span class="n">EmailAddress</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Subject</span> <span class="p">=</span> <span class="s">&#34;Welcome&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Body</span> <span class="p">=</span> <span class="s">&#34;Welcome, Hello World!&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">IsBodyHtml</span> <span class="p">=</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><blockquote>
+<p><strong>注意</strong></p>
+<p>目前 <code>BackgroundEmailSendingJobArgs</code> 参数不支持发送附件，ABP 可能在以后的版本会进行实现。</p>
+</blockquote>
+<h3 id="22-email-的核心组件">2.2 Email 的核心组件</h3>
+<p>ABP 定义了一个 <code>IEmailSender</code> 接口，定义了多个 <code>SendAsync()</code> 方法重载，用于直接发送电子邮件。同时也提供了 <code>QueueAsync()</code> 方法，通过后台任务队列来发送邮件。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IEmailSender</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span> <span class="n">SendAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">to</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">subject</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">body</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">bool</span> <span class="n">isBodyHtml</span> <span class="p">=</span> <span class="k">true</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span> <span class="n">SendAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="k">from</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">to</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">subject</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">body</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">bool</span> <span class="n">isBodyHtml</span> <span class="p">=</span> <span class="k">true</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span> <span class="n">SendAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">MailMessage</span> <span class="n">mail</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">bool</span> <span class="n">normalize</span> <span class="p">=</span> <span class="k">true</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span> <span class="n">QueueAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">to</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">subject</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">body</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">bool</span> <span class="n">isBodyHtml</span> <span class="p">=</span> <span class="k">true</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span> <span class="n">QueueAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="k">from</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">to</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">subject</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">body</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">bool</span> <span class="n">isBodyHtml</span> <span class="p">=</span> <span class="k">true</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">//TODO: 准备添加的 QueueAsync 方法。目前存在的问题: MailMessage 不能够被序列化，所以不能加入到后台任务队列当中。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>ABP 实际拥有两种 Email Sender 实现，分别是 <code>SmtpEmailSender</code> 和 <code>MailkitEmailSender</code>，各个类型的关系如下。</p>
+<p><img src="/image-20210624230655006.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20210624230655006"
+	
+	
+></p>
+<p><strong>UML 类图:</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">classDiagram
+</span></span><span class="line"><span class="cl">	class IEmailSender{
+</span></span><span class="line"><span class="cl">		&lt;&lt;Interface&gt;&gt;
+</span></span><span class="line"><span class="cl">		+SendAsync(string,string,string,bool=true) Task
+</span></span><span class="line"><span class="cl">		+SendAsync(string,string,string,string,bool=true) Task
+</span></span><span class="line"><span class="cl">		+SendAsync(MailMessage,bool=true) Task
+</span></span><span class="line"><span class="cl">		+QueueAsync(string,string,string,bool=true) Task
+</span></span><span class="line"><span class="cl">		+QueueAsync(string,string,string,string,bool=true) Task
+</span></span><span class="line"><span class="cl">	}
+</span></span><span class="line"><span class="cl">	class ISmtpEmailSender{
+</span></span><span class="line"><span class="cl">		&lt;&lt;Interface&gt;&gt;
+</span></span><span class="line"><span class="cl">		......
+</span></span><span class="line"><span class="cl">		+BuildClientAsync() Task~SmtpClient~
+</span></span><span class="line"><span class="cl">	}
+</span></span><span class="line"><span class="cl">	class IMailKitSmtpEmailSemder{
+</span></span><span class="line"><span class="cl">		&lt;&lt;Interface&gt;&gt;
+</span></span><span class="line"><span class="cl">		......
+</span></span><span class="line"><span class="cl">		+BuildClientAsync() Task~SmtpClient~
+</span></span><span class="line"><span class="cl">	}
+</span></span><span class="line"><span class="cl">	class EmailSenderBase{
+</span></span><span class="line"><span class="cl">		&lt;&lt;Abstract&gt;&gt;
+</span></span><span class="line"><span class="cl">		......
+</span></span><span class="line"><span class="cl">	}
+</span></span><span class="line"><span class="cl">	class SmtpEmailSender{
+</span></span><span class="line"><span class="cl">		......
+</span></span><span class="line"><span class="cl">	}
+</span></span><span class="line"><span class="cl">	class MailKitSmtpEmailSender{
+</span></span><span class="line"><span class="cl">		......
+</span></span><span class="line"><span class="cl">	}
+</span></span><span class="line"><span class="cl">	class NullEmailSender{
+</span></span><span class="line"><span class="cl">		......
+</span></span><span class="line"><span class="cl">	}
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	ISmtpEmailSender --|&gt; IEmailSender: 继承
+</span></span><span class="line"><span class="cl">	IMailKitSmtpEmailSemder --|&gt; IEmailSender: 继承
+</span></span><span class="line"><span class="cl">	EmailSenderBase ..|&gt; IEmailSender: 实现
+</span></span><span class="line"><span class="cl">	SmtpEmailSender ..|&gt; ISmtpEmailSender: 实现
+</span></span><span class="line"><span class="cl">	SmtpEmailSender --|&gt; EmailSenderBase: 继承
+</span></span><span class="line"><span class="cl">	NullEmailSender --|&gt; EmailSenderBase: 继承
+</span></span><span class="line"><span class="cl">	MailKitSmtpEmailSender ..|&gt; IMailKitSmtpEmailSemder: 实现
+</span></span><span class="line"><span class="cl">	MailKitSmtpEmailSender --|&gt; EmailSenderBase: 继承
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以从 UML 类图看出，每个 EmailSender 实现都与一个 <code>IXXXConfiguration</code> 对应，这个配置类存储了基于 Smtp 发件的必须配置。因为 MailKit 本身也是基于 Smtp 发送邮件的，所以没有重新定义新的配置类，而是直接复用的 <code>ISmtpEmailSenderConfiguration</code> 接口与实现。</p>
+<p>在 <code>EmailSenderBase</code> 基类当中，基本实现了 <code>IEmailSender</code> 接口的所有方法的逻辑，只留下了 <code>SendEmailAsync(MailMessage mail)</code> 作为一个抽象方法等待子类实现。也就是说其他的方法最终都是使用该方法来最终发送邮件。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">EmailSenderBase</span> <span class="p">:</span> <span class="n">IEmailSender</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IEmailSenderConfiguration</span> <span class="n">Configuration</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IBackgroundJobManager</span> <span class="n">BackgroundJobManager</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">EmailSenderBase</span><span class="p">(</span><span class="n">IEmailSenderConfiguration</span> <span class="n">configuration</span><span class="p">,</span> <span class="n">IBackgroundJobManager</span> <span class="n">backgroundJobManager</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Configuration</span> <span class="p">=</span> <span class="n">configuration</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">BackgroundJobManager</span> <span class="p">=</span> <span class="n">backgroundJobManager</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 实现的接口方法</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">abstract</span> <span class="n">Task</span> <span class="n">SendEmailAsync</span><span class="p">(</span><span class="n">MailMessage</span> <span class="n">mail</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 使用 Configuration 里面的参数，统一处理邮件数据。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">NormalizeMailAsync</span><span class="p">(</span><span class="n">MailMessage</span> <span class="n">mail</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">mail</span><span class="p">.</span><span class="n">From</span> <span class="p">==</span> <span class="k">null</span> <span class="p">||</span> <span class="n">mail</span><span class="p">.</span><span class="n">From</span><span class="p">.</span><span class="n">Address</span><span class="p">.</span><span class="n">IsNullOrEmpty</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">mail</span><span class="p">.</span><span class="n">From</span> <span class="p">=</span> <span class="k">new</span> <span class="n">MailAddress</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="k">await</span> <span class="n">Configuration</span><span class="p">.</span><span class="n">GetDefaultFromAddressAsync</span><span class="p">(),</span>
+</span></span><span class="line"><span class="cl">                <span class="k">await</span> <span class="n">Configuration</span><span class="p">.</span><span class="n">GetDefaultFromDisplayNameAsync</span><span class="p">(),</span>
+</span></span><span class="line"><span class="cl">                <span class="n">Encoding</span><span class="p">.</span><span class="n">UTF8</span>
+</span></span><span class="line"><span class="cl">                <span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">mail</span><span class="p">.</span><span class="n">HeadersEncoding</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">mail</span><span class="p">.</span><span class="n">HeadersEncoding</span> <span class="p">=</span> <span class="n">Encoding</span><span class="p">.</span><span class="n">UTF8</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">mail</span><span class="p">.</span><span class="n">SubjectEncoding</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">mail</span><span class="p">.</span><span class="n">SubjectEncoding</span> <span class="p">=</span> <span class="n">Encoding</span><span class="p">.</span><span class="n">UTF8</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">mail</span><span class="p">.</span><span class="n">BodyEncoding</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">mail</span><span class="p">.</span><span class="n">BodyEncoding</span> <span class="p">=</span> <span class="n">Encoding</span><span class="p">.</span><span class="n">UTF8</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>ABP 默认可用的邮件发送组件是 <code>SmtpEmailSender</code>，它使用的是 .NET 自带的邮件发送组件，本质上就是构建了一个 <code>SmtpClient</code> 客户端，然后调用它的发件方法进行邮件发送。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">SmtpEmailSender</span> <span class="p">:</span> <span class="n">EmailSenderBase</span><span class="p">,</span> <span class="n">ISmtpEmailSender</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 省略的代码。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">SmtpClient</span><span class="p">&gt;</span> <span class="n">BuildClientAsync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">host</span> <span class="p">=</span> <span class="k">await</span> <span class="n">SmtpConfiguration</span><span class="p">.</span><span class="n">GetHostAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">port</span> <span class="p">=</span> <span class="k">await</span> <span class="n">SmtpConfiguration</span><span class="p">.</span><span class="n">GetPortAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">smtpClient</span> <span class="p">=</span> <span class="k">new</span> <span class="n">SmtpClient</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 从 SettingProvider 中获取各个配置参数，构建 Client 进行发送。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">try</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="k">await</span> <span class="n">SmtpConfiguration</span><span class="p">.</span><span class="n">GetEnableSslAsync</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">smtpClient</span><span class="p">.</span><span class="n">EnableSsl</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="k">await</span> <span class="n">SmtpConfiguration</span><span class="p">.</span><span class="n">GetUseDefaultCredentialsAsync</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">smtpClient</span><span class="p">.</span><span class="n">UseDefaultCredentials</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="k">else</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">smtpClient</span><span class="p">.</span><span class="n">UseDefaultCredentials</span> <span class="p">=</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="kt">var</span> <span class="n">userName</span> <span class="p">=</span> <span class="k">await</span> <span class="n">SmtpConfiguration</span><span class="p">.</span><span class="n">GetUserNameAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">                <span class="k">if</span> <span class="p">(!</span><span class="n">userName</span><span class="p">.</span><span class="n">IsNullOrEmpty</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                    <span class="kt">var</span> <span class="n">password</span> <span class="p">=</span> <span class="k">await</span> <span class="n">SmtpConfiguration</span><span class="p">.</span><span class="n">GetPasswordAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">                    <span class="kt">var</span> <span class="n">domain</span> <span class="p">=</span> <span class="k">await</span> <span class="n">SmtpConfiguration</span><span class="p">.</span><span class="n">GetDomainAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">smtpClient</span><span class="p">.</span><span class="n">Credentials</span> <span class="p">=</span> <span class="p">!</span><span class="n">domain</span><span class="p">.</span><span class="n">IsNullOrEmpty</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">                        <span class="p">?</span> <span class="k">new</span> <span class="n">NetworkCredential</span><span class="p">(</span><span class="n">userName</span><span class="p">,</span> <span class="n">password</span><span class="p">,</span> <span class="n">domain</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                        <span class="p">:</span> <span class="k">new</span> <span class="n">NetworkCredential</span><span class="p">(</span><span class="n">userName</span><span class="p">,</span> <span class="n">password</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">                <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">smtpClient</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">catch</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">smtpClient</span><span class="p">.</span><span class="n">Dispose</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="k">throw</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">SendEmailAsync</span><span class="p">(</span><span class="n">MailMessage</span> <span class="n">mail</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 调用构建方法，构建 Client，用于发送 mail 数据。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">smtpClient</span> <span class="p">=</span> <span class="k">await</span> <span class="n">BuildClientAsync</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">smtpClient</span><span class="p">.</span><span class="n">SendMailAsync</span><span class="p">(</span><span class="n">mail</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>针对属性注入失败的情况，ABP 提供了 <code>NullEmailSender</code> 作为默认实现，在发送邮件的时候会使用 <em>Logger</em> 打印具体的信息。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">NullEmailSender</span> <span class="p">:</span> <span class="n">EmailSenderBase</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ILogger</span><span class="p">&lt;</span><span class="n">NullEmailSender</span><span class="p">&gt;</span> <span class="n">Logger</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">NullEmailSender</span><span class="p">(</span><span class="n">IEmailSenderConfiguration</span> <span class="n">configuration</span><span class="p">,</span> <span class="n">IBackgroundJobManager</span> <span class="n">backgroundJobManager</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">:</span> <span class="k">base</span><span class="p">(</span><span class="n">configuration</span><span class="p">,</span> <span class="n">backgroundJobManager</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Logger</span> <span class="p">=</span> <span class="n">NullLogger</span><span class="p">&lt;</span><span class="n">NullEmailSender</span><span class="p">&gt;.</span><span class="n">Instance</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">override</span> <span class="n">Task</span> <span class="n">SendEmailAsync</span><span class="p">(</span><span class="n">MailMessage</span> <span class="n">mail</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Logger</span><span class="p">.</span><span class="n">LogWarning</span><span class="p">(</span><span class="s">&#34;USING NullEmailSender!&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Logger</span><span class="p">.</span><span class="n">LogDebug</span><span class="p">(</span><span class="s">&#34;SendEmailAsync:&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">LogEmail</span><span class="p">(</span><span class="n">mail</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">Task</span><span class="p">.</span><span class="n">FromResult</span><span class="p">(</span><span class="m">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他方法。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="23-email-的配置存储">2.3 Email 的配置存储</h3>
+<p>从 <code>EmailSenderBase</code> 里面可以看到，它从 <code>IEmailSenderConfiguration</code> 当中获取发件人的邮箱地址和展示名称，它的 UML 类图关系如下。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">classDiagram
+</span></span><span class="line"><span class="cl">	class IEmailSenderConfiguration{
+</span></span><span class="line"><span class="cl">		&lt;&lt;Interface&gt;&gt;
+</span></span><span class="line"><span class="cl">		+GetDefaultFromAddressAsync() Task~string~
+</span></span><span class="line"><span class="cl">		+GetDefaultFromDisplayNameAsync() Task~string~
+</span></span><span class="line"><span class="cl">	}
+</span></span><span class="line"><span class="cl">	class ISmtpEmailSenderConfiguration{
+</span></span><span class="line"><span class="cl">		&lt;&lt;Interface&gt;&gt;
+</span></span><span class="line"><span class="cl">		+GetHostAsync() Task~string~
+</span></span><span class="line"><span class="cl">		+GetPortAsync() Task~int~
+</span></span><span class="line"><span class="cl">		+GetUserNameAsync() Task~string~
+</span></span><span class="line"><span class="cl">		+GetPasswordAsync() Task~string~
+</span></span><span class="line"><span class="cl">		+GetDomainAsync() Task~string~
+</span></span><span class="line"><span class="cl">		+GetEnableSslAsync() Task~bool~
+</span></span><span class="line"><span class="cl">		+GetUseDefaultCredentialsAsync() Task~bool~
+</span></span><span class="line"><span class="cl">	}
+</span></span><span class="line"><span class="cl">	class EmailSenderConfiguration{
+</span></span><span class="line"><span class="cl">		#GetNotEmptySettingValueAsync(string name) Task~string~
+</span></span><span class="line"><span class="cl">	}
+</span></span><span class="line"><span class="cl">	class SmtpEmailSenderConfiguration{
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	}
+</span></span><span class="line"><span class="cl">	class ISettingProvider{
+</span></span><span class="line"><span class="cl">		&lt;&lt;Interface&gt;&gt;
+</span></span><span class="line"><span class="cl">		+GetOrNullAsync(string name) Task~string~
+</span></span><span class="line"><span class="cl">	}
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	ISmtpEmailSenderConfiguration --|&gt; IEmailSenderConfiguration: 继承
+</span></span><span class="line"><span class="cl">	EmailSenderConfiguration ..|&gt; IEmailSenderConfiguration: 实现
+</span></span><span class="line"><span class="cl">	EmailSenderConfiguration ..&gt; ISettingProvider: 依赖
+</span></span><span class="line"><span class="cl">	SmtpEmailSenderConfiguration --|&gt; EmailSenderConfiguration: 继承
+</span></span><span class="line"><span class="cl">	SmtpEmailSenderConfiguration ..|&gt; ISmtpEmailSenderConfiguration: 实现
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到配置文件时通过 <code>ISettingProvider</code> 获取的，这样就可以保证从不同租户甚至是用户来获取发件人的配置信息。这里值得注意的是在 <code>EmailSenderConfiguration</code> 中，实现了一个 <code>GetNotEmptySettingValueAsync(string name)</code> 方法，该方法主要是封装了获取逻辑，当值不存在的时候抛出 <code>AbpException</code> 异常。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetNotEmptySettingValueAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="k">value</span> <span class="p">=</span> <span class="k">await</span> <span class="n">SettingProvider</span><span class="p">.</span><span class="n">GetOrNullAsync</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="k">value</span><span class="p">.</span><span class="n">IsNullOrEmpty</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span> <span class="k">new</span> <span class="n">AbpException</span><span class="p">(</span><span class="s">$&#34;Setting value for &#39;{name}&#39; is null or empty!&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>至于 <code>SmtpEmailSenderConfiguration</code>，只是提供了其他的属性获取(密码、端口等)而已，本质上还是调用的 <code>GetNotEmptySettingValueAsync()</code> 方法从 <code>SettingProvider</code> 中获取具体的配置信息。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">sequenceDiagram
+</span></span><span class="line"><span class="cl">	发送邮件 -&gt;&gt; Smtp 配置类: 1.GetHostAsync()
+</span></span><span class="line"><span class="cl">	Smtp 配置类 -&gt;&gt; Email 配置类: 2.GetNotEmptySettingValueAsync(&#34;HotsItem&#34;)
+</span></span><span class="line"><span class="cl">	Email 配置类 -&gt;&gt; Setting Provider: 3.GetOrNullAsync(&#34;HotsItem&#34;)
+</span></span><span class="line"><span class="cl">	Setting Provider --&gt;&gt; 发送邮件: 4.获得主机数据。
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>关于配置名称的常量，都在 <code>EmailSettingNames</code> 里面进行定义，并使用 <code>EmailSettingProvider</code> 将其注册到 ABP 的配置模块当中:</p>
+<p><em>EmailSettingNames.cs</em></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">Volo.Abp.Emailing</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">EmailSettingNames</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">const</span> <span class="kt">string</span> <span class="n">DefaultFromAddress</span> <span class="p">=</span> <span class="s">&#34;Abp.Mailing.DefaultFromAddress&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">const</span> <span class="kt">string</span> <span class="n">DefaultFromDisplayName</span> <span class="p">=</span> <span class="s">&#34;Abp.Mailing.DefaultFromDisplayName&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">Smtp</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">public</span> <span class="k">const</span> <span class="kt">string</span> <span class="n">Host</span> <span class="p">=</span> <span class="s">&#34;Abp.Mailing.Smtp.Host&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">public</span> <span class="k">const</span> <span class="kt">string</span> <span class="n">Port</span> <span class="p">=</span> <span class="s">&#34;Abp.Mailing.Smtp.Port&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// ... 其他常量定义。</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><em>EmailSettingProvider.cs</em></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">internal</span> <span class="k">class</span> <span class="nc">EmailSettingProvider</span> <span class="p">:</span> <span class="n">SettingDefinitionProvider</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">Define</span><span class="p">(</span><span class="n">ISettingDefinitionContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="k">new</span> <span class="n">SettingDefinition</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">EmailSettingNames</span><span class="p">.</span><span class="n">Smtp</span><span class="p">.</span><span class="n">Host</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">                <span class="s">&#34;127.0.0.1&#34;</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">                <span class="n">L</span><span class="p">(</span><span class="s">&#34;DisplayName:Abp.Mailing.Smtp.Host&#34;</span><span class="p">),</span> 
+</span></span><span class="line"><span class="cl">                <span class="n">L</span><span class="p">(</span><span class="s">&#34;Description:Abp.Mailing.Smtp.Host&#34;</span><span class="p">)),</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">new</span> <span class="n">SettingDefinition</span><span class="p">(</span><span class="n">EmailSettingNames</span><span class="p">.</span><span class="n">Smtp</span><span class="p">.</span><span class="n">Port</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">                <span class="s">&#34;25&#34;</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">                <span class="n">L</span><span class="p">(</span><span class="s">&#34;DisplayName:Abp.Mailing.Smtp.Port&#34;</span><span class="p">),</span> 
+</span></span><span class="line"><span class="cl">                <span class="n">L</span><span class="p">(</span><span class="s">&#34;Description:Abp.Mailing.Smtp.Port&#34;</span><span class="p">)),</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// ... 其他配置参数。</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">static</span> <span class="n">LocalizableString</span> <span class="n">L</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">LocalizableString</span><span class="p">.</span><span class="n">Create</span><span class="p">&lt;</span><span class="n">EmailingResource</span><span class="p">&gt;(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="24-邮件模板">2.4 邮件模板</h3>
+<p>文字模板是 ABP 后续提供的一个新的模块，它可以让开发人员预先定义文本模板，然后使用时根据对象数据替换模板中的内容，并且 ABP 提供的文本模板还支持本地化。关于文本模板的功能，我们后续单独会写一篇文章进行说明，在这里只是大概 Mail 是如何使用的。</p>
+<p>在项目当中，ABP 仅定义了两个 *<em>.tpl</em> 的模板文件，分别是控制布局的 <em>Layout.tpl</em>，还有渲染具体消息的 <em>Message.tpl</em>。同权限、Setting 一样，模板也会使用一个 <code>StandardEmailTemplates</code> 类型定义模板的编码常量，并且实现一个 <code>XXXDefinitionProvider</code> 类型将其注入到 ABP 框架当中。</p>
+<p><em>StandardEmailTemplates.cs</em></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">public static class StandardEmailTemplates
+</span></span><span class="line"><span class="cl">{
+</span></span><span class="line"><span class="cl">    public const string Layout = &#34;Abp.StandardEmailTemplates.Layout&#34;;
+</span></span><span class="line"><span class="cl">    public const string Message = &#34;Abp.StandardEmailTemplates.Message&#34;;
+</span></span><span class="line"><span class="cl">}
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><em>StandardEmailTemplateDefinitionProvider.cs</em></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">StandardEmailTemplateDefinitionProvider</span> <span class="p">:</span> <span class="n">TemplateDefinitionProvider</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">Define</span><span class="p">(</span><span class="n">ITemplateDefinitionContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="k">new</span> <span class="n">TemplateDefinition</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">StandardEmailTemplates</span><span class="p">.</span><span class="n">Layout</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">displayName</span><span class="p">:</span> <span class="n">LocalizableString</span><span class="p">.</span><span class="n">Create</span><span class="p">&lt;</span><span class="n">EmailingResource</span><span class="p">&gt;(</span><span class="s">&#34;TextTemplate:StandardEmailTemplates.Layout&#34;</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">                <span class="n">isLayout</span><span class="p">:</span> <span class="k">true</span>
+</span></span><span class="line"><span class="cl">            <span class="p">).</span><span class="n">WithVirtualFilePath</span><span class="p">(</span><span class="s">&#34;/Volo/Abp/Emailing/Templates/Layout.tpl&#34;</span><span class="p">,</span> <span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="k">new</span> <span class="n">TemplateDefinition</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">StandardEmailTemplates</span><span class="p">.</span><span class="n">Message</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">displayName</span><span class="p">:</span> <span class="n">LocalizableString</span><span class="p">.</span><span class="n">Create</span><span class="p">&lt;</span><span class="n">EmailingResource</span><span class="p">&gt;(</span><span class="s">&#34;TextTemplate:StandardEmailTemplates.Message&#34;</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">                <span class="n">layout</span><span class="p">:</span> <span class="n">StandardEmailTemplates</span><span class="p">.</span><span class="n">Layout</span>
+</span></span><span class="line"><span class="cl">            <span class="p">).</span><span class="n">WithVirtualFilePath</span><span class="p">(</span><span class="s">&#34;/Volo/Abp/Emailing/Templates/Message.tpl&#34;</span><span class="p">,</span> <span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="25-mailkit-集成">2.5 MailKit 集成</h3>
+<p>MailKit 是一个优秀跨平台的 .NET 邮件操作库，它的官方 GitHub 地址为 <a class="link" href="https://github.com/jstedfast/MailKit"  target="_blank" rel="noopener"
+    >https://github.com/jstedfast/MailKit</a> ，支持很多高级特性，这里我就不再详细介绍 MailKit 的其他特性，只是讲解一下 MailKit 同 ABP 自带的邮件模块是如何集成的。</p>
+<p>官方的 <em>Volo.Abp.MailKit</em> 包仅包含 4 个文件，它们分别是 <em>AbpMailKitModule.cs</em> (空模块，占位)、<em>AbpMailKitOptions.cs</em> (MailKit 的特殊配置)、<em>IMailKitSmtpEmailSender.cs</em> (实现了 <code>IEmailSender</code> 基类的一个接口)、<em>MailKitSmtpEmailSender.cs</em> (具体的发送逻辑实现)。</p>
+<p>需要注意一下，这里针对 MailKit 的特殊配置是使用的 <code>IConfiguration</code> 里面的数据(通常是 appsetting.json)，而不是从 <em>Abp.Settings</em> 里面获取的。</p>
+<p><em>MailKitSmtpEmailSender.cs</em></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Dependency(ServiceLifetime.Transient, ReplaceServices = true)]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">MailKitSmtpEmailSender</span> <span class="p">:</span> <span class="n">EmailSenderBase</span><span class="p">,</span> <span class="n">IMailKitSmtpEmailSender</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">AbpMailKitOptions</span> <span class="n">AbpMailKitOptions</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">ISmtpEmailSenderConfiguration</span> <span class="n">SmtpConfiguration</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 构造函数。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">SendEmailAsync</span><span class="p">(</span><span class="n">MailMessage</span> <span class="n">mail</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">client</span> <span class="p">=</span> <span class="k">await</span> <span class="n">BuildClientAsync</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 使用了 mail 参数来构造 MailKit 的对象。</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">message</span> <span class="p">=</span> <span class="n">MimeMessage</span><span class="p">.</span><span class="n">CreateFromMailMessage</span><span class="p">(</span><span class="n">mail</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">client</span><span class="p">.</span><span class="n">SendAsync</span><span class="p">(</span><span class="n">message</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">client</span><span class="p">.</span><span class="n">DisconnectAsync</span><span class="p">(</span><span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 构造 MailKit 所需要的 Client 对象。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">SmtpClient</span><span class="p">&gt;</span> <span class="n">BuildClientAsync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">client</span> <span class="p">=</span> <span class="k">new</span> <span class="n">SmtpClient</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">try</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">ConfigureClient</span><span class="p">(</span><span class="n">client</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">client</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">catch</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">client</span><span class="p">.</span><span class="n">Dispose</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="k">throw</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 进行一些基本配置，比如服务器信息和密码信息等。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">ConfigureClient</span><span class="p">(</span><span class="n">SmtpClient</span> <span class="n">client</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">client</span><span class="p">.</span><span class="n">ConnectAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">SmtpConfiguration</span><span class="p">.</span><span class="n">GetHostAsync</span><span class="p">(),</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">SmtpConfiguration</span><span class="p">.</span><span class="n">GetPortAsync</span><span class="p">(),</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">GetSecureSocketOption</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="k">await</span> <span class="n">SmtpConfiguration</span><span class="p">.</span><span class="n">GetUseDefaultCredentialsAsync</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">client</span><span class="p">.</span><span class="n">AuthenticateAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">SmtpConfiguration</span><span class="p">.</span><span class="n">GetUserNameAsync</span><span class="p">(),</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">SmtpConfiguration</span><span class="p">.</span><span class="n">GetPasswordAsync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 根据 Option 的值获取一些安全配置。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">SecureSocketOptions</span><span class="p">&gt;</span> <span class="n">GetSecureSocketOption</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">AbpMailKitOptions</span><span class="p">.</span><span class="n">SecureSocketOption</span><span class="p">.</span><span class="n">HasValue</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">AbpMailKitOptions</span><span class="p">.</span><span class="n">SecureSocketOption</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">await</span> <span class="n">SmtpConfiguration</span><span class="p">.</span><span class="n">GetEnableSslAsync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">?</span> <span class="n">SecureSocketOptions</span><span class="p">.</span><span class="n">SslOnConnect</span>
+</span></span><span class="line"><span class="cl">            <span class="p">:</span> <span class="n">SecureSocketOptions</span><span class="p">.</span><span class="n">StartTlsWhenAvailable</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="26-短信发送的核心组件">2.6 短信发送的核心组件</h3>
+<p>短信发送仅提供了一个 <code>ISmsSender</code> 接口，该接口有提供一个发送方法，ABP 官方提供了 Aliyun 的短信发送功能(<em>Volo.Abp.Sms.Aliyun</em>)。</p>
+<p><em>UML 图</em>:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">classDiagram
+</span></span><span class="line"><span class="cl">	class ISmsSender{
+</span></span><span class="line"><span class="cl">		&lt;&lt;Interface&gt;&gt;
+</span></span><span class="line"><span class="cl">		SendAsync(SmsMessage smsMessage) Task
+</span></span><span class="line"><span class="cl">	}
+</span></span><span class="line"><span class="cl">	class NullSmsSender{
+</span></span><span class="line"><span class="cl">	}
+</span></span><span class="line"><span class="cl">	class SmsMessage{
+</span></span><span class="line"><span class="cl">		+string PhoneNumber
+</span></span><span class="line"><span class="cl">		+string Text
+</span></span><span class="line"><span class="cl">		+IDictionary~string, object~ Properties
+</span></span><span class="line"><span class="cl">	}
+</span></span><span class="line"><span class="cl">	NullSmsSender ..|&gt; ISmsSender: 实现
+</span></span><span class="line"><span class="cl">	ISmsSender ..&gt; SmsMessage: 依赖
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>功能比较简单，重点是 <code>SmsMessage</code> 里面的参数，第一个是发送的号码，第二个是发送的内容。仅凭上述参数肯定不够，所以 ABP 提供了一个属性字典，便于我们传入一些特定的参数。</p>
+<h2 id="三总结">三、总结</h2>
+<p>ABP 将 Email 这块功能封装成了单独的模块，便于开发人员进行邮件发送。并且官方也提供了 MailKit 的支持，我们可以根据自己的需求来替换不同的实现。只不过针对于一些异步邮件发送的场景，目前还不能很好的支持(主要是使用了 <code>MailMessage</code> 无法序列化)。</p>
+<p>我觉得 ABP 应该自己定义一个 Context 类型，反转依赖，在具体的实现当中确定邮件发送的对象类型。或者是将默认的 Smtp 发送者独立出来一个模块，就跟 MailKit 一样，使用 ABP 的 Context 类型来构造 <code>MailMessage</code> 对象。</p>
+<h2 id="四总目录">四、总目录</h2>
+<p>欢迎翻阅作者的其他文章，请 <strong><a class="link" href="https:"  target="_blank" rel="noopener"
+    >点击我</a></strong> 进行跳转，如果你觉得本篇文章对你有帮助，请点击文章末尾的 <strong>推荐按钮</strong>。</p>
+<p>最后更新时间: 2021年6月27日 23点31分</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/abp-vnext/">ABP vNext</a>
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/asp.net-core/">ASP.NET Core</a>
+        
+            <a href="/tags/asp.net-core-mvc/">ASP.NET Core MVC</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-multi-tenancy/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 多租户</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis-integration-of-entityframework-core/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 14. EntityFramework Core 的集成</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一简介">一、简介</a></li>
+    <li><a href="#二源码分析">二、源码分析</a>
+      <ol>
+        <li><a href="#21-启动模块">2.1 启动模块</a></li>
+        <li><a href="#22-email-的核心组件">2.2 Email 的核心组件</a></li>
+        <li><a href="#23-email-的配置存储">2.3 Email 的配置存储</a></li>
+        <li><a href="#24-邮件模板">2.4 邮件模板</a></li>
+        <li><a href="#25-mailkit-集成">2.5 MailKit 集成</a></li>
+        <li><a href="#26-短信发送的核心组件">2.6 短信发送的核心组件</a></li>
+      </ol>
+    </li>
+    <li><a href="#三总结">三、总结</a></li>
+    <li><a href="#四总目录">四、总目录</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

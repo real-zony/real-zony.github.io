@@ -1,0 +1,1633 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='0.简介 事件总线就是订阅/发布模式的一种实现，本质上事件总线的存在是为了降低耦合而存在的。
+从上图可以看到事件由发布者发布到事件总线处理器当中，然后经由事件总线处理器调用订阅者的处理方法，而发布者和订阅者之间并没有耦合关系。
+像 Windows 本身的设计也是基于事件驱动，当用户点击了某个按钮，那么就会触发相应的按钮点击事件，而程序只需要监听这个按钮点击事件即可进行相应的处理，而事件被触发的时候往往都会附带相应的事件源，事件所产生的数据等。
+还是以按钮被点击为例，该事件被触发的时候会装填上触发时间，被谁触发的数据放在一个 EventArgs 内部，然后将其存放到事件处理器中，然后处理器根据事件的类型去查找订阅了该事件类型的对象，附带上事件数据去调用这些订阅者对象的处理方法。
+Abp 本身也实现了事件总线，并且在框架内部也实现了丰富的事件类型，例如实体更新事件、异常事件等等。
+注意：在下文当中处理器的含义等同于订阅者，请阅读的时候自行切换。
+0.1.使用方法 在引用了 Abp 框架的项目当中使用事件总线相当简单，只需要直接注入 IEventBus 即可触发相应的事件。如果你想要监听某个事件，并且你也想在事件被触发的时候进行处理，那么直接继承自 IEventHandler&amp;lt;TEventData&amp;gt; / IAsyncEventHandler&amp;lt;TEventData&amp;gt; 实现其接口方法 HandleEvent() 即可。
+比如说，我们首先定义了一个 TestEventData 的事件，如下:
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 /// &amp;lt;summary&amp;gt; /// 测试事件 /// &amp;lt;/summary&amp;gt; public class TestEventData : EventData { public TestEventData(string code) { Code = code; } /// &amp;lt;summary&amp;gt; /// 待验证的编码 /// &amp;lt;/summary&amp;gt; public string Code { get; } } 很简单，这个事件触发的时候会传递一个 string 类型的 Code 参数。'><title>Abp 源码分析：九、事件总线</title>
+
+<link rel='canonical' href='https://example.com/p/abp-source-code-analysis-9-event-bus/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp 源码分析：九、事件总线'>
+<meta property='og:description' content='0.简介 事件总线就是订阅/发布模式的一种实现，本质上事件总线的存在是为了降低耦合而存在的。
+从上图可以看到事件由发布者发布到事件总线处理器当中，然后经由事件总线处理器调用订阅者的处理方法，而发布者和订阅者之间并没有耦合关系。
+像 Windows 本身的设计也是基于事件驱动，当用户点击了某个按钮，那么就会触发相应的按钮点击事件，而程序只需要监听这个按钮点击事件即可进行相应的处理，而事件被触发的时候往往都会附带相应的事件源，事件所产生的数据等。
+还是以按钮被点击为例，该事件被触发的时候会装填上触发时间，被谁触发的数据放在一个 EventArgs 内部，然后将其存放到事件处理器中，然后处理器根据事件的类型去查找订阅了该事件类型的对象，附带上事件数据去调用这些订阅者对象的处理方法。
+Abp 本身也实现了事件总线，并且在框架内部也实现了丰富的事件类型，例如实体更新事件、异常事件等等。
+注意：在下文当中处理器的含义等同于订阅者，请阅读的时候自行切换。
+0.1.使用方法 在引用了 Abp 框架的项目当中使用事件总线相当简单，只需要直接注入 IEventBus 即可触发相应的事件。如果你想要监听某个事件，并且你也想在事件被触发的时候进行处理，那么直接继承自 IEventHandler&amp;lt;TEventData&amp;gt; / IAsyncEventHandler&amp;lt;TEventData&amp;gt; 实现其接口方法 HandleEvent() 即可。
+比如说，我们首先定义了一个 TestEventData 的事件，如下:
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 /// &amp;lt;summary&amp;gt; /// 测试事件 /// &amp;lt;/summary&amp;gt; public class TestEventData : EventData { public TestEventData(string code) { Code = code; } /// &amp;lt;summary&amp;gt; /// 待验证的编码 /// &amp;lt;/summary&amp;gt; public string Code { get; } } 很简单，这个事件触发的时候会传递一个 string 类型的 Code 参数。'>
+<meta property='og:url' content='https://example.com/p/abp-source-code-analysis-9-event-bus/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='AspNetBoilerplate' /><meta property='article:tag' content='事件总线' /><meta property='article:published_time' content='2018-08-03T04:05:49&#43;00:00'/><meta property='article:modified_time' content='2018-08-03T04:05:49&#43;00:00'/>
+<meta name="twitter:title" content="Abp 源码分析：九、事件总线">
+<meta name="twitter:description" content="0.简介 事件总线就是订阅/发布模式的一种实现，本质上事件总线的存在是为了降低耦合而存在的。
+从上图可以看到事件由发布者发布到事件总线处理器当中，然后经由事件总线处理器调用订阅者的处理方法，而发布者和订阅者之间并没有耦合关系。
+像 Windows 本身的设计也是基于事件驱动，当用户点击了某个按钮，那么就会触发相应的按钮点击事件，而程序只需要监听这个按钮点击事件即可进行相应的处理，而事件被触发的时候往往都会附带相应的事件源，事件所产生的数据等。
+还是以按钮被点击为例，该事件被触发的时候会装填上触发时间，被谁触发的数据放在一个 EventArgs 内部，然后将其存放到事件处理器中，然后处理器根据事件的类型去查找订阅了该事件类型的对象，附带上事件数据去调用这些订阅者对象的处理方法。
+Abp 本身也实现了事件总线，并且在框架内部也实现了丰富的事件类型，例如实体更新事件、异常事件等等。
+注意：在下文当中处理器的含义等同于订阅者，请阅读的时候自行切换。
+0.1.使用方法 在引用了 Abp 框架的项目当中使用事件总线相当简单，只需要直接注入 IEventBus 即可触发相应的事件。如果你想要监听某个事件，并且你也想在事件被触发的时候进行处理，那么直接继承自 IEventHandler&amp;lt;TEventData&amp;gt; / IAsyncEventHandler&amp;lt;TEventData&amp;gt; 实现其接口方法 HandleEvent() 即可。
+比如说，我们首先定义了一个 TestEventData 的事件，如下:
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 /// &amp;lt;summary&amp;gt; /// 测试事件 /// &amp;lt;/summary&amp;gt; public class TestEventData : EventData { public TestEventData(string code) { Code = code; } /// &amp;lt;summary&amp;gt; /// 待验证的编码 /// &amp;lt;/summary&amp;gt; public string Code { get; } } 很简单，这个事件触发的时候会传递一个 string 类型的 Code 参数。">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-source-code-analysis-9-event-bus/">Abp 源码分析：九、事件总线</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Aug 03, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 8 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="0简介">0.简介</h2>
+<p>事件总线就是订阅/发布模式的一种实现，本质上事件总线的存在是为了降低耦合而存在的。</p>
+<p><img src="/p/abp-source-code-analysis-9-event-bus/1533199703120.png"
+	width="987"
+	height="327"
+	srcset="/p/abp-source-code-analysis-9-event-bus/1533199703120_hu4ae38a6e59906eea56b89e950c09044f_125231_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-9-event-bus/1533199703120_hu4ae38a6e59906eea56b89e950c09044f_125231_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1533199703120"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="301"
+		data-flex-basis="724px"
+	
+></p>
+<p>从上图可以看到事件由发布者发布到事件总线处理器当中，然后经由事件总线处理器调用订阅者的处理方法，而发布者和订阅者之间并没有耦合关系。</p>
+<p>像 Windows 本身的设计也是基于事件驱动，当用户点击了某个按钮，那么就会触发相应的按钮点击事件，而程序只需要监听这个按钮点击事件即可进行相应的处理，而事件被触发的时候往往都会附带相应的事件源，事件所产生的数据等。</p>
+<p>还是以按钮被点击为例，该事件被触发的时候会装填上触发时间，被谁触发的数据放在一个 <code>EventArgs</code> 内部，然后将其存放到事件处理器中，然后处理器根据事件的类型去查找订阅了该事件类型的对象，附带上事件数据去调用这些订阅者对象的处理方法。</p>
+<p>Abp 本身也实现了事件总线，并且在框架内部也实现了丰富的事件类型，例如实体更新事件、异常事件等等。</p>
+<blockquote>
+<p>注意：在下文当中处理器的含义等同于订阅者，请阅读的时候自行切换。</p>
+</blockquote>
+<h3 id="01使用方法">0.1.使用方法</h3>
+<p>在引用了 Abp 框架的项目当中使用事件总线相当简单，只需要直接注入 <code>IEventBus</code> 即可触发相应的事件。如果你想要监听某个事件，并且你也想在事件被触发的时候进行处理，那么直接继承自 <code>IEventHandler&lt;TEventData&gt;</code> / <code>IAsyncEventHandler&lt;TEventData&gt;</code> 实现其接口方法 <code>HandleEvent()</code> 即可。</p>
+<p>比如说，我们首先定义了一个 <code>TestEventData</code> 的事件，如下:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// 测试事件</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TestEventData</span> <span class="p">:</span> <span class="n">EventData</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TestEventData</span><span class="p">(</span><span class="kt">string</span> <span class="n">code</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Code</span> <span class="p">=</span> <span class="n">code</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 待验证的编码</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Code</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>很简单，这个事件触发的时候会传递一个 <code>string</code> 类型的 <code>Code</code> 参数。</p>
+<p>之后我们使用 <code>TestEventHandler</code> 订阅这个事件，当然订阅的方式很简单，实现接口即可。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TestEventHandler</span> <span class="p">:</span> <span class="n">IAsyncEventHandler</span><span class="p">&lt;</span><span class="n">TestEventData</span><span class="p">&gt;,</span> <span class="n">IEventHandler</span><span class="p">&lt;</span><span class="n">TestEventData</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Task</span> <span class="n">HandleEventAsync</span><span class="p">(</span><span class="n">TestEventData</span> <span class="n">eventData</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">eventData</span><span class="p">.</span><span class="n">Code</span> <span class="p">==</span> <span class="s">&#34;1&#34;</span><span class="p">)</span> <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;# 异步测试，编码正确&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;# 异步测试，编码错误&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">Task</span><span class="p">.</span><span class="n">FromResult</span><span class="p">(</span><span class="m">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">HandleEvent</span><span class="p">(</span><span class="n">TestEventData</span> <span class="n">eventData</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">eventData</span><span class="p">.</span><span class="n">Code</span> <span class="p">==</span> <span class="s">&#34;1&#34;</span><span class="p">)</span> <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;# 同步测试，编码正确&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;# 同步测试，编码错误&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>Abp 在底层会扫描实现了 <code>IEventHandler&lt;TEventData&gt;</code> / <code>IAsyncEventHandler&lt;TEventData&gt;</code> 这两个接口的类型，将其自动注册为订阅者。</p>
+<p>当然你也可以手动订阅：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TestAppService</span> <span class="p">:</span> <span class="n">ApplicationService</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IEventBus</span> <span class="n">_eventBus</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TestAppService</span><span class="p">(</span><span class="n">IEventBus</span> <span class="n">eventBus</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_eventBus</span> <span class="p">=</span> <span class="n">eventBus</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">TestMethod</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 同步触发</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_eventBus</span><span class="p">.</span><span class="n">Trigger</span><span class="p">(</span><span class="k">new</span> <span class="n">TestEventData</span><span class="p">(</span><span class="s">&#34;Code1&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 异步触发，3.6.x 版本新增的</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">_eventBus</span><span class="p">.</span><span class="n">TriggerAsync</span><span class="p">(</span><span class="k">new</span> <span class="n">TestEventData</span><span class="p">(</span><span class="s">&#34;Code1&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 手动注册事件范例</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_eventBus</span><span class="p">.</span><span class="n">Register</span><span class="p">&lt;</span><span class="n">TestEventData</span><span class="p">,</span> <span class="n">TestEventHandler</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里的 <code>Register()</code> 方法会让你传入一个事件数据类型，以及该事件对应的处理器。</p>
+<p>同一个事件可以被多个对象所订阅，只要该对象实现 <code>IEventHandler&lt;TEventData&gt;</code> / <code>IAsyncEventHandler&lt;TEventData&gt;</code> 接口或者是显式地被 <code>IEventBus.Register()</code> 注册，他们都会在事件被触发的时候调用。</p>
+<h2 id="2启动流程">2.启动流程</h2>
+<p>按照惯例我们来分析一下 Abp 针对事件总线的实现，看一下它的整体启动流程，什么时候被注入，被初始化。</p>
+<p>事件总线比起其他 Abp 基础设施来说他的注册点就一个，在 <code>EventBusInstaller</code> 里面，包含了针对 <code>IEventBus</code> 的注册以及对实现了 <code>IEventHandler</code> 处理器的注册。
+<code>EventBusInstaller</code> 在 Abp 框架的核心模块 <code>AbpKernelModule</code> 的 <code>Initialize</code> 被注册调用：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">Initialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ...其他代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">IocManager</span><span class="p">.</span><span class="n">IocContainer</span><span class="p">.</span><span class="n">Install</span><span class="p">(</span><span class="k">new</span> <span class="n">EventBusInstaller</span><span class="p">(</span><span class="n">IocManager</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>里面的 <code>Install()</code> 方法做了两个动作，第一是根据事件总线配置来决定 <code>IEventBus</code> 的注册方式，第二则是将订阅者(事件处理器)通过 <code>IEventBus.Register()</code> 方法自动放到事件总线管理器里面。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">Install</span><span class="p">(</span><span class="n">IWindsorContainer</span> <span class="n">container</span><span class="p">,</span> <span class="n">IConfigurationStore</span> <span class="n">store</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 这里是注入的配置类</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">_eventBusConfiguration</span><span class="p">.</span><span class="n">UseDefaultEventBus</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">container</span><span class="p">.</span><span class="n">Register</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Component</span><span class="p">.</span><span class="n">For</span><span class="p">&lt;</span><span class="n">IEventBus</span><span class="p">&gt;().</span><span class="n">UsingFactoryMethod</span><span class="p">(()</span> <span class="p">=&gt;</span> <span class="n">EventBus</span><span class="p">.</span><span class="n">Default</span><span class="p">).</span><span class="n">LifestyleSingleton</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">else</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">container</span><span class="p">.</span><span class="n">Register</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Component</span><span class="p">.</span><span class="n">For</span><span class="p">&lt;</span><span class="n">IEventBus</span><span class="p">&gt;().</span><span class="n">ImplementedBy</span><span class="p">&lt;</span><span class="n">EventBus</span><span class="p">&gt;().</span><span class="n">LifestyleSingleton</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 解析事件总线管理器</span>
+</span></span><span class="line"><span class="cl">    <span class="n">_eventBus</span> <span class="p">=</span> <span class="n">container</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IEventBus</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 注册订阅者对象</span>
+</span></span><span class="line"><span class="cl">    <span class="n">container</span><span class="p">.</span><span class="n">Kernel</span><span class="p">.</span><span class="n">ComponentRegistered</span> <span class="p">+=</span> <span class="n">Kernel_ComponentRegistered</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>Emmmm，具体的代码分析请看下面：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">void</span> <span class="n">Kernel_ComponentRegistered</span><span class="p">(</span><span class="kt">string</span> <span class="n">key</span><span class="p">,</span> <span class="n">IHandler</span> <span class="n">handler</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 判断当前注入的对象是否实现了 IEventHandler 接口，没有实现则跳过</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="k">typeof</span><span class="p">(</span><span class="n">IEventHandler</span><span class="p">).</span><span class="n">GetTypeInfo</span><span class="p">().</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">handler</span><span class="p">.</span><span class="n">ComponentModel</span><span class="p">.</span><span class="n">Implementation</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得当前注入对象实现的所有接口</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">interfaces</span> <span class="p">=</span> <span class="n">handler</span><span class="p">.</span><span class="n">ComponentModel</span><span class="p">.</span><span class="n">Implementation</span><span class="p">.</span><span class="n">GetTypeInfo</span><span class="p">().</span><span class="n">GetInterfaces</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 遍历获取到的所有接口</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">@interface</span> <span class="k">in</span> <span class="n">interfaces</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果当前被遍历的接口类型不是 IEventHandler 或者不是从 IEventHandler 继承的，则跳过</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="k">typeof</span><span class="p">(</span><span class="n">IEventHandler</span><span class="p">).</span><span class="n">GetTypeInfo</span><span class="p">().</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">@interface</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 到这里获取这个 IEventHandler 处理器的泛型参数</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">genericArgs</span> <span class="p">=</span> <span class="n">@interface</span><span class="p">.</span><span class="n">GetGenericArguments</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 并且它的泛型参数应该只有一个</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">genericArgs</span><span class="p">.</span><span class="n">Length</span> <span class="p">==</span> <span class="m">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 根据 IEventHandler 的定义，拿到的泛型参数肯定就是事件数据类型啦</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 第二个参数就是一个 Handler 的工厂咯，每次触发事件的时候都会从这个</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 工厂解析出具体的事件处理器来响应事件的操作。</span>
+</span></span><span class="line"><span class="cl">            <span class="n">_eventBus</span><span class="p">.</span><span class="n">Register</span><span class="p">(</span><span class="n">genericArgs</span><span class="p">[</span><span class="m">0</span><span class="p">],</span> <span class="k">new</span> <span class="n">IocHandlerFactory</span><span class="p">(</span><span class="n">_iocResolver</span><span class="p">,</span> <span class="n">handler</span><span class="p">.</span><span class="n">ComponentModel</span><span class="p">.</span><span class="n">Implementation</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>目前看来还是十分简单的。</p>
+<h2 id="3代码分析">3.代码分析</h2>
+<h3 id="31-事件总线管理器">3.1 事件总线管理器</h3>
+<p>整个事件总线的核心就是这个管理器(<code>IEventBus/EventBus</code>)，事件的注册，事件的触发，所有这些东西都是由它来提供的，其实嘛事件总线没你想象得那么复杂。</p>
+<p>它的基本原理很简单，就是用户向事件总线管理器注册我想要触发的事件，还有响应我事件的订阅者，将其放在一个字典里面。当 A 对象在数据库 <strong>断开连接</strong> 的时候，通过事件总线管理器触发 <strong>断开连接事件</strong>，事件总线管理器就会从之前注册的字典，根据触发时候传递的类型拿到响应的处理器集合，遍历这个集合调用对应的方法。</p>
+<p>说这么多，我们来看一下代码吧，首先看看事件总线管理器的定义（当然接口太多，这里是精简过的）：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IEventBus</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 注册并订阅事件</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IDisposable</span> <span class="n">Register</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">IEventHandlerFactory</span> <span class="n">factory</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 这里没有异步注册的原因是它最后还是会调用上面这个方法</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 取消事件的订阅，这里传入的是一个 Action</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">Unregister</span><span class="p">&lt;</span><span class="n">TEventData</span><span class="p">&gt;(</span><span class="n">Action</span><span class="p">&lt;</span><span class="n">TEventData</span><span class="p">&gt;</span> <span class="n">action</span><span class="p">)</span> <span class="k">where</span> <span class="n">TEventData</span> <span class="p">:</span> <span class="n">IEventData</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 这里传入的是一个 IEventHandler</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">Unregister</span><span class="p">&lt;</span><span class="n">TEventData</span><span class="p">&gt;(</span><span class="n">IEventHandler</span><span class="p">&lt;</span><span class="n">TEventData</span><span class="p">&gt;</span> <span class="n">handler</span><span class="p">)</span> <span class="k">where</span> <span class="n">TEventData</span> <span class="p">:</span> <span class="n">IEventData</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// 异步取消事件订阅</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">AsyncUnregister</span><span class="p">&lt;</span><span class="n">TEventData</span><span class="p">&gt;(</span><span class="n">Func</span><span class="p">&lt;</span><span class="n">TEventData</span><span class="p">,</span> <span class="n">Task</span><span class="p">&gt;</span> <span class="n">action</span><span class="p">)</span> <span class="k">where</span> <span class="n">TEventData</span> <span class="p">:</span> <span class="n">IEventData</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 同样是取消事件订阅</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">Unregister</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">IEventHandler</span> <span class="n">handler</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">Unregister</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">IEventHandlerFactory</span> <span class="n">factory</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">UnregisterAll</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 触发事件</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">Trigger</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="kt">object</span> <span class="n">eventSource</span><span class="p">,</span> <span class="n">IEventData</span> <span class="n">eventData</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 异步触发事件</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span> <span class="n">TriggerAsync</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="kt">object</span> <span class="n">eventSource</span><span class="p">,</span> <span class="n">IEventData</span> <span class="n">eventData</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>Emm，看了一下，大概就分为三类，<strong>注册事件</strong>、<strong>取消事件的订阅</strong>、<strong>触发事件</strong>，其他定义的接口大多都是不同形式的重载，本质上还是会调用到上述方法的。</p>
+<p>首先在事件总线管理器内部有一个字典，这个字典就是我们刚才所提到的事件总线维护的事件字典，大概长这个样子：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">readonly</span> <span class="n">ConcurrentDictionary</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">,</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">IEventHandlerFactory</span><span class="p">&gt;&gt;</span> <span class="n">_handlerFactories</span><span class="p">;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到，这个字典的 Key 是一个 <code>Type</code> 类型，其实就是我们所注册的事件类型罢了，后面那个呢就是事件处理器的工厂。那为什么这个工厂会用一个 <code>List</code> 来存储呢？</p>
+<p>原因有两点：</p>
+<ol>
+<li>因为我们对应的事件处理器的生命周期与生成方式都有所不同，比如说 Abp 它自己本身就提供了<code>IocHandlerFactory</code>、<code>TransientEventHandlerFactory</code>、<code>SingleInstanceHandlerFactory</code> 这三种实现。</li>
+<li>因为一个事件可能会被多个处理器所订阅，那么一个处理器拥有一个工厂，所以会是一个集合。</li>
+</ol>
+<h4 id="311-注册事件">3.1.1 注册事件</h4>
+<p>在默认的 <code>Register()</code> 方法里面就是使用的 <code>IocHandlerFactory</code> 来进行注册事件的，如果你需要手动注册事件呢，可以使用签名为：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">IDisposable</span> <span class="n">Register</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">IEventHandlerFactory</span> <span class="n">factory</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>的方法，来传入自己实现的处理器工厂或者是 Abp 提供的事件处理器工厂。</p>
+<p>看了它的定义之后，我们来看一下它的具体实现，首先来看看注册事件的 <code>Register()</code> 方法：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">IDisposable</span> <span class="n">Register</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">IEventHandlerFactory</span> <span class="n">factory</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得指定事件类型的工厂集合，然后往这个集合添加一个事件处理器工厂</span>
+</span></span><span class="line"><span class="cl">    <span class="n">GetOrCreateHandlerFactories</span><span class="p">(</span><span class="n">eventType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">Locking</span><span class="p">(</span><span class="n">factories</span> <span class="p">=&gt;</span> <span class="n">factories</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">factory</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// Emm，这里面就是一个 Dispose 方法，用于释放创建好的工厂对象，里面的 Dispose 方法</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 最终会调用 IEventBus 的 UnRegister 方法来卸载工厂</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">new</span> <span class="n">FactoryUnregistrar</span><span class="p">(</span><span class="k">this</span><span class="p">,</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">factory</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">IEventHandlerFactory</span><span class="p">&gt;</span> <span class="n">GetOrCreateHandlerFactories</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 根据事件类型创建/获取一个事件处理器工厂集合</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">_handlerFactories</span><span class="p">.</span><span class="n">GetOrAdd</span><span class="p">(</span><span class="n">eventType</span><span class="p">,</span> <span class="p">(</span><span class="n">type</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">IEventHandlerFactory</span><span class="p">&gt;());</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到调用了注册方法之后，它返回了一个 <code>FactoryUnregistrar</code> ，查看它的定义如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">internal</span> <span class="k">class</span> <span class="nc">FactoryUnregistrar</span> <span class="p">:</span> <span class="n">IDisposable</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IEventBus</span> <span class="n">_eventBus</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">Type</span> <span class="n">_eventType</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IEventHandlerFactory</span> <span class="n">_factory</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">FactoryUnregistrar</span><span class="p">(</span><span class="n">IEventBus</span> <span class="n">eventBus</span><span class="p">,</span> <span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">IEventHandlerFactory</span> <span class="n">factory</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_eventBus</span> <span class="p">=</span> <span class="n">eventBus</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_eventType</span> <span class="p">=</span> <span class="n">eventType</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_factory</span> <span class="p">=</span> <span class="n">factory</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">Dispose</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_eventBus</span><span class="p">.</span><span class="n">Unregister</span><span class="p">(</span><span class="n">_eventType</span><span class="p">,</span> <span class="n">_factory</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>很简单的一个类，重点就是在 <code>Dispose()</code> 内部调用了 <code>IEventBus</code> 的 <code>Unregister()</code> 方法，下面就会讲解这东西。</p>
+<h4 id="312-取消事件的订阅">3.1.2 取消事件的订阅</h4>
+<p>接着是 <code>UnRegister()</code> 方法，UnRegister 方法有很多个，一般分为两类，第一是取消订阅，第二就是卸载工厂。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">Unregister</span><span class="p">&lt;</span><span class="n">TEventData</span><span class="p">&gt;(</span><span class="n">Action</span><span class="p">&lt;</span><span class="n">TEventData</span><span class="p">&gt;</span> <span class="n">action</span><span class="p">)</span> <span class="k">where</span> <span class="n">TEventData</span> <span class="p">:</span> <span class="n">IEventData</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 确保不为空</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="n">action</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">action</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 根据类型得到该类型所有的事件处理器集合</span>
+</span></span><span class="line"><span class="cl">    <span class="n">GetOrCreateHandlerFactories</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TEventData</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    	<span class="c1">// 使用 lock 加锁，防止线程同步问题</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">Locking</span><span class="p">(</span><span class="n">factories</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        	<span class="c1">// 调用 List 的 RemoveAll() 方法清除指定条件的工厂</span>
+</span></span><span class="line"><span class="cl">            <span class="n">factories</span><span class="p">.</span><span class="n">RemoveAll</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">factory</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                	<span class="c1">// 判断工厂是否为单例工厂</span>
+</span></span><span class="line"><span class="cl">                    <span class="kt">var</span> <span class="n">singleInstanceFactory</span> <span class="p">=</span> <span class="n">factory</span> <span class="k">as</span> <span class="n">SingleInstanceHandlerFactory</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                    <span class="c1">// 如果不是单例工厂则不移除</span>
+</span></span><span class="line"><span class="cl">                    <span class="k">if</span> <span class="p">(</span><span class="n">singleInstanceFactory</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">                    
+</span></span><span class="line"><span class="cl">                    <span class="c1">// 如果是单例工厂，拿到其内部的具体事件处理器，并强制换为 ActionEventHandler</span>
+</span></span><span class="line"><span class="cl">                    <span class="kt">var</span> <span class="n">actionHandler</span> <span class="p">=</span> <span class="n">singleInstanceFactory</span><span class="p">.</span><span class="n">HandlerInstance</span> <span class="k">as</span> <span class="n">ActionEventHandler</span><span class="p">&lt;</span><span class="n">TEventData</span><span class="p">&gt;;</span>
+</span></span><span class="line"><span class="cl">                    <span class="c1">// 为空的话，不移除</span>
+</span></span><span class="line"><span class="cl">                    <span class="k">if</span> <span class="p">(</span><span class="n">actionHandler</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">				   <span class="c1">// 判断传入的处理逻辑是否与事件处理器逻辑相等，相等则移除</span>
+</span></span><span class="line"><span class="cl">                    <span class="k">return</span> <span class="n">actionHandler</span><span class="p">.</span><span class="n">Action</span> <span class="p">==</span> <span class="n">action</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                <span class="p">});</span>
+</span></span><span class="line"><span class="cl">        <span class="p">});</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 取消订阅的另一种实现，只是针对 SingleInstanceHandlerFactory 进行了处理</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">Unregister</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">IEventHandler</span> <span class="n">handler</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">GetOrCreateHandlerFactories</span><span class="p">(</span><span class="n">eventType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">Locking</span><span class="p">(</span><span class="n">factories</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                        <span class="n">factories</span><span class="p">.</span><span class="n">RemoveAll</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                            <span class="n">factory</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">                            <span class="n">factory</span> <span class="k">is</span> <span class="n">SingleInstanceHandlerFactory</span> <span class="p">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">                            <span class="p">(</span><span class="n">factory</span> <span class="k">as</span> <span class="n">SingleInstanceHandlerFactory</span><span class="p">).</span><span class="n">HandlerInstance</span> <span class="p">==</span> <span class="n">handler</span>
+</span></span><span class="line"><span class="cl">                        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">});</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 第二种情况，卸载工厂，也就是 Register() 之后返回的 FactoryUnregistrar 释放时调用的方法</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">Unregister</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">IEventHandlerFactory</span> <span class="n">factory</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 根据传入的类型，获得事件处理器工厂集合，移除相应工厂</span>
+</span></span><span class="line"><span class="cl">    <span class="n">GetOrCreateHandlerFactories</span><span class="p">(</span><span class="n">eventType</span><span class="p">).</span><span class="n">Locking</span><span class="p">(</span><span class="n">factories</span> <span class="p">=&gt;</span> <span class="n">factories</span><span class="p">.</span><span class="n">Remove</span><span class="p">(</span><span class="n">factory</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在上方代码可以看到，似乎 <code>Unregister()</code> 方法只针对 <code>SingleInstanceHandlerFactory</code> 工厂进行了处理，而没有处理 <code>IocHandlerFactory</code> 与 <code>TransientEventHandlerFactory</code> 。</p>
+<p>这是因为在 <code>IEventBus</code> 当中实现了这两个方法：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">IDisposable</span> <span class="n">Register</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">IEventHandler</span> <span class="n">handler</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="n">IDisposable</span> <span class="n">Register</span><span class="p">&lt;</span><span class="n">TEventData</span><span class="p">&gt;(</span><span class="n">Action</span><span class="p">&lt;</span><span class="n">TEventData</span><span class="p">&gt;</span> <span class="n">action</span><span class="p">)</span> <span class="k">where</span> <span class="n">TEventData</span> <span class="p">:</span> <span class="n">IEventData</span><span class="p">;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到这两个方法都没有传入工厂，第一个允许你传入一个事件处理器对象，第二个则是让你传入一个 <code>Action</code> 作为其事件订阅者。</p>
+<p>看看实现：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">IDisposable</span> <span class="n">Register</span><span class="p">&lt;</span><span class="n">TEventData</span><span class="p">&gt;(</span><span class="n">Action</span><span class="p">&lt;</span><span class="n">TEventData</span><span class="p">&gt;</span> <span class="n">action</span><span class="p">)</span> <span class="k">where</span> <span class="n">TEventData</span> <span class="p">:</span> <span class="n">IEventData</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// new 了一个 ActionEventHandler 作为处理器</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">Register</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TEventData</span><span class="p">),</span> <span class="k">new</span> <span class="n">ActionEventHandler</span><span class="p">&lt;</span><span class="n">TEventData</span><span class="p">&gt;(</span><span class="n">action</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="n">IDisposable</span> <span class="n">Register</span><span class="p">&lt;</span><span class="n">TEventData</span><span class="p">&gt;(</span><span class="n">IEventHandler</span><span class="p">&lt;</span><span class="n">TEventData</span><span class="p">&gt;</span> <span class="n">handler</span><span class="p">)</span> <span class="k">where</span> <span class="n">TEventData</span> <span class="p">:</span> <span class="n">IEventData</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 传入具体的处理器对象进行注册</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">Register</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TEventData</span><span class="p">),</span> <span class="n">handler</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="n">IDisposable</span> <span class="n">Register</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">IEventHandler</span> <span class="n">handler</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 使用 SingleInstanceHandlerFactory 工厂进行注册。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">Register</span><span class="p">(</span><span class="n">eventType</span><span class="p">,</span> <span class="k">new</span> <span class="n">SingleInstanceHandlerFactory</span><span class="p">(</span><span class="n">handler</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>因为单例工厂与其他两个工厂不一样，单例工厂的生命周期贯穿整个程序的生命周期，也就是说除非程序被结束，那么单例工厂内部的事件处理器就会一直存在，所以在 <code>UnRegister()</code> 方法内部只会针对 <code>SingleInstanceHandlerFactory</code> 工厂进行处理。</p>
+<p><code>TransientEventHandlerFactory</code> 。</p>
+<p><code>IocHandlerFactory</code> 工厂产生的对象的生命周期是随着具体类型在被注入时候的生命周期所决定，有可能是瞬时对象，也有可能是单例对象，下文会详细解说。</p>
+<h4 id="313-触发事件">3.1.3 触发事件</h4>
+<p>当事件的发布者需要发布(触发)一个事件的时候，会调用 <code>IEventBus</code> 提供的 <code>Trigger()</code>/<code>TriggerAsync()</code> 方法。</p>
+<p>然后事件总线管理器从自己的字典内匹配对应的事件，得到对应的事件处理器工厂集合，然后呢使用工厂产生具体的处理器对象，调用其 <code>HandleEvent</code> / <code>HandleEventAsync</code> 方法，执行完成之后释放对象。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">  1
+</span><span class="lnt">  2
+</span><span class="lnt">  3
+</span><span class="lnt">  4
+</span><span class="lnt">  5
+</span><span class="lnt">  6
+</span><span class="lnt">  7
+</span><span class="lnt">  8
+</span><span class="lnt">  9
+</span><span class="lnt"> 10
+</span><span class="lnt"> 11
+</span><span class="lnt"> 12
+</span><span class="lnt"> 13
+</span><span class="lnt"> 14
+</span><span class="lnt"> 15
+</span><span class="lnt"> 16
+</span><span class="lnt"> 17
+</span><span class="lnt"> 18
+</span><span class="lnt"> 19
+</span><span class="lnt"> 20
+</span><span class="lnt"> 21
+</span><span class="lnt"> 22
+</span><span class="lnt"> 23
+</span><span class="lnt"> 24
+</span><span class="lnt"> 25
+</span><span class="lnt"> 26
+</span><span class="lnt"> 27
+</span><span class="lnt"> 28
+</span><span class="lnt"> 29
+</span><span class="lnt"> 30
+</span><span class="lnt"> 31
+</span><span class="lnt"> 32
+</span><span class="lnt"> 33
+</span><span class="lnt"> 34
+</span><span class="lnt"> 35
+</span><span class="lnt"> 36
+</span><span class="lnt"> 37
+</span><span class="lnt"> 38
+</span><span class="lnt"> 39
+</span><span class="lnt"> 40
+</span><span class="lnt"> 41
+</span><span class="lnt"> 42
+</span><span class="lnt"> 43
+</span><span class="lnt"> 44
+</span><span class="lnt"> 45
+</span><span class="lnt"> 46
+</span><span class="lnt"> 47
+</span><span class="lnt"> 48
+</span><span class="lnt"> 49
+</span><span class="lnt"> 50
+</span><span class="lnt"> 51
+</span><span class="lnt"> 52
+</span><span class="lnt"> 53
+</span><span class="lnt"> 54
+</span><span class="lnt"> 55
+</span><span class="lnt"> 56
+</span><span class="lnt"> 57
+</span><span class="lnt"> 58
+</span><span class="lnt"> 59
+</span><span class="lnt"> 60
+</span><span class="lnt"> 61
+</span><span class="lnt"> 62
+</span><span class="lnt"> 63
+</span><span class="lnt"> 64
+</span><span class="lnt"> 65
+</span><span class="lnt"> 66
+</span><span class="lnt"> 67
+</span><span class="lnt"> 68
+</span><span class="lnt"> 69
+</span><span class="lnt"> 70
+</span><span class="lnt"> 71
+</span><span class="lnt"> 72
+</span><span class="lnt"> 73
+</span><span class="lnt"> 74
+</span><span class="lnt"> 75
+</span><span class="lnt"> 76
+</span><span class="lnt"> 77
+</span><span class="lnt"> 78
+</span><span class="lnt"> 79
+</span><span class="lnt"> 80
+</span><span class="lnt"> 81
+</span><span class="lnt"> 82
+</span><span class="lnt"> 83
+</span><span class="lnt"> 84
+</span><span class="lnt"> 85
+</span><span class="lnt"> 86
+</span><span class="lnt"> 87
+</span><span class="lnt"> 88
+</span><span class="lnt"> 89
+</span><span class="lnt"> 90
+</span><span class="lnt"> 91
+</span><span class="lnt"> 92
+</span><span class="lnt"> 93
+</span><span class="lnt"> 94
+</span><span class="lnt"> 95
+</span><span class="lnt"> 96
+</span><span class="lnt"> 97
+</span><span class="lnt"> 98
+</span><span class="lnt"> 99
+</span><span class="lnt">100
+</span><span class="lnt">101
+</span><span class="lnt">102
+</span><span class="lnt">103
+</span><span class="lnt">104
+</span><span class="lnt">105
+</span><span class="lnt">106
+</span><span class="lnt">107
+</span><span class="lnt">108
+</span><span class="lnt">109
+</span><span class="lnt">110
+</span><span class="lnt">111
+</span><span class="lnt">112
+</span><span class="lnt">113
+</span><span class="lnt">114
+</span><span class="lnt">115
+</span><span class="lnt">116
+</span><span class="lnt">117
+</span><span class="lnt">118
+</span><span class="lnt">119
+</span><span class="lnt">120
+</span><span class="lnt">121
+</span><span class="lnt">122
+</span><span class="lnt">123
+</span><span class="lnt">124
+</span><span class="lnt">125
+</span><span class="lnt">126
+</span><span class="lnt">127
+</span><span class="lnt">128
+</span><span class="lnt">129
+</span><span class="lnt">130
+</span><span class="lnt">131
+</span><span class="lnt">132
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">Trigger</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="kt">object</span> <span class="n">eventSource</span><span class="p">,</span> <span class="n">IEventData</span> <span class="n">eventData</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 异常集合</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">exceptions</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Exception</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">eventData</span><span class="p">.</span><span class="n">EventSource</span> <span class="p">=</span> <span class="n">eventSource</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得所有需要触发的处理器工厂，遍历传入的事件类型以及他的子类事件</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">handlerFactories</span> <span class="k">in</span> <span class="n">GetHandlerFactories</span><span class="p">(</span><span class="n">eventType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 遍历事件类型绑定的工厂集合</span>
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">handlerFactory</span> <span class="k">in</span> <span class="n">handlerFactories</span><span class="p">.</span><span class="n">EventHandlerFactories</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 获得处理器类型</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">handlerType</span> <span class="p">=</span> <span class="n">handlerFactory</span><span class="p">.</span><span class="n">GetHandlerType</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// 如果是异步处理器，以同步方式运行</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">IsAsyncEventHandler</span><span class="p">(</span><span class="n">handlerType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">AsyncHelper</span><span class="p">.</span><span class="n">RunSync</span><span class="p">(()</span> <span class="p">=&gt;</span> <span class="n">TriggerAsyncHandlingException</span><span class="p">(</span><span class="n">handlerFactory</span><span class="p">,</span> <span class="n">handlerFactories</span><span class="p">.</span><span class="n">EventType</span><span class="p">,</span> <span class="n">eventData</span><span class="p">,</span> <span class="n">exceptions</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">IsEventHandler</span><span class="p">(</span><span class="n">handlerType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 调用处理器的处理方法，并回收异常信息</span>
+</span></span><span class="line"><span class="cl">                <span class="n">TriggerHandlingException</span><span class="p">(</span><span class="n">handlerFactory</span><span class="p">,</span> <span class="n">handlerFactories</span><span class="p">.</span><span class="n">EventType</span><span class="p">,</span> <span class="n">eventData</span><span class="p">,</span> <span class="n">exceptions</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="k">else</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 说明这个事件没有对应的处理器实现，抛出异常</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">var</span> <span class="n">message</span> <span class="p">=</span> <span class="s">$&#34;Event handler to register for event type {eventType.Name} does not implement IEventHandler&lt;{eventType.Name}&gt; or IAsyncEventHandler&lt;{eventType.Name}&gt; interface!&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                <span class="n">exceptions</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="k">new</span> <span class="n">AbpException</span><span class="p">(</span><span class="n">message</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 处理继承事件的情况</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">eventType</span><span class="p">.</span><span class="n">GetTypeInfo</span><span class="p">().</span><span class="n">IsGenericType</span> <span class="p">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">eventType</span><span class="p">.</span><span class="n">GetGenericArguments</span><span class="p">().</span><span class="n">Length</span> <span class="p">==</span> <span class="m">1</span> <span class="p">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">typeof</span><span class="p">(</span><span class="n">IEventDataWithInheritableGenericArgument</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">eventType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">genericArg</span> <span class="p">=</span> <span class="n">eventType</span><span class="p">.</span><span class="n">GetGenericArguments</span><span class="p">()[</span><span class="m">0</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">baseArg</span> <span class="p">=</span> <span class="n">genericArg</span><span class="p">.</span><span class="n">GetTypeInfo</span><span class="p">().</span><span class="n">BaseType</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">baseArg</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">baseEventType</span> <span class="p">=</span> <span class="n">eventType</span><span class="p">.</span><span class="n">GetGenericTypeDefinition</span><span class="p">().</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">baseArg</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">constructorArgs</span> <span class="p">=</span> <span class="p">((</span><span class="n">IEventDataWithInheritableGenericArgument</span><span class="p">)</span><span class="n">eventData</span><span class="p">).</span><span class="n">GetConstructorArgs</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">baseEventData</span> <span class="p">=</span> <span class="p">(</span><span class="n">IEventData</span><span class="p">)</span><span class="n">Activator</span><span class="p">.</span><span class="n">CreateInstance</span><span class="p">(</span><span class="n">baseEventType</span><span class="p">,</span> <span class="n">constructorArgs</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="n">baseEventData</span><span class="p">.</span><span class="n">EventTime</span> <span class="p">=</span> <span class="n">eventData</span><span class="p">.</span><span class="n">EventTime</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Trigger</span><span class="p">(</span><span class="n">baseEventType</span><span class="p">,</span> <span class="n">eventData</span><span class="p">.</span><span class="n">EventSource</span><span class="p">,</span> <span class="n">baseEventData</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">exceptions</span><span class="p">.</span><span class="n">Any</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果产生的异常数量为 1 个的话，重新抛出具体的异常信息</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">exceptions</span><span class="p">.</span><span class="n">Count</span> <span class="p">==</span> <span class="m">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">exceptions</span><span class="p">[</span><span class="m">0</span><span class="p">].</span><span class="n">ReThrow</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果在执行过程中产生了多个异常，将异常集合放在内部异常当中并抛出</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span> <span class="k">new</span> <span class="n">AggregateException</span><span class="p">(</span><span class="s">&#34;More than one error has occurred while triggering the event: &#34;</span> <span class="p">+</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">exceptions</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 筛选所有需要触发的事件类型，并将其封装为 EventTypeWithEventHandlerFactories</span>
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="n">IEnumerable</span><span class="p">&lt;</span><span class="n">EventTypeWithEventHandlerFactories</span><span class="p">&gt;</span> <span class="n">GetHandlerFactories</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">handlerFactoryList</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">EventTypeWithEventHandlerFactories</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">handlerFactory</span> <span class="k">in</span> <span class="n">_handlerFactories</span><span class="p">.</span><span class="n">Where</span><span class="p">(</span><span class="n">hf</span> <span class="p">=&gt;</span> <span class="n">ShouldTriggerEventForHandler</span><span class="p">(</span><span class="n">eventType</span><span class="p">,</span> <span class="n">hf</span><span class="p">.</span><span class="n">Key</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">handlerFactoryList</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="k">new</span> <span class="n">EventTypeWithEventHandlerFactories</span><span class="p">(</span><span class="n">handlerFactory</span><span class="p">.</span><span class="n">Key</span><span class="p">,</span> <span class="n">handlerFactory</span><span class="p">.</span><span class="n">Value</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">handlerFactoryList</span><span class="p">.</span><span class="n">ToArray</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 判断传入的类型是否是事件类型的子类</span>
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">static</span> <span class="kt">bool</span> <span class="n">ShouldTriggerEventForHandler</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">Type</span> <span class="n">handlerType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">handlerType</span> <span class="p">==</span> <span class="n">eventType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">handlerType</span><span class="p">.</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">eventType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 拿着具体的处理器工厂去执行处理器的处理方法</span>
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">void</span> <span class="n">TriggerHandlingException</span><span class="p">(</span><span class="n">IEventHandlerFactory</span> <span class="n">handlerFactory</span><span class="p">,</span> <span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">IEventData</span> <span class="n">eventData</span><span class="p">,</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Exception</span><span class="p">&gt;</span> <span class="n">exceptions</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得一个新鲜的处理器对象</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">eventHandler</span> <span class="p">=</span> <span class="n">handlerFactory</span><span class="p">.</span><span class="n">GetHandler</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="k">try</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">eventHandler</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">throw</span> <span class="k">new</span> <span class="n">ArgumentNullException</span><span class="p">(</span><span class="s">$&#34;Registered event handler for event type {eventType.Name} is null!&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">handlerType</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">IEventHandler</span><span class="p">&lt;&gt;).</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">eventType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 从这个处理器获取到处理方法</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">method</span> <span class="p">=</span> <span class="n">handlerType</span><span class="p">.</span><span class="n">GetMethod</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="s">&#34;HandleEvent&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="k">new</span><span class="p">[]</span> <span class="p">{</span> <span class="n">eventType</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 调用处理方法，并传入事件数据</span>
+</span></span><span class="line"><span class="cl">        <span class="n">method</span><span class="p">.</span><span class="n">Invoke</span><span class="p">(</span><span class="n">eventHandler</span><span class="p">,</span> <span class="k">new</span> <span class="kt">object</span><span class="p">[]</span> <span class="p">{</span> <span class="n">eventData</span> <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 产生异常进行处理</span>
+</span></span><span class="line"><span class="cl">    <span class="k">catch</span> <span class="p">(</span><span class="n">TargetInvocationException</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">exceptions</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">ex</span><span class="p">.</span><span class="n">InnerException</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">exceptions</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">ex</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">finally</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 释放资源</span>
+</span></span><span class="line"><span class="cl">        <span class="n">handlerFactory</span><span class="p">.</span><span class="n">ReleaseHandler</span><span class="p">(</span><span class="n">eventHandler</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="32-处理器工厂">3.2 处理器工厂</h3>
+<p>所有事件所对应的处理器对象都是由工厂所创建的，当一个事件被触发，事件总线管理器就会从事件类型所对应的工厂产生一个相应的处理器对象执行调用。</p>
+<blockquote>
+<p>简而言之，每个事件处理器都拥有一个单独的工厂。</p>
+</blockquote>
+<p>其接口定义如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IEventHandlerFactory</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得一个事件处理器对象</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IEventHandler</span> <span class="n">GetHandler</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得当前工厂所产生的处理器类型</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Type</span> <span class="n">GetHandlerType</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 释放指定的处理器对象</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">ReleaseHandler</span><span class="p">(</span><span class="n">IEventHandler</span> <span class="n">handler</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:left">具体实现</th>
+<th style="text-align:left">生命周期</th>
+<th style="text-align:left">描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">TransientEventHandlerFactory</td>
+<td style="text-align:left">瞬时</td>
+<td style="text-align:left">工厂产生的事件处理器生命周期是瞬时的，是一个标准 的可以被 GC 回收的对象。</td>
+</tr>
+<tr>
+<td style="text-align:left">SingleInstanceHandlerFactory</td>
+<td style="text-align:left">单例</td>
+<td style="text-align:left">该工厂产生的对象都会被保存在一个 Instance 内部，每 次生成对象的时候都会使用该 Instance 的值。</td>
+</tr>
+<tr>
+<td style="text-align:left">IocHandlerFactory</td>
+<td style="text-align:left">由类型注册时决定</td>
+<td style="text-align:left">在使用 <code>IocHandlerFactory</code> 的时候，会传入事件处理 器，该工厂在创建事件处理器对象的时候会从 Ioc 容器当中 解析对应的对象出来，而该对象的生命周期取决于注册时 的定义。</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="4扩展">4.扩展</h2>
+<h3 id="41-实体更新事件">4.1 实体更新事件</h3>
+<p>Abp 在仓储每次执行 CRUD 操作的时候都会自动触发响应的实体更新事件，这些事件的触发都存放在 <code>EntityChangeEventHelper</code> 类当中，一共有以下几个事件，你订阅该这些事件之后就会在实体产生更改的时候被触发。</p>
+<ul>
+<li><code>EntityChangedEventData&lt;TEntity&gt; </code>实体被更改的时候触发。</li>
+<li><code>EntityCreatedEventData&lt;TEntity&gt;</code> 实体创建完成后触发。</li>
+<li><code>EntityCreatingEventData&lt;TEntity&gt;</code> 实体创建时被触发。</li>
+<li><code>EntityDeletedEventData&lt;TEntity&gt;</code> 实体删除完成后触发。</li>
+<li><code>EntityDeletingEventData&lt;TEntity&gt;</code> 实体删除时被触发。</li>
+<li><code>EntityUpdatedEventData&lt;TEntity&gt;</code> 实体更新后触发。</li>
+<li><code>EntityUpdatingEventData&lt;TEntity&gt;</code> 实体更新时被触发。</li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TestHandler</span> <span class="p">:</span> <span class="n">IEventHandler</span><span class="p">&lt;</span><span class="n">EntityChangedEventData</span><span class="p">&lt;</span><span class="n">TestEntity</span><span class="p">&gt;&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">HandleEvent</span><span class="p">(</span><span class="n">EntityChangedEventData</span><span class="p">&lt;</span><span class="n">TestEntity</span><span class="p">&gt;</span> <span class="n">eventData</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;测试实体，ID为 {eventDate.Entity.Id} 被更改了&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="42-异常事件">4.2 异常事件</h3>
+<p>Abp 在运行期间遇到的异常也会自动触发异常事件，其类型为 <code>AbpHandledExceptionData</code> 与 <code>ExceptionData</code>。</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/aspnetboilerplate/">AspNetBoilerplate</a>
+        
+            <a href="/tags/%E4%BA%8B%E4%BB%B6%E6%80%BB%E7%BA%BF/">事件总线</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 13. 本地事件总线与分布式事件总线 (Rabbit MQ)</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/why-not-use-async-void/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">为什么不要使用 async void ？</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-mongodb-retrofits-the-default-audit-log-storage-location/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp &#43; MongoDb 改造默认的审计日志存储位置</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-source-code-analysis-seventeen-aspnet-core-integration/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp 源码分析：十七、ASP.NET Core 集成</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/replace-abps-di-framework-with-dryioc/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">使用 DryIoc 替换 Abp 的 DI 框架</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#0简介">0.简介</a>
+      <ol>
+        <li><a href="#01使用方法">0.1.使用方法</a></li>
+      </ol>
+    </li>
+    <li><a href="#2启动流程">2.启动流程</a></li>
+    <li><a href="#3代码分析">3.代码分析</a>
+      <ol>
+        <li><a href="#31-事件总线管理器">3.1 事件总线管理器</a>
+          <ol>
+            <li><a href="#311-注册事件">3.1.1 注册事件</a></li>
+            <li><a href="#312-取消事件的订阅">3.1.2 取消事件的订阅</a></li>
+            <li><a href="#313-触发事件">3.1.3 触发事件</a></li>
+          </ol>
+        </li>
+        <li><a href="#32-处理器工厂">3.2 处理器工厂</a></li>
+      </ol>
+    </li>
+    <li><a href="#4扩展">4.扩展</a>
+      <ol>
+        <li><a href="#41-实体更新事件">4.1 实体更新事件</a></li>
+        <li><a href="#42-异常事件">4.2 异常事件</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

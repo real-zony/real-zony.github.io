@@ -1,0 +1,2254 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、什么是 BT Tracker ？ 在 BT 下载过程当中，我们如果拿到一个种子文件，在其内部会包含一组 BT Tracker 服务器信息。在开始进行下载的时候，BT 下载工具会根据种子内的唯一 HASH 码请求 Tracker 服务器，之后 Tracker 服务器会返回给正在 下载/做种 的 Peer 信息，下载工具获得了其他的 Peer 信息之后就会与其他的 Peer 建立通讯下载数据。
+整个过程的时序图如下：
+在这里 BT Tracker 充当的角色就是一个通讯员的角色，它的构造很简单，最简构造的情况下只需要一个 HTTP API 接口即可。其作用就是在 BT 下载工具请求 Peer 信息的时候，返回相应的信息即可。
+'><title>使用 .NET Core 开发 BT Tracker 服务器</title>
+
+<link rel='canonical' href='https://example.com/p/develop-bt-tracker-server-with-net-core/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='使用 .NET Core 开发 BT Tracker 服务器'>
+<meta property='og:description' content='一、什么是 BT Tracker ？ 在 BT 下载过程当中，我们如果拿到一个种子文件，在其内部会包含一组 BT Tracker 服务器信息。在开始进行下载的时候，BT 下载工具会根据种子内的唯一 HASH 码请求 Tracker 服务器，之后 Tracker 服务器会返回给正在 下载/做种 的 Peer 信息，下载工具获得了其他的 Peer 信息之后就会与其他的 Peer 建立通讯下载数据。
+整个过程的时序图如下：
+在这里 BT Tracker 充当的角色就是一个通讯员的角色，它的构造很简单，最简构造的情况下只需要一个 HTTP API 接口即可。其作用就是在 BT 下载工具请求 Peer 信息的时候，返回相应的信息即可。
+'>
+<meta property='og:url' content='https://example.com/p/develop-bt-tracker-server-with-net-core/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='BT Tracker' /><meta property='article:tag' content='BitTorrent' /><meta property='article:published_time' content='2019-03-08T00:39:28&#43;00:00'/><meta property='article:modified_time' content='2019-03-08T00:39:28&#43;00:00'/>
+<meta name="twitter:title" content="使用 .NET Core 开发 BT Tracker 服务器">
+<meta name="twitter:description" content="一、什么是 BT Tracker ？ 在 BT 下载过程当中，我们如果拿到一个种子文件，在其内部会包含一组 BT Tracker 服务器信息。在开始进行下载的时候，BT 下载工具会根据种子内的唯一 HASH 码请求 Tracker 服务器，之后 Tracker 服务器会返回给正在 下载/做种 的 Peer 信息，下载工具获得了其他的 Peer 信息之后就会与其他的 Peer 建立通讯下载数据。
+整个过程的时序图如下：
+在这里 BT Tracker 充当的角色就是一个通讯员的角色，它的构造很简单，最简构造的情况下只需要一个 HTTP API 接口即可。其作用就是在 BT 下载工具请求 Peer 信息的时候，返回相应的信息即可。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/develop-bt-tracker-server-with-net-core/">使用 .NET Core 开发 BT Tracker 服务器</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Mar 08, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 13 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一什么是-bt-tracker-">一、什么是 BT Tracker ？</h2>
+<p>在 BT 下载过程当中，我们如果拿到一个种子文件，在其内部会包含一组 BT Tracker 服务器信息。在开始进行下载的时候，BT 下载工具会根据种子内的唯一 HASH 码请求 Tracker 服务器，之后 Tracker 服务器会返回给正在 <strong>下载/做种</strong> 的 Peer 信息，下载工具获得了其他的 Peer 信息之后就会与其他的 Peer 建立通讯下载数据。</p>
+<p>整个过程的时序图如下：</p>
+<p><img src="/p/develop-bt-tracker-server-with-net-core/---.png"
+	width="802"
+	height="328"
+	srcset="/p/develop-bt-tracker-server-with-net-core/---_hu822b709757bb2a430c3fe7cd9bf6d446_17583_480x0_resize_box_3.png 480w, /p/develop-bt-tracker-server-with-net-core/---_hu822b709757bb2a430c3fe7cd9bf6d446_17583_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="&mdash;"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="244"
+		data-flex-basis="586px"
+	
+></p>
+<p>在这里 BT Tracker 充当的角色就是一个通讯员的角色，它的构造很简单，最简构造的情况下只需要一个 HTTP API 接口即可。其作用就是在 BT 下载工具请求 Peer 信息的时候，返回相应的信息即可。</p>
+<h2 id="二bt-协议与-bencode-编码">二、BT 协议与 BEncode 编码</h2>
+<p>在 BT 协议通讯的过程当中，所有的数据都是通过 B Encode 进行编码的。这种编码方式类似于 JSON 的数据组织形式，它可以表示字符串与整形这两种基本类型，也可以表示列表与字典这两种数据结构，其语法规则很简单。</p>
+<p><strong>字符串 &ldquo;hello&rdquo;</strong> 的编码形式：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl"><span class="o">[</span>字符串长度<span class="o">]</span>:<span class="o">[</span>字符串数据<span class="o">]</span>
+</span></span><span class="line"><span class="cl">5:hello
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>整数 10</strong> 的编码形式：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">i<span class="o">[</span>整数<span class="o">]</span>e
+</span></span><span class="line"><span class="cl">i10e
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>列表这种数据结构，可以包含任意 B 编码的类型，包括 <strong>字符串</strong>、<strong>整形</strong>、<strong>字典(dictionary)</strong>、<strong>列表(list)</strong> 。</p>
+<p>包含两个字符串元素 &ldquo;hello&rdquo;、&ldquo;world&rdquo; 的 <strong>列表</strong> 编码形式：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">I<span class="o">[</span>内容<span class="o">]</span>e
+</span></span><span class="line"><span class="cl">I5:hello5:world
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>字典的概念与我们 C# 当中 BCL 所定义的 <code>Dictionary&lt;string,T&gt;</code> 一样，它是由一个键值对组成，其键的类型必须为 B 编码的字符串，而其值可以为任意的 B 编码类型，包括 <strong>字符串</strong>、<strong>整形</strong>、<strong>字典(dictionary)</strong>、<strong>列表(list)</strong> 。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">d<span class="o">[</span>内容<span class="o">]</span>e
+</span></span><span class="line"><span class="cl">d4:Name4:Lisa3:Agei15ee
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>上述内容以 JSON 为例，则表示为：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;Name&#34;</span><span class="p">:</span><span class="s2">&#34;Lisa&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;Age&#34;</span><span class="p">:</span><span class="mi">15</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在本篇文章的示例当中，没有自行编写 B Encode 的编码与解码工具类，而是使用的第三方库 <strong><a class="link" href="https://github.com/Krusen/BencodeNET"  target="_blank" rel="noopener"
+    >BencodeNET</a></strong> 来进行操作。</p>
+<blockquote>
+<p>当然，针对于 B Encode 的编解码工具类的编写并不复杂，有了上述的解析，你也可以尝试自己编写一个 B Encode 编解码工具类。</p>
+</blockquote>
+<h2 id="三整体编写思路">三、整体编写思路</h2>
+<p>BT Tracker 服务器本质上就是一个 Web Api 项目，BT 客户端携带种子的唯一 HASH 值，去请求某个接口，从而获得正在工作的 Peer 列表。剩下的事情就与 Tracker 服务器无关了，Tacker 服务器的职责就是为 BT 下载工具提供正在工作的其他 BT 客户端。</p>
+<p>因此我们第一步就需要建立一个基于 .NET Core 的 Web Api 项目，并编写一个控制器接口用于响应 BT 下载工具的请求。除此之外，我们还需要一个字典用来存储种子与对应的 Peer 集合信息，在 BT 下载工具请求 Tracker 服务器的时候，能够返回相应的 Peer 集合信息。</p>
+<p>除了返回给 BT 下载工具 Peer 信息之外，Tracker 还可以根据 Client 请求时携带的附加数据来更新 Peer 的统计信息。<strong>(这些信息常用于 PT 站进行积分统计)</strong></p>
+<p>Tracker 服务器针对于返回的 Peer 集合有两种处理方式，第一种则是 <strong>紧凑模式</strong> ，这个时候 Tracker 服务器需要将 Peer 的 IP 与 Port 按照 <strong>[IP 地址(4 byte)][端口号(2 byte)]</strong> 的形式进行编码，返回二进制流。另一种则是直接将 Peer 集合的信息，通过 <code>BDictionary</code> 进行编码，其组织形式如下。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl"><span class="o">{</span>PeerIdKey,PeerId 值<span class="o">}</span>,
+</span></span><span class="line"><span class="cl"><span class="o">{</span>IpKey,IP 值<span class="o">}</span>，
+</span></span><span class="line"><span class="cl"><span class="o">{</span>PortKey,Port 值<span class="o">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>最后总结来说，如果要实现最简的 Tracker 服务器，只需要管理好 Peer (BT 客户端) 的状态，并且响应 Peer 的请求即可。如果需要实现积分制，那么就需要针对 Peer 的信息进行持久化处理。</p>
+<h2 id="四bt-tacker-服务器接口的定义">四、BT Tacker 服务器接口的定义</h2>
+<p>BT 下载工具向 Tracker 接口请求的参数与返回的参数已经在 <strong><a class="link" href="http://www.bittorrent.org/beps/bep_0003.html"  target="_blank" rel="noopener"
+    >BT 协议规范</a></strong> 当中有说明，下面我们就来介绍一下请求参数与返回参数的含义。</p>
+<h3 id="41-请求参数">4.1 请求参数</h3>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:left">参数名称</th>
+<th style="text-align:left">具体含义</th>
+<th style="text-align:left">类型</th>
+<th style="text-align:left">必填</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">info_hash</td>
+<td style="text-align:left">种子的唯一 HASH 标识。</td>
+<td style="text-align:left"><code>string</code></td>
+<td style="text-align:left">是</td>
+</tr>
+<tr>
+<td style="text-align:left">peer_id</td>
+<td style="text-align:left">BT 下载端的唯一标识，由客户端生成。</td>
+<td style="text-align:left"><code>string</code></td>
+<td style="text-align:left">是</td>
+</tr>
+<tr>
+<td style="text-align:left">ip</td>
+<td style="text-align:left">客户端的 IP 地址。</td>
+<td style="text-align:left"><code>string</code></td>
+<td style="text-align:left">否</td>
+</tr>
+<tr>
+<td style="text-align:left">port</td>
+<td style="text-align:left">客户端监听的端口。</td>
+<td style="text-align:left"><code>int</code></td>
+<td style="text-align:left">是</td>
+</tr>
+<tr>
+<td style="text-align:left">uploaded</td>
+<td style="text-align:left">客户端已经上传的数据大小，以 byte 为单位。</td>
+<td style="text-align:left"><code>long</code></td>
+<td style="text-align:left">是</td>
+</tr>
+<tr>
+<td style="text-align:left">downloaded</td>
+<td style="text-align:left">客户端已经下载的数据大小，以 byte 为单位。</td>
+<td style="text-align:left"><code>long</code></td>
+<td style="text-align:left">是</td>
+</tr>
+<tr>
+<td style="text-align:left">left</td>
+<td style="text-align:left">客户端待下载的数据大小，以 bytes 为单位。</td>
+<td style="text-align:left"><code>long</code></td>
+<td style="text-align:left">是</td>
+</tr>
+<tr>
+<td style="text-align:left">event</td>
+<td style="text-align:left">当前事件，一般有三个值代表客户端现在的状态，已开始 、已停止、已完成。</td>
+<td style="text-align:left"><code>string</code></td>
+<td style="text-align:left">是</td>
+</tr>
+<tr>
+<td style="text-align:left">compact</td>
+<td style="text-align:left">是否启用紧凑模式，如果为 <code>1</code> 则启动，为 <code>0</code> 则正常编码。</td>
+<td style="text-align:left"><code>int</code></td>
+<td style="text-align:left">否</td>
+</tr>
+<tr>
+<td style="text-align:left">numWant</td>
+<td style="text-align:left">客户端想要获得的 Peer 数量。</td>
+<td style="text-align:left"><code>int</code></td>
+<td style="text-align:left">否</td>
+</tr>
+</tbody>
+</table></div>
+<p>Tracker 的接口返回参数其 <code>Content-Type</code> 的值必须为 <code>text/plain</code> ，并且其结果是通过 B Encode 进行编码的。最外层是一个 <strong>BDictionary</strong> 字典，内部的数据除了一个 Peer 集合之外，还包含了以下的固定键值对。</p>
+<h3 id="42-返回参数">4.2 返回参数</h3>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:left">字典键</th>
+<th style="text-align:left">字典值类型</th>
+<th style="text-align:left">含义</th>
+<th style="text-align:left">必填</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">peers</td>
+<td style="text-align:left"><code>BList</code>/<code>BString</code></td>
+<td style="text-align:left">Peer 列表，根据 <code>compact</code> 参数不同，其值类型不一样。</td>
+<td style="text-align:left">是</td>
+</tr>
+<tr>
+<td style="text-align:left">interval</td>
+<td style="text-align:left"><code>BNumber</code></td>
+<td style="text-align:left">客户端发送规则请求到 Tracker 服务器之后的强制等待 时间，以秒为单位。</td>
+<td style="text-align:left">是</td>
+</tr>
+<tr>
+<td style="text-align:left">min interval</td>
+<td style="text-align:left"><code>BNumer</code></td>
+<td style="text-align:left">最小的发布时间间隔，客户端的重发间隔不能小于此值，也 是以秒为单位。</td>
+<td style="text-align:left">是</td>
+</tr>
+<tr>
+<td style="text-align:left">tracker id</td>
+<td style="text-align:left"><code>BString</code></td>
+<td style="text-align:left">Tracker 服务器的 Id，用于标识服务器。</td>
+<td style="text-align:left">是</td>
+</tr>
+<tr>
+<td style="text-align:left">complete</td>
+<td style="text-align:left"><code>BNumber</code></td>
+<td style="text-align:left">当前请求的种子，已经完成的 Peer 数量(做种数)。</td>
+<td style="text-align:left">是</td>
+</tr>
+<tr>
+<td style="text-align:left">incomplete</td>
+<td style="text-align:left"><code>BNumber</code></td>
+<td style="text-align:left">当前请求的种子，非做种状态的用户。</td>
+<td style="text-align:left">是</td>
+</tr>
+<tr>
+<td style="text-align:left">failure reason</td>
+<td style="text-align:left"><code>BString</code></td>
+<td style="text-align:left">Tracker 处理失败的原因，为可选参数。</td>
+<td style="text-align:left">否</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="五编码实现-bt-tracker-服务器">五、编码实现 BT Tracker 服务器</h2>
+<h3 id="51-基本架构">5.1 基本架构</h3>
+<p>首先新建立一个标准的 Web API 模板项目，删除掉其默认的 <code>ValuesController</code> ，建立一个新的控制器，其名字为 <code>AnnounceController</code> ，最后我们的项目结构如下。</p>
+<p><img src="/p/develop-bt-tracker-server-with-net-core/1551669213230.png"
+	width="457"
+	height="251"
+	srcset="/p/develop-bt-tracker-server-with-net-core/1551669213230_huf3eb6d6e239b4b803f357cfb38a0dd40_15510_480x0_resize_box_3.png 480w, /p/develop-bt-tracker-server-with-net-core/1551669213230_huf3eb6d6e239b4b803f357cfb38a0dd40_15510_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1551669213230"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="182"
+		data-flex-basis="436px"
+	
+></p>
+<p>添加一个 <code>GetPeersInfo</code> 接口，其 HTTP Method 为 <strong>GET</strong> 类型，建立一个输入 DTO 其代码如下。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">GetPeersInfoInput</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 种子的唯一 Hash 标识。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Info_Hash</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 客户端的随机 Id，由 BT 客户端生成。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Peer_Id</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 客户端的 IP 地址。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Ip</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 客户端监听的端口。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">int</span> <span class="n">Port</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 已经上传的数据大小。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">long</span> <span class="n">Uploaded</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 已经下载的数据大小。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">long</span> <span class="n">Downloaded</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 事件表示，具体可以转换为 &lt;see cref=&#34;TorrentEvent&#34;/&gt; 枚举的具体值。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Event</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 该客户端剩余待下载的数据。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">long</span> <span class="n">Left</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 是否启用压缩，当该值为 1 的时候，表示当前客户端接受压缩格式的 Peer 列表，即使用</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 6 字节表示一个 Peer (前 4 字节表示 IP 地址，后 2 字节表示端口号)。当该值为 0</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 的时候则表示客户端不接受。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">int</span> <span class="n">Compact</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 表示客户端想要获得的 Peer 数量。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">int?</span> <span class="n">NumWant</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>上面仅仅是 PT 客户端传递给 Tracker 服务器的参数信息，为了在后面我们方便使用，我们还需要将其转换为方便操作的充血模型。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">  1
+</span><span class="lnt">  2
+</span><span class="lnt">  3
+</span><span class="lnt">  4
+</span><span class="lnt">  5
+</span><span class="lnt">  6
+</span><span class="lnt">  7
+</span><span class="lnt">  8
+</span><span class="lnt">  9
+</span><span class="lnt"> 10
+</span><span class="lnt"> 11
+</span><span class="lnt"> 12
+</span><span class="lnt"> 13
+</span><span class="lnt"> 14
+</span><span class="lnt"> 15
+</span><span class="lnt"> 16
+</span><span class="lnt"> 17
+</span><span class="lnt"> 18
+</span><span class="lnt"> 19
+</span><span class="lnt"> 20
+</span><span class="lnt"> 21
+</span><span class="lnt"> 22
+</span><span class="lnt"> 23
+</span><span class="lnt"> 24
+</span><span class="lnt"> 25
+</span><span class="lnt"> 26
+</span><span class="lnt"> 27
+</span><span class="lnt"> 28
+</span><span class="lnt"> 29
+</span><span class="lnt"> 30
+</span><span class="lnt"> 31
+</span><span class="lnt"> 32
+</span><span class="lnt"> 33
+</span><span class="lnt"> 34
+</span><span class="lnt"> 35
+</span><span class="lnt"> 36
+</span><span class="lnt"> 37
+</span><span class="lnt"> 38
+</span><span class="lnt"> 39
+</span><span class="lnt"> 40
+</span><span class="lnt"> 41
+</span><span class="lnt"> 42
+</span><span class="lnt"> 43
+</span><span class="lnt"> 44
+</span><span class="lnt"> 45
+</span><span class="lnt"> 46
+</span><span class="lnt"> 47
+</span><span class="lnt"> 48
+</span><span class="lnt"> 49
+</span><span class="lnt"> 50
+</span><span class="lnt"> 51
+</span><span class="lnt"> 52
+</span><span class="lnt"> 53
+</span><span class="lnt"> 54
+</span><span class="lnt"> 55
+</span><span class="lnt"> 56
+</span><span class="lnt"> 57
+</span><span class="lnt"> 58
+</span><span class="lnt"> 59
+</span><span class="lnt"> 60
+</span><span class="lnt"> 61
+</span><span class="lnt"> 62
+</span><span class="lnt"> 63
+</span><span class="lnt"> 64
+</span><span class="lnt"> 65
+</span><span class="lnt"> 66
+</span><span class="lnt"> 67
+</span><span class="lnt"> 68
+</span><span class="lnt"> 69
+</span><span class="lnt"> 70
+</span><span class="lnt"> 71
+</span><span class="lnt"> 72
+</span><span class="lnt"> 73
+</span><span class="lnt"> 74
+</span><span class="lnt"> 75
+</span><span class="lnt"> 76
+</span><span class="lnt"> 77
+</span><span class="lnt"> 78
+</span><span class="lnt"> 79
+</span><span class="lnt"> 80
+</span><span class="lnt"> 81
+</span><span class="lnt"> 82
+</span><span class="lnt"> 83
+</span><span class="lnt"> 84
+</span><span class="lnt"> 85
+</span><span class="lnt"> 86
+</span><span class="lnt"> 87
+</span><span class="lnt"> 88
+</span><span class="lnt"> 89
+</span><span class="lnt"> 90
+</span><span class="lnt"> 91
+</span><span class="lnt"> 92
+</span><span class="lnt"> 93
+</span><span class="lnt"> 94
+</span><span class="lnt"> 95
+</span><span class="lnt"> 96
+</span><span class="lnt"> 97
+</span><span class="lnt"> 98
+</span><span class="lnt"> 99
+</span><span class="lnt">100
+</span><span class="lnt">101
+</span><span class="lnt">102
+</span><span class="lnt">103
+</span><span class="lnt">104
+</span><span class="lnt">105
+</span><span class="lnt">106
+</span><span class="lnt">107
+</span><span class="lnt">108
+</span><span class="lnt">109
+</span><span class="lnt">110
+</span><span class="lnt">111
+</span><span class="lnt">112
+</span><span class="lnt">113
+</span><span class="lnt">114
+</span><span class="lnt">115
+</span><span class="lnt">116
+</span><span class="lnt">117
+</span><span class="lnt">118
+</span><span class="lnt">119
+</span><span class="lnt">120
+</span><span class="lnt">121
+</span><span class="lnt">122
+</span><span class="lnt">123
+</span><span class="lnt">124
+</span><span class="lnt">125
+</span><span class="lnt">126
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AnnounceInputParameters</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 客户端 IP 端点信息。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IPEndPoint</span> <span class="n">ClientAddress</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 种子的唯一 Hash 标识。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">InfoHash</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 客户端的随机 Id，由 BT 客户端生成。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">PeerId</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 已经上传的数据大小。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">long</span> <span class="n">Uploaded</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 已经下载的数据大小。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">long</span> <span class="n">Downloaded</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 事件表示，具体可以转换为 &lt;see cref=&#34;TorrentEvent&#34;/&gt; 枚举的具体值。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TorrentEvent</span> <span class="n">Event</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 该客户端剩余待下载的数据。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">long</span> <span class="n">Left</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// Peer 是否允许启用压缩。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">IsEnableCompact</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// Peer 想要获得的可用的 Peer 数量。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">int</span> <span class="n">PeerWantCount</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 如果在请求过程当中出现了异常，则本字典包含了异常信息。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">BDictionary</span> <span class="n">Error</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">AnnounceInputParameters</span><span class="p">(</span><span class="n">GetPeersInfoInput</span> <span class="n">apiInput</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Error</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BDictionary</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">ClientAddress</span> <span class="p">=</span> <span class="n">ConvertClientAddress</span><span class="p">(</span><span class="n">apiInput</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">InfoHash</span> <span class="p">=</span> <span class="n">ConvertInfoHash</span><span class="p">(</span><span class="n">apiInput</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Event</span> <span class="p">=</span> <span class="n">ConvertTorrentEvent</span><span class="p">(</span><span class="n">apiInput</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">PeerId</span> <span class="p">=</span> <span class="n">apiInput</span><span class="p">.</span><span class="n">Peer_Id</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Uploaded</span> <span class="p">=</span> <span class="n">apiInput</span><span class="p">.</span><span class="n">Uploaded</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Downloaded</span> <span class="p">=</span> <span class="n">apiInput</span><span class="p">.</span><span class="n">Downloaded</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Left</span> <span class="p">=</span> <span class="n">apiInput</span><span class="p">.</span><span class="n">Left</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IsEnableCompact</span> <span class="p">=</span> <span class="n">apiInput</span><span class="p">.</span><span class="n">Compact</span> <span class="p">==</span> <span class="m">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">PeerWantCount</span> <span class="p">=</span> <span class="n">apiInput</span><span class="p">.</span><span class="n">NumWant</span> <span class="p">??</span> <span class="m">30</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;see cref=&#34;GetPeersInfoInput&#34;/&gt; 到当前类型的隐式转换定义。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">implicit</span> <span class="k">operator</span> <span class="n">AnnounceInputParameters</span><span class="p">(</span><span class="n">GetPeersInfoInput</span> <span class="n">input</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">new</span> <span class="n">AnnounceInputParameters</span><span class="p">(</span><span class="n">input</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 将客户端传递的 IP 地址与端口转换为 &lt;see cref=&#34;IPEndPoint&#34;/&gt; 类型。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">IPEndPoint</span> <span class="n">ConvertClientAddress</span><span class="p">(</span><span class="n">GetPeersInfoInput</span> <span class="n">apiInput</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">IPAddress</span><span class="p">.</span><span class="n">TryParse</span><span class="p">(</span><span class="n">apiInput</span><span class="p">.</span><span class="n">Ip</span><span class="p">,</span> <span class="k">out</span> <span class="n">IPAddress</span> <span class="n">ipAddress</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">new</span> <span class="n">IPEndPoint</span><span class="p">(</span><span class="n">ipAddress</span><span class="p">,</span><span class="n">apiInput</span><span class="p">.</span><span class="n">Port</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 将客户端传递的字符串 Event 转换为 &lt;see cref=&#34;TorrentEvent&#34;/&gt; 枚举。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">TorrentEvent</span> <span class="n">ConvertTorrentEvent</span><span class="p">(</span><span class="n">GetPeersInfoInput</span> <span class="n">apiInput</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">switch</span> <span class="p">(</span><span class="n">apiInput</span><span class="p">.</span><span class="n">Event</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">case</span> <span class="s">&#34;started&#34;</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="n">TorrentEvent</span><span class="p">.</span><span class="n">Started</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="k">case</span> <span class="s">&#34;stopped&#34;</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="n">TorrentEvent</span><span class="p">.</span><span class="n">Stopped</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="k">case</span> <span class="s">&#34;completed&#34;</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="n">TorrentEvent</span><span class="p">.</span><span class="n">Completed</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="k">default</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="n">TorrentEvent</span><span class="p">.</span><span class="n">None</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 将 info_hash 参数从 URL 编码转换为标准的字符串。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="kt">string</span> <span class="n">ConvertInfoHash</span><span class="p">(</span><span class="n">GetPeersInfoInput</span> <span class="n">apiInput</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">infoHashBytes</span> <span class="p">=</span> <span class="n">HttpUtility</span><span class="p">.</span><span class="n">UrlDecodeToBytes</span><span class="p">(</span><span class="n">apiInput</span><span class="p">.</span><span class="n">Info_Hash</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">infoHashBytes</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Error</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">TrackerServerConsts</span><span class="p">.</span><span class="n">FailureKey</span><span class="p">,</span><span class="k">new</span> <span class="n">BString</span><span class="p">(</span><span class="s">&#34;info_hash 参数不能为空.&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">infoHashBytes</span><span class="p">.</span><span class="n">Length</span> <span class="p">!=</span> <span class="m">20</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Error</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">TrackerServerConsts</span><span class="p">.</span><span class="n">FailureKey</span><span class="p">,</span><span class="k">new</span> <span class="n">BString</span><span class="p">(</span><span class="s">$&#34;info_hash 参数的长度 {{{infoHashBytes.Length}}} 不符合 BT 协议规范.&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">BitConverter</span><span class="p">.</span><span class="n">ToString</span><span class="p">(</span><span class="n">infoHashBytes</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>上述代码我们构建了一个新的类型 <code>AnnounceInputParameters</code> ，该类型会将部分参数转换为我们便于操作的类型。这里需要注意的是，我们在 <code>TrackerServerConsts</code> 当中定义了所用到了大部分 <code>BDictionary</code> 关键字。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">enum</span> <span class="n">TorrentEvent</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 未知状态。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">None</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 已开始。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Started</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 已停止。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Stopped</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 已完成。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Completed</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// 常用的字典 KEY。</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">TrackerServerConsts</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">readonly</span> <span class="n">BString</span> <span class="n">PeerIdKey</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BString</span><span class="p">(</span><span class="s">&#34;peer id&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">readonly</span> <span class="n">BString</span> <span class="n">PeersKey</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BString</span><span class="p">(</span><span class="s">&#34;peers&#34;</span><span class="p">);</span> 
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">readonly</span> <span class="n">BString</span> <span class="n">IntervalKey</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BString</span><span class="p">(</span><span class="s">&#34;interval&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">readonly</span> <span class="n">BString</span> <span class="n">MinIntervalKey</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BString</span><span class="p">(</span><span class="s">&#34;min interval&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">readonly</span> <span class="n">BString</span> <span class="n">TrackerIdKey</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BString</span><span class="p">(</span><span class="s">&#34;tracker id&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">readonly</span> <span class="n">BString</span> <span class="n">CompleteKey</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BString</span><span class="p">(</span><span class="s">&#34;complete&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">readonly</span> <span class="n">BString</span> <span class="n">IncompleteKey</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BString</span><span class="p">(</span><span class="s">&#34;incomplete&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">readonly</span> <span class="n">BString</span> <span class="n">Port</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BString</span><span class="p">(</span><span class="s">&#34;port&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">readonly</span> <span class="n">BString</span> <span class="n">Ip</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BString</span><span class="p">(</span><span class="s">&#34;ip&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">readonly</span> <span class="kt">string</span> <span class="n">FailureKey</span> <span class="p">=</span> <span class="s">&#34;failure reason&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="52-peer-的定义">5.2 Peer 的定义</h3>
+<p>每一个 Peer 我们定义一个 <code>Peer</code> 类型进行表示，我们可以通过 BT 客户端传递的请求参数来实时更新每个 <code>Peer</code> 对象的信息。</p>
+<p>除此之外，根据 BT 协议的规定，在返回 Peer 列表的时候可以返回紧凑型的结果和正常 B 编码结果的 Peer 信息。所以我们也会在 <code>Peer</code> 对象中，增加两个方法用于将 Peer 信息进行特定的编码处理。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">  1
+</span><span class="lnt">  2
+</span><span class="lnt">  3
+</span><span class="lnt">  4
+</span><span class="lnt">  5
+</span><span class="lnt">  6
+</span><span class="lnt">  7
+</span><span class="lnt">  8
+</span><span class="lnt">  9
+</span><span class="lnt"> 10
+</span><span class="lnt"> 11
+</span><span class="lnt"> 12
+</span><span class="lnt"> 13
+</span><span class="lnt"> 14
+</span><span class="lnt"> 15
+</span><span class="lnt"> 16
+</span><span class="lnt"> 17
+</span><span class="lnt"> 18
+</span><span class="lnt"> 19
+</span><span class="lnt"> 20
+</span><span class="lnt"> 21
+</span><span class="lnt"> 22
+</span><span class="lnt"> 23
+</span><span class="lnt"> 24
+</span><span class="lnt"> 25
+</span><span class="lnt"> 26
+</span><span class="lnt"> 27
+</span><span class="lnt"> 28
+</span><span class="lnt"> 29
+</span><span class="lnt"> 30
+</span><span class="lnt"> 31
+</span><span class="lnt"> 32
+</span><span class="lnt"> 33
+</span><span class="lnt"> 34
+</span><span class="lnt"> 35
+</span><span class="lnt"> 36
+</span><span class="lnt"> 37
+</span><span class="lnt"> 38
+</span><span class="lnt"> 39
+</span><span class="lnt"> 40
+</span><span class="lnt"> 41
+</span><span class="lnt"> 42
+</span><span class="lnt"> 43
+</span><span class="lnt"> 44
+</span><span class="lnt"> 45
+</span><span class="lnt"> 46
+</span><span class="lnt"> 47
+</span><span class="lnt"> 48
+</span><span class="lnt"> 49
+</span><span class="lnt"> 50
+</span><span class="lnt"> 51
+</span><span class="lnt"> 52
+</span><span class="lnt"> 53
+</span><span class="lnt"> 54
+</span><span class="lnt"> 55
+</span><span class="lnt"> 56
+</span><span class="lnt"> 57
+</span><span class="lnt"> 58
+</span><span class="lnt"> 59
+</span><span class="lnt"> 60
+</span><span class="lnt"> 61
+</span><span class="lnt"> 62
+</span><span class="lnt"> 63
+</span><span class="lnt"> 64
+</span><span class="lnt"> 65
+</span><span class="lnt"> 66
+</span><span class="lnt"> 67
+</span><span class="lnt"> 68
+</span><span class="lnt"> 69
+</span><span class="lnt"> 70
+</span><span class="lnt"> 71
+</span><span class="lnt"> 72
+</span><span class="lnt"> 73
+</span><span class="lnt"> 74
+</span><span class="lnt"> 75
+</span><span class="lnt"> 76
+</span><span class="lnt"> 77
+</span><span class="lnt"> 78
+</span><span class="lnt"> 79
+</span><span class="lnt"> 80
+</span><span class="lnt"> 81
+</span><span class="lnt"> 82
+</span><span class="lnt"> 83
+</span><span class="lnt"> 84
+</span><span class="lnt"> 85
+</span><span class="lnt"> 86
+</span><span class="lnt"> 87
+</span><span class="lnt"> 88
+</span><span class="lnt"> 89
+</span><span class="lnt"> 90
+</span><span class="lnt"> 91
+</span><span class="lnt"> 92
+</span><span class="lnt"> 93
+</span><span class="lnt"> 94
+</span><span class="lnt"> 95
+</span><span class="lnt"> 96
+</span><span class="lnt"> 97
+</span><span class="lnt"> 98
+</span><span class="lnt"> 99
+</span><span class="lnt">100
+</span><span class="lnt">101
+</span><span class="lnt">102
+</span><span class="lnt">103
+</span><span class="lnt">104
+</span><span class="lnt">105
+</span><span class="lnt">106
+</span><span class="lnt">107
+</span><span class="lnt">108
+</span><span class="lnt">109
+</span><span class="lnt">110
+</span><span class="lnt">111
+</span><span class="lnt">112
+</span><span class="lnt">113
+</span><span class="lnt">114
+</span><span class="lnt">115
+</span><span class="lnt">116
+</span><span class="lnt">117
+</span><span class="lnt">118
+</span><span class="lnt">119
+</span><span class="lnt">120
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// 每个 BT 下载客户端的定义。</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">Peer</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 客户端 IP 端点信息。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">IPEndPoint</span> <span class="n">ClientAddress</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 客户端的随机 Id，由 BT 客户端生成。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="kt">string</span> <span class="n">PeerId</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 客户端唯一标识。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="kt">string</span> <span class="n">UniqueId</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 客户端在本次会话过程中下载的数据量。(以 Byte 为单位)</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="kt">long</span> <span class="n">DownLoaded</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 客户端在本次会话过程当中上传的数据量。(以 Byte 为单位)</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="kt">long</span> <span class="n">Uploaded</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 客户端的下载速度。(以 Byte/秒 为单位)</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="kt">long</span> <span class="n">DownloadSpeed</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 客户端的上传速度。(以 Byte/秒 为单位)</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="kt">long</span> <span class="n">UploadSpeed</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 客户端是否完成了当前种子，True 为已经完成，False 为还未完成。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="kt">bool</span> <span class="n">IsCompleted</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 最后一次请求 Tracker 服务器的时间。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">DateTime</span> <span class="n">LastRequestTrackerTime</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// Peer 还需要下载的数量。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="kt">long</span> <span class="n">Left</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">Peer</span><span class="p">()</span> <span class="p">{</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">Peer</span><span class="p">(</span><span class="n">AnnounceInputParameters</span> <span class="n">inputParameters</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">UniqueId</span> <span class="p">=</span> <span class="n">inputParameters</span><span class="p">.</span><span class="n">ClientAddress</span><span class="p">.</span><span class="n">ToString</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="c1">// 根据输入参数更新 Peer 的状态。</span>
+</span></span><span class="line"><span class="cl">		<span class="n">UpdateStatus</span><span class="p">(</span><span class="n">inputParameters</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 根据输入参数更新 Peer 的状态。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;inputParameters&#34;&gt;BT 客户端请求 Tracker 服务器时传递的参数。&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">UpdateStatus</span><span class="p">(</span><span class="n">AnnounceInputParameters</span> <span class="n">inputParameters</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">now</span> <span class="p">=</span> <span class="n">DateTime</span><span class="p">.</span><span class="n">Now</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">elapsedTime</span> <span class="p">=</span> <span class="p">(</span><span class="n">now</span> <span class="p">-</span> <span class="n">LastRequestTrackerTime</span><span class="p">).</span><span class="n">TotalSeconds</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">elapsedTime</span> <span class="p">&lt;</span> <span class="m">1</span><span class="p">)</span> <span class="n">elapsedTime</span> <span class="p">=</span> <span class="m">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">ClientAddress</span> <span class="p">=</span> <span class="n">inputParameters</span><span class="p">.</span><span class="n">ClientAddress</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 通过差值除以消耗的时间，得到每秒的大概下载速度。</span>
+</span></span><span class="line"><span class="cl">		<span class="n">DownloadSpeed</span> <span class="p">=</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span> <span class="p">((</span><span class="n">inputParameters</span><span class="p">.</span><span class="n">Downloaded</span> <span class="p">-</span> <span class="n">DownLoaded</span><span class="p">)</span> <span class="p">/</span> <span class="n">elapsedTime</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">DownLoaded</span> <span class="p">=</span> <span class="n">inputParameters</span><span class="p">.</span><span class="n">Downloaded</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">UploadSpeed</span> <span class="p">=</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span> <span class="p">((</span><span class="n">inputParameters</span><span class="p">.</span><span class="n">Uploaded</span><span class="p">)</span> <span class="p">/</span> <span class="n">elapsedTime</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Uploaded</span> <span class="p">=</span> <span class="n">inputParameters</span><span class="p">.</span><span class="n">Uploaded</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Left</span> <span class="p">=</span> <span class="n">inputParameters</span><span class="p">.</span><span class="n">Left</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">PeerId</span> <span class="p">=</span> <span class="n">inputParameters</span><span class="p">.</span><span class="n">PeerId</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">LastRequestTrackerTime</span> <span class="p">=</span> <span class="n">now</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="c1">// 如果没有剩余数据，则表示 Peer 已经完成下载。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">Left</span> <span class="p">==</span> <span class="m">0</span><span class="p">)</span> <span class="n">IsCompleted</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 将 Peer 信息进行 B 编码，按照协议处理为字典。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">BDictionary</span> <span class="n">ToEncodedDictionary</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="k">new</span> <span class="n">BDictionary</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="p">{</span><span class="n">TrackerServerConsts</span><span class="p">.</span><span class="n">PeerIdKey</span><span class="p">,</span><span class="k">new</span> <span class="n">BString</span><span class="p">(</span><span class="n">PeerId</span><span class="p">)},</span>
+</span></span><span class="line"><span class="cl">			<span class="p">{</span><span class="n">TrackerServerConsts</span><span class="p">.</span><span class="n">Ip</span><span class="p">,</span><span class="k">new</span> <span class="n">BString</span><span class="p">(</span><span class="n">ClientAddress</span><span class="p">.</span><span class="n">Address</span><span class="p">.</span><span class="n">ToString</span><span class="p">())},</span>
+</span></span><span class="line"><span class="cl">			<span class="p">{</span><span class="n">TrackerServerConsts</span><span class="p">.</span><span class="n">Port</span><span class="p">,</span><span class="k">new</span> <span class="n">BNumber</span><span class="p">(</span><span class="n">ClientAddress</span><span class="p">.</span><span class="n">Port</span><span class="p">)}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">};</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 将 Peer 信息进行紧凑编码成字节组。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="kt">byte</span><span class="p">[]</span> <span class="n">ToBytes</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">portBytes</span> <span class="p">=</span> <span class="n">BitConverter</span><span class="p">.</span><span class="n">GetBytes</span><span class="p">(</span><span class="n">IPAddress</span><span class="p">.</span><span class="n">HostToNetworkOrder</span><span class="p">((</span><span class="kt">short</span><span class="p">)</span> <span class="n">ClientAddress</span><span class="p">.</span><span class="n">Port</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">addressBytes</span> <span class="p">=</span> <span class="n">ClientAddress</span><span class="p">.</span><span class="n">Address</span><span class="p">.</span><span class="n">GetAddressBytes</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">resultBytes</span> <span class="p">=</span> <span class="k">new</span> <span class="kt">byte</span><span class="p">[</span><span class="n">portBytes</span><span class="p">.</span><span class="n">Length</span> <span class="p">+</span> <span class="n">addressBytes</span><span class="p">.</span><span class="n">Length</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="c1">// 根据协议规定，首部的 4 字节为 IP 地址，尾部的 2 自己为端口信息</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Array</span><span class="p">.</span><span class="n">Copy</span><span class="p">(</span><span class="n">addressBytes</span><span class="p">,</span><span class="n">resultBytes</span><span class="p">,</span><span class="n">addressBytes</span><span class="p">.</span><span class="n">Length</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Array</span><span class="p">.</span><span class="n">Copy</span><span class="p">(</span><span class="n">portBytes</span><span class="p">,</span><span class="m">0</span><span class="p">,</span><span class="n">resultBytes</span><span class="p">,</span><span class="n">addressBytes</span><span class="p">.</span><span class="n">Length</span><span class="p">,</span><span class="n">portBytes</span><span class="p">.</span><span class="n">Length</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">resultBytes</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="53-管理种子与其-peer-集合">5.3 管理种子与其 Peer 集合</h3>
+<p>BT 客户端请求 Tracker 服务器的目的只有一个，就是获取正在 <strong>下载同一个种子的 Peer 列表</strong> ，明白了这一点之后就知道我们需要一个字典来管理种子与可用 Peer 集合的关系。</p>
+<p>在上一节我们知道，客户端在请求 Tracker 服务器的时候会带上正在下载的种子唯一 Hash 值，而我们则可以根据这个 Hash 值来索引我们 Peer 列表。</p>
+<blockquote>
+<p>PT 站的原理也是类似，会有一个种子表，这个表以种子的唯一 Hash 值作为主键，并添加某些扩展字段。(IMDB 评分、描述、视频信息等&hellip;)</p>
+</blockquote>
+<p>这里我们定义一个 <code>IBitTorrentManager</code> 管理器对象，通过该对象来管理种子的状态，以及种子与 Peer 集合的状态。该接口的定义如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// 用于管理 BT 种子与其关联的 Peer 集合。</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IBitTorrentManager</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 添加一个新的 Peer 到指定种子关联的集合当中。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;infoHash&#34;&gt;种子的唯一标识。&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;inputParameters&#34;&gt;BT 客户端传入的参数信息。&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Peer</span> <span class="n">AddPeer</span><span class="p">(</span><span class="kt">string</span> <span class="n">infoHash</span><span class="p">,</span><span class="n">AnnounceInputParameters</span> <span class="n">inputParameters</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 根据参数删除指定种子的 Peer 信息。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;infoHash&#34;&gt;种子的唯一标识。&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;inputParameters&#34;&gt;BT 客户端传入的参数信息。&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">void</span> <span class="n">DeletePeer</span><span class="p">(</span><span class="kt">string</span> <span class="n">infoHash</span><span class="p">,</span><span class="n">AnnounceInputParameters</span> <span class="n">inputParameters</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 更新指定种子的某个 Peer 状态。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;infoHash&#34;&gt;种子的唯一标识。&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;inputParameters&#34;&gt;BT 客户端传入的参数信息。&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">void</span> <span class="n">UpdatePeer</span><span class="p">(</span><span class="kt">string</span> <span class="n">infoHash</span><span class="p">,</span> <span class="n">AnnounceInputParameters</span> <span class="n">inputParameters</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 获得指定种子的可用 Peer 集合。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;infoHash&#34;&gt;种子的唯一标识。&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;returns&gt;当前种子关联的 Peer 列表。&lt;/returns&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">Peer</span><span class="p">&gt;</span> <span class="n">GetPeers</span><span class="p">(</span><span class="kt">string</span> <span class="n">infoHash</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 清理指定种子内部不活跃的 Peer 。 </span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;infoHash&#34;&gt;种子的唯一标识。&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;expiry&#34;&gt;超时周期，超过这个时间的 Peer 将会被清理掉。&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">void</span> <span class="n">ClearZombiePeers</span><span class="p">(</span><span class="kt">string</span> <span class="n">infoHash</span><span class="p">,</span><span class="n">TimeSpan</span> <span class="n">expiry</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 获得指定种子已经完成下载的 Peer 数量。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;infoHash&#34;&gt;种子的唯一标识。&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">GetComplete</span><span class="p">(</span><span class="kt">string</span> <span class="n">infoHash</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 获得指定种子正在下载的 Peer 数量。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;infoHash&#34;&gt;种子的唯一标识。&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">GetInComplete</span><span class="p">(</span><span class="kt">string</span> <span class="n">infoHash</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>前四个方法都是用于管理种子关联的 Peer 数据的，就是一些 CRUD 操作。由于某些用户可能不再做种，这个时候他的 Peer 信息就是无用的，就需要进行清理，所以我们也提供了一个 <code>ClearZombiePeers()</code> 方法来清理这些无效的 Peer 。</p>
+<p>最后两个方法是用于更新种子的最新状态，每一个种子除了它关联的 Peer 信息，同时也有一些统计信息，例如已经完成的 Peer 数，正在下载的 Peer 数，下载完成等统计信息，这里我们可以建立一个类存放这些统计信息以跟种子相关联。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// 用于表示某个种子的状态与统计信息。</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">BitTorrentStatus</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 下载完成的 Peer 数量。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">BNumber</span> <span class="n">Downloaded</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 已经完成种子下载的 Peer 数量。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">BNumber</span> <span class="n">Completed</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 正在下载种子的 Peer 数量。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">BNumber</span> <span class="n">InCompleted</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">BitTorrentStatus</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Downloaded</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BNumber</span><span class="p">(</span><span class="m">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Completed</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BNumber</span><span class="p">(</span><span class="m">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">InCompleted</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BNumber</span><span class="p">(</span><span class="m">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>接下来我们就来实现 <code>IBitTorrentManager</code> 接口。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">  1
+</span><span class="lnt">  2
+</span><span class="lnt">  3
+</span><span class="lnt">  4
+</span><span class="lnt">  5
+</span><span class="lnt">  6
+</span><span class="lnt">  7
+</span><span class="lnt">  8
+</span><span class="lnt">  9
+</span><span class="lnt"> 10
+</span><span class="lnt"> 11
+</span><span class="lnt"> 12
+</span><span class="lnt"> 13
+</span><span class="lnt"> 14
+</span><span class="lnt"> 15
+</span><span class="lnt"> 16
+</span><span class="lnt"> 17
+</span><span class="lnt"> 18
+</span><span class="lnt"> 19
+</span><span class="lnt"> 20
+</span><span class="lnt"> 21
+</span><span class="lnt"> 22
+</span><span class="lnt"> 23
+</span><span class="lnt"> 24
+</span><span class="lnt"> 25
+</span><span class="lnt"> 26
+</span><span class="lnt"> 27
+</span><span class="lnt"> 28
+</span><span class="lnt"> 29
+</span><span class="lnt"> 30
+</span><span class="lnt"> 31
+</span><span class="lnt"> 32
+</span><span class="lnt"> 33
+</span><span class="lnt"> 34
+</span><span class="lnt"> 35
+</span><span class="lnt"> 36
+</span><span class="lnt"> 37
+</span><span class="lnt"> 38
+</span><span class="lnt"> 39
+</span><span class="lnt"> 40
+</span><span class="lnt"> 41
+</span><span class="lnt"> 42
+</span><span class="lnt"> 43
+</span><span class="lnt"> 44
+</span><span class="lnt"> 45
+</span><span class="lnt"> 46
+</span><span class="lnt"> 47
+</span><span class="lnt"> 48
+</span><span class="lnt"> 49
+</span><span class="lnt"> 50
+</span><span class="lnt"> 51
+</span><span class="lnt"> 52
+</span><span class="lnt"> 53
+</span><span class="lnt"> 54
+</span><span class="lnt"> 55
+</span><span class="lnt"> 56
+</span><span class="lnt"> 57
+</span><span class="lnt"> 58
+</span><span class="lnt"> 59
+</span><span class="lnt"> 60
+</span><span class="lnt"> 61
+</span><span class="lnt"> 62
+</span><span class="lnt"> 63
+</span><span class="lnt"> 64
+</span><span class="lnt"> 65
+</span><span class="lnt"> 66
+</span><span class="lnt"> 67
+</span><span class="lnt"> 68
+</span><span class="lnt"> 69
+</span><span class="lnt"> 70
+</span><span class="lnt"> 71
+</span><span class="lnt"> 72
+</span><span class="lnt"> 73
+</span><span class="lnt"> 74
+</span><span class="lnt"> 75
+</span><span class="lnt"> 76
+</span><span class="lnt"> 77
+</span><span class="lnt"> 78
+</span><span class="lnt"> 79
+</span><span class="lnt"> 80
+</span><span class="lnt"> 81
+</span><span class="lnt"> 82
+</span><span class="lnt"> 83
+</span><span class="lnt"> 84
+</span><span class="lnt"> 85
+</span><span class="lnt"> 86
+</span><span class="lnt"> 87
+</span><span class="lnt"> 88
+</span><span class="lnt"> 89
+</span><span class="lnt"> 90
+</span><span class="lnt"> 91
+</span><span class="lnt"> 92
+</span><span class="lnt"> 93
+</span><span class="lnt"> 94
+</span><span class="lnt"> 95
+</span><span class="lnt"> 96
+</span><span class="lnt"> 97
+</span><span class="lnt"> 98
+</span><span class="lnt"> 99
+</span><span class="lnt">100
+</span><span class="lnt">101
+</span><span class="lnt">102
+</span><span class="lnt">103
+</span><span class="lnt">104
+</span><span class="lnt">105
+</span><span class="lnt">106
+</span><span class="lnt">107
+</span><span class="lnt">108
+</span><span class="lnt">109
+</span><span class="lnt">110
+</span><span class="lnt">111
+</span><span class="lnt">112
+</span><span class="lnt">113
+</span><span class="lnt">114
+</span><span class="lnt">115
+</span><span class="lnt">116
+</span><span class="lnt">117
+</span><span class="lnt">118
+</span><span class="lnt">119
+</span><span class="lnt">120
+</span><span class="lnt">121
+</span><span class="lnt">122
+</span><span class="lnt">123
+</span><span class="lnt">124
+</span><span class="lnt">125
+</span><span class="lnt">126
+</span><span class="lnt">127
+</span><span class="lnt">128
+</span><span class="lnt">129
+</span><span class="lnt">130
+</span><span class="lnt">131
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">BitTorrentManager</span> <span class="p">:</span> <span class="n">IBitTorrentManager</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">ConcurrentDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Peer</span><span class="p">&gt;&gt;</span> <span class="n">_peers</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">ConcurrentDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">BitTorrentStatus</span><span class="p">&gt;</span> <span class="n">_bitTorrentStatus</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">BitTorrentManager</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_peers</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ConcurrentDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Peer</span><span class="p">&gt;&gt;();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_bitTorrentStatus</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ConcurrentDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">BitTorrentStatus</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">Peer</span> <span class="n">AddPeer</span><span class="p">(</span><span class="kt">string</span> <span class="n">infoHash</span><span class="p">,</span> <span class="n">AnnounceInputParameters</span> <span class="n">inputParameters</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">CheckParameters</span><span class="p">(</span><span class="n">infoHash</span><span class="p">,</span> <span class="n">inputParameters</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">newPeer</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Peer</span><span class="p">(</span><span class="n">inputParameters</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(!</span><span class="n">_peers</span><span class="p">.</span><span class="n">ContainsKey</span><span class="p">(</span><span class="n">infoHash</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">_peers</span><span class="p">.</span><span class="n">TryAdd</span><span class="p">(</span><span class="n">infoHash</span><span class="p">,</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Peer</span><span class="p">&gt;</span> <span class="p">{</span><span class="n">newPeer</span><span class="p">});</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="n">_peers</span><span class="p">[</span><span class="n">infoHash</span><span class="p">].</span><span class="n">Add</span><span class="p">(</span><span class="n">newPeer</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="n">UpdateBitTorrentStatus</span><span class="p">(</span><span class="n">infoHash</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">newPeer</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">DeletePeer</span><span class="p">(</span><span class="kt">string</span> <span class="n">infoHash</span><span class="p">,</span> <span class="n">AnnounceInputParameters</span> <span class="n">inputParameters</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">CheckParameters</span><span class="p">(</span><span class="n">infoHash</span><span class="p">,</span> <span class="n">inputParameters</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(!</span><span class="n">_peers</span><span class="p">.</span><span class="n">ContainsKey</span><span class="p">(</span><span class="n">infoHash</span><span class="p">))</span> <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">_peers</span><span class="p">[</span><span class="n">infoHash</span><span class="p">].</span><span class="n">RemoveAll</span><span class="p">(</span><span class="n">p</span> <span class="p">=&gt;</span> <span class="n">p</span><span class="p">.</span><span class="n">UniqueId</span> <span class="p">==</span> <span class="n">inputParameters</span><span class="p">.</span><span class="n">ClientAddress</span><span class="p">.</span><span class="n">ToString</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="n">UpdateBitTorrentStatus</span><span class="p">(</span><span class="n">infoHash</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">UpdatePeer</span><span class="p">(</span><span class="kt">string</span> <span class="n">infoHash</span><span class="p">,</span> <span class="n">AnnounceInputParameters</span> <span class="n">inputParameters</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">CheckParameters</span><span class="p">(</span><span class="n">infoHash</span><span class="p">,</span> <span class="n">inputParameters</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(!</span><span class="n">_peers</span><span class="p">.</span><span class="n">ContainsKey</span><span class="p">(</span><span class="n">inputParameters</span><span class="p">.</span><span class="n">InfoHash</span><span class="p">))</span> <span class="n">_peers</span><span class="p">.</span><span class="n">TryAdd</span><span class="p">(</span><span class="n">infoHash</span><span class="p">,</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Peer</span><span class="p">&gt;());</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(!</span><span class="n">_bitTorrentStatus</span><span class="p">.</span><span class="n">ContainsKey</span><span class="p">(</span><span class="n">inputParameters</span><span class="p">.</span><span class="n">InfoHash</span><span class="p">))</span> <span class="n">_bitTorrentStatus</span><span class="p">.</span><span class="n">TryAdd</span><span class="p">(</span><span class="n">infoHash</span><span class="p">,</span> <span class="k">new</span> <span class="n">BitTorrentStatus</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="c1">// 如果 Peer 不存在则添加，否则更新其状态。</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">peers</span> <span class="p">=</span> <span class="n">_peers</span><span class="p">[</span><span class="n">infoHash</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">peer</span> <span class="p">=</span> <span class="n">peers</span><span class="p">.</span><span class="n">FirstOrDefault</span><span class="p">(</span><span class="n">p</span> <span class="p">=&gt;</span> <span class="n">p</span><span class="p">.</span><span class="n">UniqueId</span> <span class="p">==</span> <span class="n">inputParameters</span><span class="p">.</span><span class="n">ClientAddress</span><span class="p">.</span><span class="n">ToString</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">peer</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">AddPeer</span><span class="p">(</span><span class="n">infoHash</span><span class="p">,</span> <span class="n">inputParameters</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">peer</span><span class="p">.</span><span class="n">UpdateStatus</span><span class="p">(</span><span class="n">inputParameters</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="c1">// 根据事件更新种子状态与 Peer 信息。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">inputParameters</span><span class="p">.</span><span class="n">Event</span> <span class="p">==</span> <span class="n">TorrentEvent</span><span class="p">.</span><span class="n">Stopped</span><span class="p">)</span> <span class="n">DeletePeer</span><span class="p">(</span><span class="n">infoHash</span><span class="p">,</span><span class="n">inputParameters</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">inputParameters</span><span class="p">.</span><span class="n">Event</span> <span class="p">==</span> <span class="n">TorrentEvent</span><span class="p">.</span><span class="n">Completed</span><span class="p">)</span> <span class="n">_bitTorrentStatus</span><span class="p">[</span><span class="n">infoHash</span><span class="p">].</span><span class="n">Downloaded</span><span class="p">++;</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="n">UpdateBitTorrentStatus</span><span class="p">(</span><span class="n">infoHash</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">Peer</span><span class="p">&gt;</span> <span class="n">GetPeers</span><span class="p">(</span><span class="kt">string</span> <span class="n">infoHash</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(!</span><span class="n">_peers</span><span class="p">.</span><span class="n">ContainsKey</span><span class="p">(</span><span class="n">infoHash</span><span class="p">))</span> <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">_peers</span><span class="p">[</span><span class="n">infoHash</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">ClearZombiePeers</span><span class="p">(</span><span class="kt">string</span> <span class="n">infoHash</span><span class="p">,</span> <span class="n">TimeSpan</span> <span class="n">expiry</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(!</span><span class="n">_peers</span><span class="p">.</span><span class="n">ContainsKey</span><span class="p">(</span><span class="n">infoHash</span><span class="p">))</span> <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">now</span> <span class="p">=</span> <span class="n">DateTime</span><span class="p">.</span><span class="n">Now</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">_peers</span><span class="p">[</span><span class="n">infoHash</span><span class="p">].</span><span class="n">RemoveAll</span><span class="p">(</span><span class="n">p</span> <span class="p">=&gt;</span> <span class="n">now</span> <span class="p">-</span> <span class="n">p</span><span class="p">.</span><span class="n">LastRequestTrackerTime</span> <span class="p">&gt;</span> <span class="n">expiry</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="kt">int</span> <span class="n">GetComplete</span><span class="p">(</span><span class="kt">string</span> <span class="n">infoHash</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">_bitTorrentStatus</span><span class="p">.</span><span class="n">TryGetValue</span><span class="p">(</span><span class="n">infoHash</span><span class="p">,</span> <span class="k">out</span> <span class="n">BitTorrentStatus</span> <span class="n">status</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="n">status</span><span class="p">.</span><span class="n">Completed</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="kt">int</span> <span class="n">GetInComplete</span><span class="p">(</span><span class="kt">string</span> <span class="n">infoHash</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">_bitTorrentStatus</span><span class="p">.</span><span class="n">TryGetValue</span><span class="p">(</span><span class="n">infoHash</span><span class="p">,</span> <span class="k">out</span> <span class="n">BitTorrentStatus</span> <span class="n">status</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="n">status</span><span class="p">.</span><span class="n">InCompleted</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 更新种子的统计信息。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">void</span> <span class="n">UpdateBitTorrentStatus</span><span class="p">(</span><span class="kt">string</span> <span class="n">infoHash</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(!</span><span class="n">_peers</span><span class="p">.</span><span class="n">ContainsKey</span><span class="p">(</span><span class="n">infoHash</span><span class="p">))</span> <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(!</span><span class="n">_bitTorrentStatus</span><span class="p">.</span><span class="n">ContainsKey</span><span class="p">(</span><span class="n">infoHash</span><span class="p">))</span> <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="c1">// 遍历种子所有的 Peer 状态，对种子统计信息进行处理。</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">int</span> <span class="n">complete</span> <span class="p">=</span> <span class="m">0</span><span class="p">,</span> <span class="n">incomplete</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">peers</span> <span class="p">=</span> <span class="n">_peers</span><span class="p">[</span><span class="n">infoHash</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">		<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">peer</span> <span class="k">in</span> <span class="n">peers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">peer</span><span class="p">.</span><span class="n">IsCompleted</span><span class="p">)</span> <span class="n">complete</span><span class="p">++;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">else</span> <span class="n">incomplete</span><span class="p">++;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">_bitTorrentStatus</span><span class="p">[</span><span class="n">infoHash</span><span class="p">].</span><span class="n">Completed</span> <span class="p">=</span> <span class="n">complete</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_bitTorrentStatus</span><span class="p">[</span><span class="n">infoHash</span><span class="p">].</span><span class="n">InCompleted</span> <span class="p">=</span> <span class="n">incomplete</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 检测参数与种子唯一标识的状态。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">void</span> <span class="n">CheckParameters</span><span class="p">(</span><span class="kt">string</span> <span class="n">infoHash</span><span class="p">,</span><span class="n">AnnounceInputParameters</span> <span class="n">inputParameters</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="kt">string</span><span class="p">.</span><span class="n">IsNullOrEmpty</span><span class="p">(</span><span class="n">infoHash</span><span class="p">))</span> <span class="k">throw</span> <span class="k">new</span> <span class="n">Exception</span><span class="p">(</span><span class="s">&#34;种子的唯一标识不能为空。&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">inputParameters</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span> <span class="k">throw</span> <span class="k">new</span> <span class="n">Exception</span><span class="p">(</span><span class="s">&#34;BT 客户端传入的参数不能为空。&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="54-响应客户端请求">5.4 响应客户端请求</h3>
+<p>上述工作完成之后，我们就需要来构建我们的响应结果了。根据 BT 协议的规定，返回的结果是一个字典类型(<code>BDictionary</code>) ，并且还要支持紧凑模式与非紧凑模式。</p>
+<p>现在我们可以通过 <code>IBitTorrentManager</code> 来获得所需要的 Peer 信息，这个时候只需要将这些信息按照 BT 协议来组装即可。</p>
+<p>来到 <code>GetPeersInfo()</code> 接口开始编码，首先我们编写一个方法用于构建 Peer 集合的结果，这个方法可以处理紧凑/非紧凑两种模式的 Peer 信息。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"> <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl"> <span class="cs">/// 将 Peer 集合的数据转换为 BT 协议规定的格式</span>
+</span></span><span class="line"><span class="cl"> <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"> <span class="k">private</span> <span class="k">void</span> <span class="n">HandlePeersData</span><span class="p">(</span><span class="n">BDictionary</span> <span class="n">resultDict</span><span class="p">,</span> <span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">Peer</span><span class="p">&gt;</span> <span class="n">peers</span><span class="p">,</span> <span class="n">AnnounceInputParameters</span> <span class="n">inputParameters</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	 <span class="kt">var</span> <span class="n">total</span> <span class="p">=</span> <span class="n">Math</span><span class="p">.</span><span class="n">Min</span><span class="p">(</span><span class="n">peers</span><span class="p">.</span><span class="n">Count</span><span class="p">,</span> <span class="n">inputParameters</span><span class="p">.</span><span class="n">PeerWantCount</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	 <span class="c1">//var startIndex = new Random().Next(total);</span>
+</span></span><span class="line"><span class="cl">	 
+</span></span><span class="line"><span class="cl">	 <span class="c1">// 判断当前 BT 客户端是否需要紧凑模式的数据。</span>
+</span></span><span class="line"><span class="cl">	 <span class="k">if</span> <span class="p">(</span><span class="n">inputParameters</span><span class="p">.</span><span class="n">IsEnableCompact</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	 <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		 <span class="kt">var</span> <span class="n">compactResponse</span> <span class="p">=</span> <span class="k">new</span> <span class="kt">byte</span><span class="p">[</span><span class="n">total</span> <span class="p">*</span> <span class="m">6</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">		 <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">index</span> <span class="p">=</span><span class="m">0</span><span class="p">;</span> <span class="n">index</span><span class="p">&lt;</span><span class="n">total</span><span class="p">;</span> <span class="n">index</span><span class="p">++)</span>
+</span></span><span class="line"><span class="cl">		 <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			 <span class="kt">var</span> <span class="n">peer</span> <span class="p">=</span> <span class="n">peers</span><span class="p">[</span><span class="n">index</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">			 <span class="n">Buffer</span><span class="p">.</span><span class="n">BlockCopy</span><span class="p">(</span><span class="n">peer</span><span class="p">.</span><span class="n">ToBytes</span><span class="p">(),</span><span class="m">0</span><span class="p">,</span><span class="n">compactResponse</span><span class="p">,(</span><span class="n">total</span> <span class="p">-</span><span class="m">1</span><span class="p">)</span> <span class="p">*</span><span class="m">6</span><span class="p">,</span><span class="m">6</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		 <span class="p">}</span>
+</span></span><span class="line"><span class="cl">		 
+</span></span><span class="line"><span class="cl">		 <span class="n">resultDict</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">TrackerServerConsts</span><span class="p">.</span><span class="n">PeersKey</span><span class="p">,</span><span class="k">new</span> <span class="n">BString</span><span class="p">(</span><span class="n">compactResponse</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">	 <span class="p">}</span>
+</span></span><span class="line"><span class="cl">	 <span class="k">else</span>
+</span></span><span class="line"><span class="cl">	 <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		 <span class="kt">var</span> <span class="n">nonCompactResponse</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BList</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		 <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">index</span> <span class="p">=</span><span class="m">0</span><span class="p">;</span> <span class="n">index</span><span class="p">&lt;</span><span class="n">total</span><span class="p">;</span> <span class="n">index</span><span class="p">++)</span>
+</span></span><span class="line"><span class="cl">		 <span class="p">{</span>
+</span></span><span class="line"><span class="cl">			 <span class="kt">var</span> <span class="n">peer</span> <span class="p">=</span> <span class="n">peers</span><span class="p">[</span><span class="n">index</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">			 <span class="n">nonCompactResponse</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">peer</span><span class="p">.</span><span class="n">ToEncodedDictionary</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">		 <span class="p">}</span>
+</span></span><span class="line"><span class="cl">		 
+</span></span><span class="line"><span class="cl">		 <span class="n">resultDict</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">TrackerServerConsts</span><span class="p">.</span><span class="n">PeersKey</span><span class="p">,</span><span class="n">nonCompactResponse</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	 <span class="p">}</span>
+</span></span><span class="line"><span class="cl"> <span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>处理完成之后，在 <code>GetPeersInfo()</code> 方法内部针对返回结果的字典结合 Peer 列表进行构建，构建完成之后写入到响应体当中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na"> [HttpGet]</span>
+</span></span><span class="line"><span class="cl"><span class="na"> [Route(&#34;/Announce/GetPeersInfo&#34;)]</span>
+</span></span><span class="line"><span class="cl"> <span class="k">public</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">GetPeersInfo</span><span class="p">(</span><span class="n">GetPeersInfoInput</span> <span class="n">input</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	 <span class="c1">// 如果 BT 客户端没有传递 IP，则通过 Context 获得。</span>
+</span></span><span class="line"><span class="cl">	 <span class="k">if</span> <span class="p">(</span><span class="kt">string</span><span class="p">.</span><span class="n">IsNullOrEmpty</span><span class="p">(</span><span class="n">input</span><span class="p">.</span><span class="n">Ip</span><span class="p">))</span> <span class="n">input</span><span class="p">.</span><span class="n">Ip</span> <span class="p">=</span> <span class="n">_httpContextAccessor</span><span class="p">.</span><span class="n">HttpContext</span><span class="p">.</span><span class="n">Connection</span><span class="p">.</span><span class="n">RemoteIpAddress</span><span class="p">.</span><span class="n">MapToIPv4</span><span class="p">().</span><span class="n">ToString</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">     <span class="c1">// 本机测试用。</span>
+</span></span><span class="line"><span class="cl">	 <span class="n">input</span><span class="p">.</span><span class="n">Ip</span> <span class="p">=</span> <span class="s">&#34;127.0.0.1&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	 
+</span></span><span class="line"><span class="cl">	 <span class="n">AnnounceInputParameters</span> <span class="n">inputPara</span> <span class="p">=</span> <span class="n">input</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	 <span class="kt">var</span> <span class="n">resultDict</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BDictionary</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	 <span class="c1">// 如果产生了错误，则不执行其他操作，直接返回结果。</span>
+</span></span><span class="line"><span class="cl">	 <span class="k">if</span> <span class="p">(</span><span class="n">inputPara</span><span class="p">.</span><span class="n">Error</span><span class="p">.</span><span class="n">Count</span> <span class="p">==</span> <span class="m">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	 <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		 <span class="n">_bitTorrentManager</span><span class="p">.</span><span class="n">UpdatePeer</span><span class="p">(</span><span class="n">input</span><span class="p">.</span><span class="n">Info_Hash</span><span class="p">,</span><span class="n">inputPara</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		 <span class="n">_bitTorrentManager</span><span class="p">.</span><span class="n">ClearZombiePeers</span><span class="p">(</span><span class="n">input</span><span class="p">.</span><span class="n">Info_Hash</span><span class="p">,</span><span class="n">TimeSpan</span><span class="p">.</span><span class="n">FromMinutes</span><span class="p">(</span><span class="m">10</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">		 <span class="kt">var</span> <span class="n">peers</span> <span class="p">=</span> <span class="n">_bitTorrentManager</span><span class="p">.</span><span class="n">GetPeers</span><span class="p">(</span><span class="n">input</span><span class="p">.</span><span class="n">Info_Hash</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	 
+</span></span><span class="line"><span class="cl">		 <span class="n">HandlePeersData</span><span class="p">(</span><span class="n">resultDict</span><span class="p">,</span><span class="n">peers</span><span class="p">,</span><span class="n">inputPara</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	 
+</span></span><span class="line"><span class="cl">		 <span class="c1">// 构建剩余字段信息</span>
+</span></span><span class="line"><span class="cl">		 <span class="c1">// 客户端等待时间</span>
+</span></span><span class="line"><span class="cl">		 <span class="n">resultDict</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">TrackerServerConsts</span><span class="p">.</span><span class="n">IntervalKey</span><span class="p">,</span><span class="k">new</span> <span class="n">BNumber</span><span class="p">((</span><span class="kt">int</span><span class="p">)</span><span class="n">TimeSpan</span><span class="p">.</span><span class="n">FromSeconds</span><span class="p">(</span><span class="m">30</span><span class="p">).</span><span class="n">TotalSeconds</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">		 <span class="c1">// 最小等待间隔</span>
+</span></span><span class="line"><span class="cl">		 <span class="n">resultDict</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">TrackerServerConsts</span><span class="p">.</span><span class="n">MinIntervalKey</span><span class="p">,</span><span class="k">new</span> <span class="n">BNumber</span><span class="p">((</span><span class="kt">int</span><span class="p">)</span><span class="n">TimeSpan</span><span class="p">.</span><span class="n">FromSeconds</span><span class="p">(</span><span class="m">30</span><span class="p">).</span><span class="n">TotalSeconds</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">		 <span class="c1">// Tracker 服务器的 Id</span>
+</span></span><span class="line"><span class="cl">		 <span class="n">resultDict</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">TrackerServerConsts</span><span class="p">.</span><span class="n">TrackerIdKey</span><span class="p">,</span><span class="k">new</span> <span class="n">BString</span><span class="p">(</span><span class="s">&#34;Tracker-DEMO&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">		 <span class="c1">// 已完成的 Peer 数量</span>
+</span></span><span class="line"><span class="cl">		 <span class="n">resultDict</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">TrackerServerConsts</span><span class="p">.</span><span class="n">CompleteKey</span><span class="p">,</span><span class="k">new</span> <span class="n">BNumber</span><span class="p">(</span><span class="n">_bitTorrentManager</span><span class="p">.</span><span class="n">GetComplete</span><span class="p">(</span><span class="n">input</span><span class="p">.</span><span class="n">Info_Hash</span><span class="p">)));</span>
+</span></span><span class="line"><span class="cl">		 <span class="c1">// 非做种状态的 Peer 数量</span>
+</span></span><span class="line"><span class="cl">		 <span class="n">resultDict</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">TrackerServerConsts</span><span class="p">.</span><span class="n">IncompleteKey</span><span class="p">,</span><span class="k">new</span> <span class="n">BNumber</span><span class="p">(</span><span class="n">_bitTorrentManager</span><span class="p">.</span><span class="n">GetInComplete</span><span class="p">(</span><span class="n">input</span><span class="p">.</span><span class="n">Info_Hash</span><span class="p">)));</span>
+</span></span><span class="line"><span class="cl">	 <span class="p">}</span>
+</span></span><span class="line"><span class="cl">	 <span class="k">else</span>
+</span></span><span class="line"><span class="cl">	 <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		 <span class="n">resultDict</span> <span class="p">=</span> <span class="n">inputPara</span><span class="p">.</span><span class="n">Error</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	 <span class="p">}</span>
+</span></span><span class="line"><span class="cl">				  
+</span></span><span class="line"><span class="cl">	 <span class="c1">// 写入响应结果。</span>
+</span></span><span class="line"><span class="cl">	 <span class="kt">var</span> <span class="n">resultDictBytes</span> <span class="p">=</span> <span class="n">resultDict</span><span class="p">.</span><span class="n">EncodeAsBytes</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	 <span class="kt">var</span> <span class="n">response</span> <span class="p">=</span> <span class="n">_httpContextAccessor</span><span class="p">.</span><span class="n">HttpContext</span><span class="p">.</span><span class="n">Response</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	 <span class="n">response</span><span class="p">.</span><span class="n">ContentType</span> <span class="p">=</span> <span class="s">&#34;text/plain;&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	 <span class="n">response</span><span class="p">.</span><span class="n">StatusCode</span> <span class="p">=</span> <span class="m">200</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	 <span class="n">response</span><span class="p">.</span><span class="n">ContentLength</span> <span class="p">=</span> <span class="n">resultDictBytes</span><span class="p">.</span><span class="n">Length</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	 <span class="k">await</span> <span class="n">response</span><span class="p">.</span><span class="n">Body</span><span class="p">.</span><span class="n">WriteAsync</span><span class="p">(</span><span class="n">resultDictBytes</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"> <span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="55-测试效果">5.5 测试效果</h3>
+<p><img src="/p/develop-bt-tracker-server-with-net-core/1551953743862.png"
+	width="1713"
+	height="717"
+	srcset="/p/develop-bt-tracker-server-with-net-core/1551953743862_hub0251a236509c610739362c5219b78ed_49356_480x0_resize_box_3.png 480w, /p/develop-bt-tracker-server-with-net-core/1551953743862_hub0251a236509c610739362c5219b78ed_49356_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1551953743862"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="238"
+		data-flex-basis="573px"
+	
+></p>
+<p><img src="/p/develop-bt-tracker-server-with-net-core/1551953765483.png"
+	width="915"
+	height="659"
+	srcset="/p/develop-bt-tracker-server-with-net-core/1551953765483_hu7d33b793a8d2353f7dc1f9d53464bbc7_45125_480x0_resize_box_3.png 480w, /p/develop-bt-tracker-server-with-net-core/1551953765483_hu7d33b793a8d2353f7dc1f9d53464bbc7_45125_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1551953765483"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="138"
+		data-flex-basis="333px"
+	
+></p>
+<p><img src="/p/develop-bt-tracker-server-with-net-core/1551953787850.png"
+	width="1341"
+	height="831"
+	srcset="/p/develop-bt-tracker-server-with-net-core/1551953787850_hu797d89422b617fb58dbe652071a6b939_72144_480x0_resize_box_3.png 480w, /p/develop-bt-tracker-server-with-net-core/1551953787850_hu797d89422b617fb58dbe652071a6b939_72144_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1551953787850"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="161"
+		data-flex-basis="387px"
+	
+></p>
+<p><img src="/p/develop-bt-tracker-server-with-net-core/20190125141004.gif"
+	width="921"
+	height="593"
+	srcset="/p/develop-bt-tracker-server-with-net-core/20190125141004_hu10405b35e16ba59b5a2ed5e65792e34a_713393_480x0_resize_box.gif 480w, /p/develop-bt-tracker-server-with-net-core/20190125141004_hu10405b35e16ba59b5a2ed5e65792e34a_713393_1024x0_resize_box.gif 1024w"
+	loading="lazy"
+	
+		alt="20190125141004"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="155"
+		data-flex-basis="372px"
+	
+></p>
+<p><img src="/p/develop-bt-tracker-server-with-net-core/1551954191181.png"
+	width="951"
+	height="608"
+	srcset="/p/develop-bt-tracker-server-with-net-core/1551954191181_huec34eaa7efb91afc4c30fb79fa109793_46866_480x0_resize_box_3.png 480w, /p/develop-bt-tracker-server-with-net-core/1551954191181_huec34eaa7efb91afc4c30fb79fa109793_46866_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1551954191181"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="156"
+		data-flex-basis="375px"
+	
+></p>
+<h2 id="六源码下载">六、源码下载</h2>
+<p>本 DEMO 已经托管到 Github 上，有需要的朋友可以自行前往以下地址进行 clone 。</p>
+<p><a class="link" href="https://github.com/GameBelial/BTTrackerDemo"  target="_blank" rel="noopener"
+    >GitHub 仓库地址: https://github.com/GameBelial/BTTrackerDemo</a></p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/bt-tracker/">BT Tracker</a>
+        
+            <a href="/tags/bittorrent/">BitTorrent</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">C# 使用 AltCover 获得代码覆盖率 - E2E Test 和 Unit Test</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/aspnet-core-removes-a-registered-filter/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">ASP.NET Core 移除已注册的过滤器</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一什么是-bt-tracker-">一、什么是 BT Tracker ？</a></li>
+    <li><a href="#二bt-协议与-bencode-编码">二、BT 协议与 BEncode 编码</a></li>
+    <li><a href="#三整体编写思路">三、整体编写思路</a></li>
+    <li><a href="#四bt-tacker-服务器接口的定义">四、BT Tacker 服务器接口的定义</a>
+      <ol>
+        <li><a href="#41-请求参数">4.1 请求参数</a></li>
+        <li><a href="#42-返回参数">4.2 返回参数</a></li>
+      </ol>
+    </li>
+    <li><a href="#五编码实现-bt-tracker-服务器">五、编码实现 BT Tracker 服务器</a>
+      <ol>
+        <li><a href="#51-基本架构">5.1 基本架构</a></li>
+        <li><a href="#52-peer-的定义">5.2 Peer 的定义</a></li>
+        <li><a href="#53-管理种子与其-peer-集合">5.3 管理种子与其 Peer 集合</a></li>
+        <li><a href="#54-响应客户端请求">5.4 响应客户端请求</a></li>
+        <li><a href="#55-测试效果">5.5 测试效果</a></li>
+      </ol>
+    </li>
+    <li><a href="#六源码下载">六、源码下载</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

@@ -1,0 +1,1647 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、简要说明 ABP vNext 针对接口参数的校验工作，分别由过滤器和拦截器两步完成。过滤器内部使用的 ASP.NET Core MVC 所提供的 IModelStateValidator 进行处理，而拦截器使用的是 ABP vNext 自己提供的一套 IObjectValidator 进行校验工作。
+关于参数验证相关的代码，分布在以下三个项目当中：
+Volo.Abp.AspNetCore.Mvc Volo.Abp.Validation Volo.Abp.FluentValidation 通过 MVC 的过滤器和 ABP vNext 提供的拦截器，我们能够快速地对接口的参数、对象的属性进行统一的验证处理，而不会将这些代码扩散到业务层当中。
+文章信息：
+基于的 ABP vNext 版本：1.0.0
+创作日期：2019 年 10 月 22 日晚
+更新日期：暂无
+'><title>Abp vNext 源码分析 - 9. 接口参数的认证</title>
+
+<link rel='canonical' href='https://example.com/p/abp-vnext-source-code-analysis---9-authentication-of-interface-parameters/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp vNext 源码分析 - 9. 接口参数的认证'>
+<meta property='og:description' content='一、简要说明 ABP vNext 针对接口参数的校验工作，分别由过滤器和拦截器两步完成。过滤器内部使用的 ASP.NET Core MVC 所提供的 IModelStateValidator 进行处理，而拦截器使用的是 ABP vNext 自己提供的一套 IObjectValidator 进行校验工作。
+关于参数验证相关的代码，分布在以下三个项目当中：
+Volo.Abp.AspNetCore.Mvc Volo.Abp.Validation Volo.Abp.FluentValidation 通过 MVC 的过滤器和 ABP vNext 提供的拦截器，我们能够快速地对接口的参数、对象的属性进行统一的验证处理，而不会将这些代码扩散到业务层当中。
+文章信息：
+基于的 ABP vNext 版本：1.0.0
+创作日期：2019 年 10 月 22 日晚
+更新日期：暂无
+'>
+<meta property='og:url' content='https://example.com/p/abp-vnext-source-code-analysis---9-authentication-of-interface-parameters/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='ABP vNext' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='ASP.NET Core' /><meta property='article:tag' content='ASP.NET Core MVC' /><meta property='article:published_time' content='2019-10-23T04:06:17&#43;00:00'/><meta property='article:modified_time' content='2019-10-23T04:06:17&#43;00:00'/>
+<meta name="twitter:title" content="Abp vNext 源码分析 - 9. 接口参数的认证">
+<meta name="twitter:description" content="一、简要说明 ABP vNext 针对接口参数的校验工作，分别由过滤器和拦截器两步完成。过滤器内部使用的 ASP.NET Core MVC 所提供的 IModelStateValidator 进行处理，而拦截器使用的是 ABP vNext 自己提供的一套 IObjectValidator 进行校验工作。
+关于参数验证相关的代码，分布在以下三个项目当中：
+Volo.Abp.AspNetCore.Mvc Volo.Abp.Validation Volo.Abp.FluentValidation 通过 MVC 的过滤器和 ABP vNext 提供的拦截器，我们能够快速地对接口的参数、对象的属性进行统一的验证处理，而不会将这些代码扩散到业务层当中。
+文章信息：
+基于的 ABP vNext 版本：1.0.0
+创作日期：2019 年 10 月 22 日晚
+更新日期：暂无
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-vnext-source-code-analysis---9-authentication-of-interface-parameters/">Abp vNext 源码分析 - 9. 接口参数的认证</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Oct 23, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 8 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一简要说明">一、简要说明</h2>
+<p>ABP vNext 针对接口参数的校验工作，分别由过滤器和拦截器两步完成。过滤器内部使用的 ASP.NET Core MVC 所提供的 <code>IModelStateValidator</code> 进行处理，而拦截器使用的是 ABP vNext 自己提供的一套 <code>IObjectValidator</code> 进行校验工作。</p>
+<p>关于参数验证相关的代码，分布在以下三个项目当中：</p>
+<ul>
+<li><strong>Volo.Abp.AspNetCore.Mvc</strong></li>
+<li><strong>Volo.Abp.Validation</strong></li>
+<li><strong>Volo.Abp.FluentValidation</strong></li>
+</ul>
+<p>通过 MVC 的过滤器和 ABP vNext 提供的拦截器，我们能够快速地对接口的参数、对象的属性进行统一的验证处理，而不会将这些代码扩散到业务层当中。</p>
+<blockquote>
+<p><strong>文章信息：</strong></p>
+<p>基于的 ABP vNext 版本：1.0.0</p>
+<p>创作日期：2019 年 10 月 22 日晚</p>
+<p>更新日期：暂无</p>
+</blockquote>
+<h2 id="二源码分析">二、源码分析</h2>
+<h3 id="21-模型验证过滤器">2.1 模型验证过滤器</h3>
+<p>模型验证过滤器是直接使用的 MVC 那一套模型验证机制，基于数据注解的方式进行校验。数据注解也就是存放在 <code>System.ComponentModel.DataAnnotations</code> 命名空间下面的一堆特性定义，例如我们经常在 DTO 上面使用的 <code>[Required]</code> 、<code>[StringLength]</code> 特性等，如果想知道更多的数据注解用法，可以前往 <strong><a class="link" href="https://docs.microsoft.com/en-us/dotnet/api/system.componentmodel.dataannotations?view=netcore-3.0"  target="_blank" rel="noopener"
+    >MSDN</a></strong> 进行学习。</p>
+<h4 id="211-过滤器的注入">2.1.1 过滤器的注入</h4>
+<p>模型验证过滤器 (<code>AbpValidationActionFilter</code>) 的定义存放在 <strong>Volo.Abp.AspNetCore.Mvc</strong> 项目内部，它是在模块的 <code>ConfigureService()</code> 方法中被注入到 IoC 容器的。</p>
+<p><strong><code>AbpAspNetCoreMvcModule</code> 里面的相关代码：</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">Volo.Abp.AspNetCore.Mvc</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [DependsOn(
+</span></span></span><span class="line"><span class="cl"><span class="na">        typeof(AbpAspNetCoreModule),
+</span></span></span><span class="line"><span class="cl"><span class="na">        typeof(AbpLocalizationModule),
+</span></span></span><span class="line"><span class="cl"><span class="na">        typeof(AbpApiVersioningAbstractionsModule),
+</span></span></span><span class="line"><span class="cl"><span class="na">        typeof(AbpAspNetCoreMvcContractsModule),
+</span></span></span><span class="line"><span class="cl"><span class="na">        typeof(AbpUiModule)
+</span></span></span><span class="line"><span class="cl"><span class="na">        )]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">AbpAspNetCoreMvcModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="p">//</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">ConfigureServices</span><span class="p">(</span><span class="n">ServiceConfigurationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Configure</span><span class="p">&lt;</span><span class="n">MvcOptions</span><span class="p">&gt;(</span><span class="n">mvcOptions</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">mvcOptions</span><span class="p">.</span><span class="n">AddAbp</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">});</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>上述代码是调用对 <code>MvcOptions</code> 编写的 <code>AddAbp(this MvcOptions, IServiceCollection)</code> 扩展方法，传入了我们的 IoC 注册容器(<code>IServiceCollection</code>)。</p>
+<p><strong><code>AbpMvcOptionsExtensions</code> 里面的相关代码：</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">internal</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">AbpMvcOptionsExtensions</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">void</span> <span class="n">AddAbp</span><span class="p">(</span><span class="k">this</span> <span class="n">MvcOptions</span> <span class="n">options</span><span class="p">,</span> <span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AddConventions</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="n">services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 注册过滤器。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AddFilters</span><span class="p">(</span><span class="n">options</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AddModelBinders</span><span class="p">(</span><span class="n">options</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AddMetadataProviders</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="n">services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">static</span> <span class="k">void</span> <span class="n">AddFilters</span><span class="p">(</span><span class="n">MvcOptions</span> <span class="n">options</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">options</span><span class="p">.</span><span class="n">Filters</span><span class="p">.</span><span class="n">AddService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpAuditActionFilter</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="n">options</span><span class="p">.</span><span class="n">Filters</span><span class="p">.</span><span class="n">AddService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpFeatureActionFilter</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 我们的参数验证过滤器。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">options</span><span class="p">.</span><span class="n">Filters</span><span class="p">.</span><span class="n">AddService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpValidationActionFilter</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="n">options</span><span class="p">.</span><span class="n">Filters</span><span class="p">.</span><span class="n">AddService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpUowActionFilter</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="n">options</span><span class="p">.</span><span class="n">Filters</span><span class="p">.</span><span class="n">AddService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpExceptionFilter</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>到这一步，我们的 <code>AbpValidationActionFilter</code> 会被添加到 IoC 容器当中，以供 ASP.NET Core Mvc 框架进行使用。</p>
+<h4 id="212-过滤器的验证流程">2.1.2 过滤器的验证流程</h4>
+<p>我们的验证过滤器通过上述步骤，已经被注入到 IoC 容器当中了，以后我们每次的接口调用都会进入 <code>AbpValidationActionFilter</code> 的 <code>OnActionExecutionAsync()</code> 方法内部。在这个过滤器的内部实现代码中，我们看到 ABP 为我们注入了一个 <code>IModelStateValidator</code> 对象。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpValidationActionFilter</span> <span class="p">:</span> <span class="n">IAsyncActionFilter</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IModelStateValidator</span> <span class="n">_validator</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">AbpValidationActionFilter</span><span class="p">(</span><span class="n">IModelStateValidator</span> <span class="n">validator</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_validator</span> <span class="p">=</span> <span class="n">validator</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">OnActionExecutionAsync</span><span class="p">(</span><span class="n">ActionExecutingContext</span> <span class="n">context</span><span class="p">,</span> <span class="n">ActionExecutionDelegate</span> <span class="n">next</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">//TODO: Configuration to disable validation for controllers..?</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">//TODO: 是否应该增加一个配置项，以便开发人员禁用验证功能 ？</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 判断当前请求是否是一个控制器行为，是则返回 true。</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 第二个条件会判断当前的接口返回值是 IActionResult、JsonResult、ObjectResult、NoContentResult 的一种，是则返回 true。</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 这里则会忽略不是控制器的方法，控制器类型不是上述类型任意一种也会被忽略。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="n">context</span><span class="p">.</span><span class="n">ActionDescriptor</span><span class="p">.</span><span class="n">IsControllerAction</span><span class="p">()</span> <span class="p">||</span>
+</span></span><span class="line"><span class="cl">            <span class="p">!</span><span class="n">context</span><span class="p">.</span><span class="n">ActionDescriptor</span><span class="p">.</span><span class="n">HasObjectResult</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">next</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 调用验证器进行验证操作。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_validator</span><span class="p">.</span><span class="n">Validate</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ModelState</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">next</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>过滤器的行为很简单，判断当前的 API 请求是否符合条件，不符合则不进行参数验证，否则调用 <code>IModelStateValidator</code> 的 <code>Validate</code> 方法，将模型状态传递给它进行处理。</p>
+<p>这个接口从名字上看，应该是模型状态验证器。因为我们接口上面的参数，在 ASP.NET Core MVC 的使用当中，会进行模型绑定，即建立对象到 Http 请求参数的映射。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IModelStateValidator</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">Validate</span><span class="p">(</span><span class="n">ModelStateDictionary</span> <span class="n">modelState</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">AddErrors</span><span class="p">(</span><span class="n">IAbpValidationResult</span> <span class="n">validationResult</span><span class="p">,</span> <span class="n">ModelStateDictionary</span> <span class="n">modelState</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>ABP vNext 的默认实现是 <code>ModelStateValidator</code> ，它的内部实现也很简单。就是遍历 <code>ModelStateDictionary</code> 对象的错误信息，将其添加到一个 <code>AbpValidationResult</code> 对象内部的 <code>List</code> 集合。这样做的目的，是方便后面 ABP vNext 进行错误抛出。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">ModelStateValidator</span> <span class="p">:</span> <span class="n">IModelStateValidator</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">Validate</span><span class="p">(</span><span class="n">ModelStateDictionary</span> <span class="n">modelState</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">validationResult</span> <span class="p">=</span> <span class="k">new</span> <span class="n">AbpValidationResult</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">AddErrors</span><span class="p">(</span><span class="n">validationResult</span><span class="p">,</span> <span class="n">modelState</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">validationResult</span><span class="p">.</span><span class="n">Errors</span><span class="p">.</span><span class="n">Any</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">throw</span> <span class="k">new</span> <span class="n">AbpValidationException</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="s">&#34;ModelState is not valid! See ValidationErrors for details.&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">validationResult</span><span class="p">.</span><span class="n">Errors</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">AddErrors</span><span class="p">(</span><span class="n">IAbpValidationResult</span> <span class="n">validationResult</span><span class="p">,</span> <span class="n">ModelStateDictionary</span> <span class="n">modelState</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">modelState</span><span class="p">.</span><span class="n">IsValid</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">state</span> <span class="k">in</span> <span class="n">modelState</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">error</span> <span class="k">in</span> <span class="n">state</span><span class="p">.</span><span class="n">Value</span><span class="p">.</span><span class="n">Errors</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">validationResult</span><span class="p">.</span><span class="n">Errors</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="k">new</span> <span class="n">ValidationResult</span><span class="p">(</span><span class="n">error</span><span class="p">.</span><span class="n">ErrorMessage</span><span class="p">,</span> <span class="k">new</span><span class="p">[]</span> <span class="p">{</span> <span class="n">state</span><span class="p">.</span><span class="n">Key</span> <span class="p">}));</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="213-结果的包装">2.1.3 结果的包装</h4>
+<p>当过滤器抛出了 <code>AbpValidationException</code> 异常之后，ABP vNext 会在异常过滤器 (<code>AbpExceptionFilter</code>) 内部捕获这个特定异常 (取决于异常继承的 <code>IHasValidationErrors</code> 接口)，并对其进行特殊的包装。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Serializable]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpValidationException</span> <span class="p">:</span> <span class="n">AbpException</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">    <span class="n">IHasLogLevel</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">    <span class="c1">// 注意这个接口。</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IHasValidationErrors</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">    <span class="n">IExceptionWithSelfLogging</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="/p/abp-vnext-source-code-analysis---9-authentication-of-interface-parameters/1571744925117.png"
+	width="1762"
+	height="1713"
+	srcset="/p/abp-vnext-source-code-analysis---9-authentication-of-interface-parameters/1571744925117_hu78730eaeb8c91302e8720a8917ae98fc_202475_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---9-authentication-of-interface-parameters/1571744925117_hu78730eaeb8c91302e8720a8917ae98fc_202475_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1571744925117"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="102"
+		data-flex-basis="246px"
+	
+></p>
+<p><img src="/p/abp-vnext-source-code-analysis---9-authentication-of-interface-parameters/1571745041616.png"
+	width="2027"
+	height="1134"
+	srcset="/p/abp-vnext-source-code-analysis---9-authentication-of-interface-parameters/1571745041616_hubc9e9b9f1e163169dad6643e83dd67e2_144318_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---9-authentication-of-interface-parameters/1571745041616_hubc9e9b9f1e163169dad6643e83dd67e2_144318_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1571745041616"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="178"
+		data-flex-basis="428px"
+	
+></p>
+<h4 id="214-数据注解的验证">2.1.4 数据注解的验证</h4>
+<p>这一节相当于是一个扩展知识，帮助我们了解数据注解的工作机制，以及 <code>ModelStateDictionary</code> 是怎么被填充的。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---9-authentication-of-interface-parameters/QQ--20191022204644.png"
+	width="653"
+	height="490"
+	srcset="/p/abp-vnext-source-code-analysis---9-authentication-of-interface-parameters/QQ--20191022204644_hu62177bed071fc67a9cb90312822439b8_37532_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---9-authentication-of-interface-parameters/QQ--20191022204644_hu62177bed071fc67a9cb90312822439b8_37532_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="QQ&ndash;20191022204644"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="133"
+		data-flex-basis="319px"
+	
+></p>
+<p><strong>扩展阅读：</strong></p>
+<ul>
+<li><strong><a class="link" href="https://www.cnblogs.com/savorboard/p/aspnetcore-modelbinding.html"  target="_blank" rel="noopener"
+    >ASP.NET Core 模型验证详解</a></strong></li>
+<li><strong><a class="link" href="https://www.cnblogs.com/kenwoo/p/9514817.html"  target="_blank" rel="noopener"
+    >.NET Core 开发日志 &ndash; Model Binding</a></strong></li>
+</ul>
+<h3 id="22-对象验证拦截器">2.2 对象验证拦截器</h3>
+<p>ABP vNext 除了使用 ASP.NET Core MVC 提供的模型验证功能，自己也提供了一个单独的验证模块。我们先来看看模块类型内部所执行的操作：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpValidationModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">PreConfigureServices</span><span class="p">(</span><span class="n">ServiceConfigurationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 添加拦截器注册类。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">.</span><span class="n">OnRegistred</span><span class="p">(</span><span class="n">ValidationInterceptorRegistrar</span><span class="p">.</span><span class="n">RegisterIfNeeded</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 添加对象验证拦截器的辅助对象。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AutoAddObjectValidationContributors</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">static</span> <span class="k">void</span> <span class="n">AutoAddObjectValidationContributors</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">contributorTypes</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 在类型注册的时候，如果类型实现了 IObjectValidationContributor 接口，则认定是验证器的辅助类。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">services</span><span class="p">.</span><span class="n">OnRegistred</span><span class="p">(</span><span class="n">context</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">IObjectValidationContributor</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ImplementationType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">contributorTypes</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ImplementationType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">});</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 最后向 Options 类型添加辅助类的类型定义。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">services</span><span class="p">.</span><span class="n">Configure</span><span class="p">&lt;</span><span class="n">AbpValidationOptions</span><span class="p">&gt;(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">options</span><span class="p">.</span><span class="n">ObjectValidationContributors</span><span class="p">.</span><span class="n">AddIfNotContains</span><span class="p">(</span><span class="n">contributorTypes</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>模块在启动时进行了两个操作，第一是为框架注册对象验证拦截器，第二则是添加 <strong>辅助类型</strong>(<code>IObjectValidationContributor</code>) 的定义到配置类中，方便后续进行使用。</p>
+<h4 id="221-拦截器的注入">2.2.1 拦截器的注入</h4>
+<p>拦截器的注入行为很简单，主要注册的类型实现了 <code>IValidationEnabled</code> 接口，就会为其注入拦截器。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">ValidationInterceptorRegistrar</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">void</span> <span class="n">RegisterIfNeeded</span><span class="p">(</span><span class="n">IOnServiceRegistredContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">IValidationEnabled</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ImplementationType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">context</span><span class="p">.</span><span class="n">Interceptors</span><span class="p">.</span><span class="n">TryAdd</span><span class="p">&lt;</span><span class="n">ValidationInterceptor</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="222-拦截器的行为">2.2.2 拦截器的行为</h4>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">ValidationInterceptor</span> <span class="p">:</span> <span class="n">AbpInterceptor</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IMethodInvocationValidator</span> <span class="n">_methodInvocationValidator</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ValidationInterceptor</span><span class="p">(</span><span class="n">IMethodInvocationValidator</span> <span class="n">methodInvocationValidator</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_methodInvocationValidator</span> <span class="p">=</span> <span class="n">methodInvocationValidator</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">Intercept</span><span class="p">(</span><span class="n">IAbpMethodInvocation</span> <span class="n">invocation</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Validate</span><span class="p">(</span><span class="n">invocation</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">invocation</span><span class="p">.</span><span class="n">Proceed</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">InterceptAsync</span><span class="p">(</span><span class="n">IAbpMethodInvocation</span> <span class="n">invocation</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Validate</span><span class="p">(</span><span class="n">invocation</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">invocation</span><span class="p">.</span><span class="n">ProceedAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">Validate</span><span class="p">(</span><span class="n">IAbpMethodInvocation</span> <span class="n">invocation</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_methodInvocationValidator</span><span class="p">.</span><span class="n">Validate</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="k">new</span> <span class="n">MethodInvocationValidationContext</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">invocation</span><span class="p">.</span><span class="n">TargetObject</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">invocation</span><span class="p">.</span><span class="n">Method</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">invocation</span><span class="p">.</span><span class="n">Arguments</span>
+</span></span><span class="line"><span class="cl">            <span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>拦截器内部只会调用 <code>IMethodInvocationValidator</code> 对象提供的 <code>Validate()</code> 方法，在调用时会将方法的参数，方法类型等数据封装到 <code>MethodInvocationValidationContext</code> 。</p>
+<p>这个上下文类型，本身就继承了前面提到的 <code>AbpValidationResult</code> 类型，在其内部增加了存储参数信息的属性。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">MethodInvocationValidationContext</span> <span class="p">:</span> <span class="n">AbpValidationResult</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">object</span> <span class="n">TargetObject</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 方法的元数据信息。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">MethodInfo</span> <span class="n">Method</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 方法的具体参数值。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">object</span><span class="p">[]</span> <span class="n">ParameterValues</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 方法的参数信息。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ParameterInfo</span><span class="p">[]</span> <span class="n">Parameters</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">MethodInvocationValidationContext</span><span class="p">(</span><span class="kt">object</span> <span class="n">targetObject</span><span class="p">,</span> <span class="n">MethodInfo</span> <span class="n">method</span><span class="p">,</span> <span class="kt">object</span><span class="p">[]</span> <span class="n">parameterValues</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">TargetObject</span> <span class="p">=</span> <span class="n">targetObject</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Method</span> <span class="p">=</span> <span class="n">method</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ParameterValues</span> <span class="p">=</span> <span class="n">parameterValues</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Parameters</span> <span class="p">=</span> <span class="n">method</span><span class="p">.</span><span class="n">GetParameters</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>接下来我们看一下真正的 <strong>对象验证器</strong> ，也就是 <code>IMethodInvocationValidator</code> 的默认实现 <code>MethodInvocationValidator</code> 当中具体的操作。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">Validate</span><span class="p">(</span><span class="n">MethodInvocationValidationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">AddMethodParameterValidationErrors</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">Errors</span><span class="p">.</span><span class="n">Any</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ThrowValidationError</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">AddMethodParameterValidationErrors</span><span class="p">(</span><span class="n">MethodInvocationValidationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 循环调用 IObjectValidator 的 GetErrors 方法，捕获参数的具体错误。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="p">(</span><span class="kt">var</span> <span class="n">i</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span> <span class="n">i</span> <span class="p">&lt;</span> <span class="n">context</span><span class="p">.</span><span class="n">Parameters</span><span class="p">.</span><span class="n">Length</span><span class="p">;</span> <span class="n">i</span><span class="p">++)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AddMethodParameterValidationErrors</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">context</span><span class="p">.</span><span class="n">Parameters</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">context</span><span class="p">.</span><span class="n">ParameterValues</span><span class="p">[</span><span class="n">i</span><span class="p">]);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">AddMethodParameterValidationErrors</span><span class="p">(</span><span class="n">IAbpValidationResult</span> <span class="n">context</span><span class="p">,</span> <span class="n">ParameterInfo</span> <span class="n">parameterInfo</span><span class="p">,</span> <span class="kt">object</span> <span class="n">parameterValue</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">allowNulls</span> <span class="p">=</span> <span class="n">parameterInfo</span><span class="p">.</span><span class="n">IsOptional</span> <span class="p">||</span>
+</span></span><span class="line"><span class="cl">                        <span class="n">parameterInfo</span><span class="p">.</span><span class="n">IsOut</span> <span class="p">||</span>
+</span></span><span class="line"><span class="cl">                        <span class="n">TypeHelper</span><span class="p">.</span><span class="n">IsPrimitiveExtended</span><span class="p">(</span><span class="n">parameterInfo</span><span class="p">.</span><span class="n">ParameterType</span><span class="p">,</span> <span class="n">includeEnums</span><span class="p">:</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 添加错误信息到 Errors 里面，方便后面抛出。</span>
+</span></span><span class="line"><span class="cl">    <span class="n">context</span><span class="p">.</span><span class="n">Errors</span><span class="p">.</span><span class="n">AddRange</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_objectValidator</span><span class="p">.</span><span class="n">GetErrors</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">parameterValue</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">parameterInfo</span><span class="p">.</span><span class="n">Name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">allowNulls</span>
+</span></span><span class="line"><span class="cl">        <span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="223-真正的参数验证器">2.2.3 “真正”的参数验证器</h4>
+<p>我们看到，即便是在 <code>IMethodInvocationValidator</code> 内部，也没有真正地进行参数验证工作，而是调用了 <code>IObjectValidator</code> 进行对象验证处理，其接口定义如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IObjectValidator</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">Validate</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">object</span> <span class="n">validatingObject</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">name</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">bool</span> <span class="n">allowNull</span> <span class="p">=</span> <span class="k">false</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">List</span><span class="p">&lt;</span><span class="n">ValidationResult</span><span class="p">&gt;</span> <span class="n">GetErrors</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">object</span> <span class="n">validatingObject</span><span class="p">,</span> <span class="c1">// 待验证的值。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">name</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span>	<span class="c1">// 参数的名字。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">bool</span> <span class="n">allowNull</span> <span class="p">=</span> <span class="k">false</span>	<span class="c1">// 是否允许可空。</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>它的默认实现代码如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">ObjectValidator</span> <span class="p">:</span> <span class="n">IObjectValidator</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IHybridServiceScopeFactory</span> <span class="n">ServiceScopeFactory</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">AbpValidationOptions</span> <span class="n">Options</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ObjectValidator</span><span class="p">(</span><span class="n">IOptions</span><span class="p">&lt;</span><span class="n">AbpValidationOptions</span><span class="p">&gt;</span> <span class="n">options</span><span class="p">,</span> <span class="n">IHybridServiceScopeFactory</span> <span class="n">serviceScopeFactory</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ServiceScopeFactory</span> <span class="p">=</span> <span class="n">serviceScopeFactory</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Options</span> <span class="p">=</span> <span class="n">options</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">Validate</span><span class="p">(</span><span class="kt">object</span> <span class="n">validatingObject</span><span class="p">,</span> <span class="kt">string</span> <span class="n">name</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">allowNull</span> <span class="p">=</span> <span class="k">false</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">errors</span> <span class="p">=</span> <span class="n">GetErrors</span><span class="p">(</span><span class="n">validatingObject</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">allowNull</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">errors</span><span class="p">.</span><span class="n">Any</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">throw</span> <span class="k">new</span> <span class="n">AbpValidationException</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="s">&#34;Object state is not valid! See ValidationErrors for details.&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">errors</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">ValidationResult</span><span class="p">&gt;</span> <span class="n">GetErrors</span><span class="p">(</span><span class="kt">object</span> <span class="n">validatingObject</span><span class="p">,</span> <span class="kt">string</span> <span class="n">name</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">allowNull</span> <span class="p">=</span> <span class="k">false</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果待验证的值为空。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">validatingObject</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 如果参数本身是允许可空的，那么直接返回。</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">allowNull</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">ValidationResult</span><span class="p">&gt;();</span> <span class="c1">//TODO: Returning an array would be more performent</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="k">else</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 否则在错误信息里面加入不能为空的错误。</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">ValidationResult</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">name</span> <span class="p">==</span> <span class="k">null</span>
+</span></span><span class="line"><span class="cl">                        <span class="p">?</span> <span class="k">new</span> <span class="n">ValidationResult</span><span class="p">(</span><span class="s">&#34;Given object is null!&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                        <span class="p">:</span> <span class="k">new</span> <span class="n">ValidationResult</span><span class="p">(</span><span class="n">name</span> <span class="p">+</span> <span class="s">&#34; is null!&#34;</span><span class="p">,</span> <span class="k">new</span><span class="p">[]</span> <span class="p">{</span><span class="n">name</span><span class="p">})</span>
+</span></span><span class="line"><span class="cl">                <span class="p">};</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 构造一个新的上下文，将其分派给辅助类进行验证。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">context</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ObjectValidationContext</span><span class="p">(</span><span class="n">validatingObject</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">scope</span> <span class="p">=</span> <span class="n">ServiceScopeFactory</span><span class="p">.</span><span class="n">CreateScope</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 遍历之前模块启动的辅助类型。</span>
+</span></span><span class="line"><span class="cl">            <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">contributorType</span> <span class="k">in</span> <span class="n">Options</span><span class="p">.</span><span class="n">ObjectValidationContributors</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 通过 IoC 创建实例。</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">var</span> <span class="n">contributor</span> <span class="p">=</span> <span class="p">(</span><span class="n">IObjectValidationContributor</span><span class="p">)</span> 
+</span></span><span class="line"><span class="cl">                    <span class="n">scope</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">(</span><span class="n">contributorType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="c1">// 调用辅助类型进行具体认证。</span>
+</span></span><span class="line"><span class="cl">                <span class="n">contributor</span><span class="p">.</span><span class="n">AddErrors</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">context</span><span class="p">.</span><span class="n">Errors</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>所以我们的对象验证，还没有真正的进行验证处理，所有的验证操作都是由各个 <strong>验证辅助类型</strong> 处理的。而这些辅助类型有两种，第一是基于<strong>数据注解</strong> 的 <strong>验证辅助类型</strong>，第二种则是基于 <strong>FluentValidation</strong> 库编写的一种验证辅助类。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---9-authentication-of-interface-parameters/1571753422041.png"
+	width="1323"
+	height="191"
+	srcset="/p/abp-vnext-source-code-analysis---9-authentication-of-interface-parameters/1571753422041_hu4decbd44fd689eb533cf83782683bd00_31581_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---9-authentication-of-interface-parameters/1571753422041_hu4decbd44fd689eb533cf83782683bd00_31581_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1571753422041"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="692"
+		data-flex-basis="1662px"
+	
+></p>
+<p>虽然 ABP vNext 套了三层，最终只是为了方便我们开发人员重写各个阶段的实现，也就更加地灵活可控。</p>
+<h4 id="224-默认的数据注解验证">2.2.4 默认的数据注解验证</h4>
+<p>ABP vNext 为了降低我们的学习成本，本身也是支持 ASP.NET Core MVC 那一套数据注解校验。你可以在某个非控制器类型的参数上，使用 <code>[Required]</code> 等数据注解特性。</p>
+<p>它的默认实现我就不再多加赘述，基本就是通过反射得到参数对象上面的所有 <code>ValidationAttribute</code> 特性，显式地调用 <code>GetValidationResult()</code> 方法，获取到具体的错误信息，然后添加到上下文结果当中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">attribute</span> <span class="k">in</span> <span class="n">validationAttributes</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="n">attribute</span><span class="p">.</span><span class="n">GetValidationResult</span><span class="p">(</span><span class="n">property</span><span class="p">.</span><span class="n">GetValue</span><span class="p">(</span><span class="n">validatingObject</span><span class="p">),</span> <span class="n">validationContext</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">result</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">errors</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">result</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>另外注意，这个递归验证的深度是 8 级，在辅助类型的 <code>MaxRecursiveParameterValidationDepth</code> 常量中进行了定义。也就是说，你这个对象图的逻辑层级不能超过 8 级。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">A1</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [Required]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">B2</span> <span class="n">B2</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">B2</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [StringLength(8)]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>如果你方法参数是 <code>A1</code> 类型的话，那么这就有 2 层了。</p>
+<h3 id="23-流畅验证库">2.3 流畅验证库</h3>
+<p>回想上一节说的验证辅助类，还有一个基于 <strong>FluentValidation</strong> 库的类型，这里对于该库的使用方法参考单元测试即可。我这里只讲解一下，这个辅助类型是如何进行验证的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">FluentObjectValidationContributor</span> <span class="p">:</span> <span class="n">IObjectValidationContributor</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IServiceProvider</span> <span class="n">_serviceProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">FluentObjectValidationContributor</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IServiceProvider</span> <span class="n">serviceProvider</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_serviceProvider</span> <span class="p">=</span> <span class="n">serviceProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">AddErrors</span><span class="p">(</span><span class="n">ObjectValidationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 构造泛型类型，如果你对 Person 写了个验证器，那么验证器类型就是 IValidator&lt;Person&gt;。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">serviceType</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">IValidator</span><span class="p">&lt;&gt;).</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ValidatingObject</span><span class="p">.</span><span class="n">GetType</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 通过 IoC 获得一个实例。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">validator</span> <span class="p">=</span> <span class="n">_serviceProvider</span><span class="p">.</span><span class="n">GetService</span><span class="p">(</span><span class="n">serviceType</span><span class="p">)</span> <span class="k">as</span> <span class="n">IValidator</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">validator</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 调用验证器的方法进行验证。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="n">validator</span><span class="p">.</span><span class="n">Validate</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ValidatingObject</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="n">result</span><span class="p">.</span><span class="n">IsValid</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 获得错误数据，将 FluentValidation 的错误转换为标准的错误信息。</span>
+</span></span><span class="line"><span class="cl">            <span class="n">context</span><span class="p">.</span><span class="n">Errors</span><span class="p">.</span><span class="n">AddRange</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">result</span><span class="p">.</span><span class="n">Errors</span><span class="p">.</span><span class="n">Select</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">error</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">                        <span class="k">new</span> <span class="n">ValidationResult</span><span class="p">(</span><span class="n">error</span><span class="p">.</span><span class="n">ErrorMessage</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>单元测试当中的基本用法：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">MyMethodInputValidator</span> <span class="p">:</span> <span class="n">AbstractValidator</span><span class="p">&lt;</span><span class="n">MyMethodInput</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">MyMethodInputValidator</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">RuleFor</span><span class="p">(</span><span class="n">x</span> <span class="p">=&gt;</span> <span class="n">x</span><span class="p">.</span><span class="n">MyStringValue</span><span class="p">).</span><span class="n">Equal</span><span class="p">(</span><span class="s">&#34;aaa&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">RuleFor</span><span class="p">(</span><span class="n">x</span> <span class="p">=&gt;</span> <span class="n">x</span><span class="p">.</span><span class="n">MyMethodInput2</span><span class="p">.</span><span class="n">MyStringValue2</span><span class="p">).</span><span class="n">Equal</span><span class="p">(</span><span class="s">&#34;bbb&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">RuleFor</span><span class="p">(</span><span class="n">customer</span> <span class="p">=&gt;</span> <span class="n">customer</span><span class="p">.</span><span class="n">MyMethodInput3</span><span class="p">).</span><span class="n">SetValidator</span><span class="p">(</span><span class="k">new</span> <span class="n">MyMethodInput3Validator</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="三总结">三、总结</h2>
+<p>总的来说 ABP vNext 为我们提供了多种参数验证方法，一般来说使用 MVC 过滤器配合数据注解就够了。如果你确实有一些特殊的需求，那也可以使用自己的方式对参数进行验证，只需要实现 <code>IObjectValidationContributor</code> 接口就行。</p>
+<p>需要看其他的 ABP vNext 相关文章？<strong><a class="link" href="https://www.cnblogs.com/myzony/p/10722506.html"  target="_blank" rel="noopener"
+    >点击我</a></strong> 即可跳转到总目录。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/abp-vnext/">ABP vNext</a>
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/asp.net-core/">ASP.NET Core</a>
+        
+            <a href="/tags/asp.net-core-mvc/">ASP.NET Core MVC</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-multi-tenancy/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 多租户</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一简要说明">一、简要说明</a></li>
+    <li><a href="#二源码分析">二、源码分析</a>
+      <ol>
+        <li><a href="#21-模型验证过滤器">2.1 模型验证过滤器</a>
+          <ol>
+            <li><a href="#211-过滤器的注入">2.1.1 过滤器的注入</a></li>
+            <li><a href="#212-过滤器的验证流程">2.1.2 过滤器的验证流程</a></li>
+            <li><a href="#213-结果的包装">2.1.3 结果的包装</a></li>
+            <li><a href="#214-数据注解的验证">2.1.4 数据注解的验证</a></li>
+          </ol>
+        </li>
+        <li><a href="#22-对象验证拦截器">2.2 对象验证拦截器</a>
+          <ol>
+            <li><a href="#221-拦截器的注入">2.2.1 拦截器的注入</a></li>
+            <li><a href="#222-拦截器的行为">2.2.2 拦截器的行为</a></li>
+            <li><a href="#223-真正的参数验证器">2.2.3 “真正”的参数验证器</a></li>
+            <li><a href="#224-默认的数据注解验证">2.2.4 默认的数据注解验证</a></li>
+          </ol>
+        </li>
+        <li><a href="#23-流畅验证库">2.3 流畅验证库</a></li>
+      </ol>
+    </li>
+    <li><a href="#三总结">三、总结</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

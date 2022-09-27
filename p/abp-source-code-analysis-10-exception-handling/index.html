@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='0.简介 Abp 框架本身针对内部抛出异常进行了统一拦截，并且针对不同的异常也会采取不同的处理策略。在 Abp 当中主要提供了以下几种异常类型：
+异常类型 描述 AbpException Abp 框架定义的基本异常类型，Abp 所有内部定义的异常类型都继承自本类。 AbpInitializationException Abp 框架初始化时出现错误所抛出的异常。 AbpDbConcurrencyException 当 EF Core 执行数据库操作时产生了 DbUpdateConcurrencyException 异常 的时候 Abp 会封装为本异常并且抛出。 AbpValidationException 用户调用接口时，输入的DTO 参数有误会抛出本异常。 BackgroundJobException 后台作业执行过程中产生的异常。 EntityNotFoundException 当仓储执行 Get 操作时，实体未找到引发本异常。 UserFriendlyException 如果用户需要将异常信息发送给前端，请抛出本异常。 AbpRemoteCallException 远程调用一场，当使用 Abp 提供的 AbpWebApiClient 产生问题的时候 会抛出此异常。 1.启动流程 Abp 框架针对异常拦截的处理主要使用了 ASP .NET CORE MVC 过滤器机制，当外部请求接口的时候，所有异常都会被 Abp 框架捕获。Abp 异常过滤器的实现名称叫做 AbpExceptionFilter，它在注入 Abp 框架的时候就已经被注册到了 ASP .NET Core 的 MVC Filters 当中了。
+1.1 流程图 1.2 代码流程 注入 Abp 框架处：'><title>Abp 源码分析：十、异常处理</title>
+
+<link rel='canonical' href='https://example.com/p/abp-source-code-analysis-10-exception-handling/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp 源码分析：十、异常处理'>
+<meta property='og:description' content='0.简介 Abp 框架本身针对内部抛出异常进行了统一拦截，并且针对不同的异常也会采取不同的处理策略。在 Abp 当中主要提供了以下几种异常类型：
+异常类型 描述 AbpException Abp 框架定义的基本异常类型，Abp 所有内部定义的异常类型都继承自本类。 AbpInitializationException Abp 框架初始化时出现错误所抛出的异常。 AbpDbConcurrencyException 当 EF Core 执行数据库操作时产生了 DbUpdateConcurrencyException 异常 的时候 Abp 会封装为本异常并且抛出。 AbpValidationException 用户调用接口时，输入的DTO 参数有误会抛出本异常。 BackgroundJobException 后台作业执行过程中产生的异常。 EntityNotFoundException 当仓储执行 Get 操作时，实体未找到引发本异常。 UserFriendlyException 如果用户需要将异常信息发送给前端，请抛出本异常。 AbpRemoteCallException 远程调用一场，当使用 Abp 提供的 AbpWebApiClient 产生问题的时候 会抛出此异常。 1.启动流程 Abp 框架针对异常拦截的处理主要使用了 ASP .NET CORE MVC 过滤器机制，当外部请求接口的时候，所有异常都会被 Abp 框架捕获。Abp 异常过滤器的实现名称叫做 AbpExceptionFilter，它在注入 Abp 框架的时候就已经被注册到了 ASP .NET Core 的 MVC Filters 当中了。
+1.1 流程图 1.2 代码流程 注入 Abp 框架处：'>
+<meta property='og:url' content='https://example.com/p/abp-source-code-analysis-10-exception-handling/'>
+<meta property='og:site_name' content='演示站点'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='AspNetBoilerplate' /><meta property='article:tag' content='异常处理' /><meta property='article:published_time' content='2018-08-11T08:24:07&#43;00:00'/><meta property='article:modified_time' content='2018-08-11T08:24:07&#43;00:00'/>
+<meta name="twitter:title" content="Abp 源码分析：十、异常处理">
+<meta name="twitter:description" content="0.简介 Abp 框架本身针对内部抛出异常进行了统一拦截，并且针对不同的异常也会采取不同的处理策略。在 Abp 当中主要提供了以下几种异常类型：
+异常类型 描述 AbpException Abp 框架定义的基本异常类型，Abp 所有内部定义的异常类型都继承自本类。 AbpInitializationException Abp 框架初始化时出现错误所抛出的异常。 AbpDbConcurrencyException 当 EF Core 执行数据库操作时产生了 DbUpdateConcurrencyException 异常 的时候 Abp 会封装为本异常并且抛出。 AbpValidationException 用户调用接口时，输入的DTO 参数有误会抛出本异常。 BackgroundJobException 后台作业执行过程中产生的异常。 EntityNotFoundException 当仓储执行 Get 操作时，实体未找到引发本异常。 UserFriendlyException 如果用户需要将异常信息发送给前端，请抛出本异常。 AbpRemoteCallException 远程调用一场，当使用 Abp 提供的 AbpWebApiClient 产生问题的时候 会抛出此异常。 1.启动流程 Abp 框架针对异常拦截的处理主要使用了 ASP .NET CORE MVC 过滤器机制，当外部请求接口的时候，所有异常都会被 Abp 框架捕获。Abp 异常过滤器的实现名称叫做 AbpExceptionFilter，它在注入 Abp 框架的时候就已经被注册到了 ASP .NET Core 的 MVC Filters 当中了。
+1.1 流程图 1.2 代码流程 注入 Abp 框架处：">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">演示站点</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://example.com/en/" >English</option>
+                        
+                            <option value="https://example.com/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-source-code-analysis-10-exception-handling/">Abp 源码分析：十、异常处理</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Aug 11, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 7 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="0简介">0.简介</h2>
+<p>Abp 框架本身针对内部抛出异常进行了统一拦截，并且针对不同的异常也会采取不同的处理策略。在 Abp 当中主要提供了以下几种异常类型：</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:center">异常类型</th>
+<th style="text-align:center">描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center"><code>AbpException</code></td>
+<td style="text-align:center">Abp 框架定义的基本异常类型，Abp 所有内部定义的异常类型都继承自本类。</td>
+</tr>
+<tr>
+<td style="text-align:center"><code>AbpInitializationException</code></td>
+<td style="text-align:center">Abp 框架初始化时出现错误所抛出的异常。</td>
+</tr>
+<tr>
+<td style="text-align:center"><code>AbpDbConcurrencyException</code></td>
+<td style="text-align:center">当 EF Core 执行数据库操作时产生了 <code>DbUpdateConcurrencyException</code> 异常 的时候 Abp 会封装为本异常并且抛出。</td>
+</tr>
+<tr>
+<td style="text-align:center"><code>AbpValidationException</code></td>
+<td style="text-align:center">用户调用接口时，输入的DTO 参数有误会抛出本异常。</td>
+</tr>
+<tr>
+<td style="text-align:center"><code>BackgroundJobException</code></td>
+<td style="text-align:center">后台作业执行过程中产生的异常。</td>
+</tr>
+<tr>
+<td style="text-align:center"><code>EntityNotFoundException</code></td>
+<td style="text-align:center">当仓储执行 Get 操作时，实体未找到引发本异常。</td>
+</tr>
+<tr>
+<td style="text-align:center"><code>UserFriendlyException</code></td>
+<td style="text-align:center">如果用户需要将异常信息发送给前端，请抛出本异常。</td>
+</tr>
+<tr>
+<td style="text-align:center"><code>AbpRemoteCallException</code></td>
+<td style="text-align:center">远程调用一场，当使用 Abp 提供的 <code>AbpWebApiClient</code> 产生问题的时候 会抛出此异常。</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="1启动流程">1.启动流程</h2>
+<p>Abp 框架针对异常拦截的处理主要使用了 ASP .NET CORE MVC 过滤器机制，当外部请求接口的时候，所有异常都会被 Abp 框架捕获。Abp 异常过滤器的实现名称叫做 <code>AbpExceptionFilter</code>，它在注入 Abp 框架的时候就已经被注册到了 ASP .NET Core 的 MVC Filters 当中了。</p>
+<h3 id="11-流程图">1.1 流程图</h3>
+<p><img src="/p/abp-source-code-analysis-10-exception-handling/TIM--20180811154747.png"
+	width="787"
+	height="854"
+	srcset="/p/abp-source-code-analysis-10-exception-handling/TIM--20180811154747_hu1de10e588fa948b97ff447ece23ba01a_32393_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-10-exception-handling/TIM--20180811154747_hu1de10e588fa948b97ff447ece23ba01a_32393_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="TIM&ndash;20180811154747"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="92"
+		data-flex-basis="221px"
+	
+></p>
+<h3 id="12-代码流程">1.2 代码流程</h3>
+<p>注入 Abp 框架处：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="n">IServiceProvider</span> <span class="n">AddAbp</span><span class="p">&lt;</span><span class="n">TStartupModule</span><span class="p">&gt;(</span><span class="k">this</span> <span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> <span class="p">[</span><span class="n">CanBeNull</span><span class="p">]</span> <span class="n">Action</span><span class="p">&lt;</span><span class="n">AbpBootstrapperOptions</span><span class="p">&gt;</span> <span class="n">optionsAction</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">where</span> <span class="n">TStartupModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">abpBootstrapper</span> <span class="p">=</span> <span class="n">AddAbpBootstrapper</span><span class="p">&lt;</span><span class="n">TStartupModule</span><span class="p">&gt;(</span><span class="n">services</span><span class="p">,</span> <span class="n">optionsAction</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 配置 ASP .NET Core 参数</span>
+</span></span><span class="line"><span class="cl">    <span class="n">ConfigureAspNetCore</span><span class="p">(</span><span class="n">services</span><span class="p">,</span> <span class="n">abpBootstrapper</span><span class="p">.</span><span class="n">IocManager</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">WindsorRegistrationHelper</span><span class="p">.</span><span class="n">CreateServiceProvider</span><span class="p">(</span><span class="n">abpBootstrapper</span><span class="p">.</span><span class="n">IocManager</span><span class="p">.</span><span class="n">IocContainer</span><span class="p">,</span> <span class="n">services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>ConfigureAspNetCore()</code> 方法内部：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">static</span> <span class="k">void</span> <span class="n">ConfigureAspNetCore</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> <span class="n">IIocResolver</span> <span class="n">iocResolver</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ...省略掉的其他代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 配置 MVC</span>
+</span></span><span class="line"><span class="cl">    <span class="n">services</span><span class="p">.</span><span class="n">Configure</span><span class="p">&lt;</span><span class="n">MvcOptions</span><span class="p">&gt;(</span><span class="n">mvcOptions</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">mvcOptions</span><span class="p">.</span><span class="n">AddAbp</span><span class="p">(</span><span class="n">services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// ...省略掉的其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>AbpMvcOptionsExtensions</code> 扩展类针对 <code>MvcOptions</code> 提供的扩展方法 <code>AddAbp()</code> ：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">void</span> <span class="n">AddAbp</span><span class="p">(</span><span class="k">this</span> <span class="n">MvcOptions</span> <span class="n">options</span><span class="p">,</span> <span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">AddConventions</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="n">services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 添加 VC 过滤器</span>
+</span></span><span class="line"><span class="cl">    <span class="n">AddFilters</span><span class="p">(</span><span class="n">options</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">AddModelBinders</span><span class="p">(</span><span class="n">options</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>AddFilters()</code> 方法内部：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">static</span> <span class="k">void</span> <span class="n">AddFilters</span><span class="p">(</span><span class="n">MvcOptions</span> <span class="n">options</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 权限认证过滤器</span>
+</span></span><span class="line"><span class="cl">    <span class="n">options</span><span class="p">.</span><span class="n">Filters</span><span class="p">.</span><span class="n">AddService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpAuthorizationFilter</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 审计信息过滤器</span>
+</span></span><span class="line"><span class="cl">    <span class="n">options</span><span class="p">.</span><span class="n">Filters</span><span class="p">.</span><span class="n">AddService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpAuditActionFilter</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 参数验证过滤器</span>
+</span></span><span class="line"><span class="cl">    <span class="n">options</span><span class="p">.</span><span class="n">Filters</span><span class="p">.</span><span class="n">AddService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpValidationActionFilter</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 工作单元过滤器</span>
+</span></span><span class="line"><span class="cl">    <span class="n">options</span><span class="p">.</span><span class="n">Filters</span><span class="p">.</span><span class="n">AddService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpUowActionFilter</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 异常过滤器</span>
+</span></span><span class="line"><span class="cl">    <span class="n">options</span><span class="p">.</span><span class="n">Filters</span><span class="p">.</span><span class="n">AddService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpExceptionFilter</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 接口结果过滤器</span>
+</span></span><span class="line"><span class="cl">    <span class="n">options</span><span class="p">.</span><span class="n">Filters</span><span class="p">.</span><span class="n">AddService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpResultFilter</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="2代码分析">2.代码分析</h2>
+<h3 id="21-基本定义">2.1 基本定义</h3>
+<p>Abp 框架所提供的所有异常类型都继承自 <code>AbpException</code> ，我们可以看一下该类型的基本定义。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="c1">// Abp 基本异常定义</span>
+</span></span><span class="line"><span class="cl"><span class="na">[Serializable]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpException</span> <span class="p">:</span> <span class="n">Exception</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">AbpException</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">AbpException</span><span class="p">(</span><span class="n">SerializationInfo</span> <span class="n">serializationInfo</span><span class="p">,</span> <span class="n">StreamingContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">:</span> <span class="k">base</span><span class="p">(</span><span class="n">serializationInfo</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 构造函数1，接受一个异常描述信息</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">AbpException</span><span class="p">(</span><span class="kt">string</span> <span class="n">message</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">:</span> <span class="k">base</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 构造函数2，接受一个异常描述信息与内部异常</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">AbpException</span><span class="p">(</span><span class="kt">string</span> <span class="n">message</span><span class="p">,</span> <span class="n">Exception</span> <span class="n">innerException</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">:</span> <span class="k">base</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">innerException</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>类型的定义是十分简单的，基本上就是继承了原有的 <code>Exception</code> 类型，改了一个名字罢了。</p>
+<h3 id="22-异常拦截">2.2 异常拦截</h3>
+<p>Abp 本身针对异常信息的核心处理就在于它的 <code>AbpExceptionFilter</code> 过滤器，过滤器实现很简单。它首先继承了 <code>IExceptionFilter</code> 接口，实现了其 <code>OnException()</code> 方法，只要用户请求接口的时候出现了任何异常都会调用 <code>OnException()</code> 方法。而在 <code>OnException()</code> 方法内部，Abp 根据不同的异常类型进行了不同的异常处理。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">  1
+</span><span class="lnt">  2
+</span><span class="lnt">  3
+</span><span class="lnt">  4
+</span><span class="lnt">  5
+</span><span class="lnt">  6
+</span><span class="lnt">  7
+</span><span class="lnt">  8
+</span><span class="lnt">  9
+</span><span class="lnt"> 10
+</span><span class="lnt"> 11
+</span><span class="lnt"> 12
+</span><span class="lnt"> 13
+</span><span class="lnt"> 14
+</span><span class="lnt"> 15
+</span><span class="lnt"> 16
+</span><span class="lnt"> 17
+</span><span class="lnt"> 18
+</span><span class="lnt"> 19
+</span><span class="lnt"> 20
+</span><span class="lnt"> 21
+</span><span class="lnt"> 22
+</span><span class="lnt"> 23
+</span><span class="lnt"> 24
+</span><span class="lnt"> 25
+</span><span class="lnt"> 26
+</span><span class="lnt"> 27
+</span><span class="lnt"> 28
+</span><span class="lnt"> 29
+</span><span class="lnt"> 30
+</span><span class="lnt"> 31
+</span><span class="lnt"> 32
+</span><span class="lnt"> 33
+</span><span class="lnt"> 34
+</span><span class="lnt"> 35
+</span><span class="lnt"> 36
+</span><span class="lnt"> 37
+</span><span class="lnt"> 38
+</span><span class="lnt"> 39
+</span><span class="lnt"> 40
+</span><span class="lnt"> 41
+</span><span class="lnt"> 42
+</span><span class="lnt"> 43
+</span><span class="lnt"> 44
+</span><span class="lnt"> 45
+</span><span class="lnt"> 46
+</span><span class="lnt"> 47
+</span><span class="lnt"> 48
+</span><span class="lnt"> 49
+</span><span class="lnt"> 50
+</span><span class="lnt"> 51
+</span><span class="lnt"> 52
+</span><span class="lnt"> 53
+</span><span class="lnt"> 54
+</span><span class="lnt"> 55
+</span><span class="lnt"> 56
+</span><span class="lnt"> 57
+</span><span class="lnt"> 58
+</span><span class="lnt"> 59
+</span><span class="lnt"> 60
+</span><span class="lnt"> 61
+</span><span class="lnt"> 62
+</span><span class="lnt"> 63
+</span><span class="lnt"> 64
+</span><span class="lnt"> 65
+</span><span class="lnt"> 66
+</span><span class="lnt"> 67
+</span><span class="lnt"> 68
+</span><span class="lnt"> 69
+</span><span class="lnt"> 70
+</span><span class="lnt"> 71
+</span><span class="lnt"> 72
+</span><span class="lnt"> 73
+</span><span class="lnt"> 74
+</span><span class="lnt"> 75
+</span><span class="lnt"> 76
+</span><span class="lnt"> 77
+</span><span class="lnt"> 78
+</span><span class="lnt"> 79
+</span><span class="lnt"> 80
+</span><span class="lnt"> 81
+</span><span class="lnt"> 82
+</span><span class="lnt"> 83
+</span><span class="lnt"> 84
+</span><span class="lnt"> 85
+</span><span class="lnt"> 86
+</span><span class="lnt"> 87
+</span><span class="lnt"> 88
+</span><span class="lnt"> 89
+</span><span class="lnt"> 90
+</span><span class="lnt"> 91
+</span><span class="lnt"> 92
+</span><span class="lnt"> 93
+</span><span class="lnt"> 94
+</span><span class="lnt"> 95
+</span><span class="lnt"> 96
+</span><span class="lnt"> 97
+</span><span class="lnt"> 98
+</span><span class="lnt"> 99
+</span><span class="lnt">100
+</span><span class="lnt">101
+</span><span class="lnt">102
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpExceptionFilter</span> <span class="p">:</span> <span class="n">IExceptionFilter</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 日志记录器</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ILogger</span> <span class="n">Logger</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 事件总线</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IEventBus</span> <span class="n">EventBus</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 错误信息构建器</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IErrorInfoBuilder</span> <span class="n">_errorInfoBuilder</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// AspNetCore 相关的配置信息</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IAbpAspNetCoreConfiguration</span> <span class="n">_configuration</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 注入并初始化内部成员对象</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">AbpExceptionFilter</span><span class="p">(</span><span class="n">IErrorInfoBuilder</span> <span class="n">errorInfoBuilder</span><span class="p">,</span> <span class="n">IAbpAspNetCoreConfiguration</span> <span class="n">configuration</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_errorInfoBuilder</span> <span class="p">=</span> <span class="n">errorInfoBuilder</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_configuration</span> <span class="p">=</span> <span class="n">configuration</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">Logger</span> <span class="p">=</span> <span class="n">NullLogger</span><span class="p">.</span><span class="n">Instance</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">EventBus</span> <span class="p">=</span> <span class="n">NullEventBus</span><span class="p">.</span><span class="n">Instance</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 异常触发时会调用此方法</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">OnException</span><span class="p">(</span><span class="n">ExceptionContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="c1">// 判断是否由控制器触发，如果不是则不做任何处理</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="n">context</span><span class="p">.</span><span class="n">ActionDescriptor</span><span class="p">.</span><span class="n">IsControllerAction</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	    <span class="c1">// 获得方法的包装特性。决定后续操作,如果没有指定包装特性，则使用默认特性</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">wrapResultAttribute</span> <span class="p">=</span>
+</span></span><span class="line"><span class="cl">            <span class="n">ReflectionHelper</span><span class="p">.</span><span class="n">GetSingleAttributeOfMemberOrDeclaringTypeOrDefault</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">context</span><span class="p">.</span><span class="n">ActionDescriptor</span><span class="p">.</span><span class="n">GetMethodInfo</span><span class="p">(),</span>
+</span></span><span class="line"><span class="cl">                <span class="n">_configuration</span><span class="p">.</span><span class="n">DefaultWrapResultAttribute</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	   <span class="c1">// 如果方法上面的包装特性要求记录日志，则记录日志</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">wrapResultAttribute</span><span class="p">.</span><span class="n">LogError</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">LogHelper</span><span class="p">.</span><span class="n">LogException</span><span class="p">(</span><span class="n">Logger</span><span class="p">,</span> <span class="n">context</span><span class="p">.</span><span class="n">Exception</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	    <span class="c1">// 如果被调用的方法上的包装特性要求重新包装错误信息，则调用 HandleAndWrapException() 方法进行包装</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">wrapResultAttribute</span><span class="p">.</span><span class="n">WrapOnError</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">HandleAndWrapException</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 处理并包装异常</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">void</span> <span class="n">HandleAndWrapException</span><span class="p">(</span><span class="n">ExceptionContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="c1">// 判断被调用接口的返回值是否符合标准，不符合则直接返回</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="n">ActionResultHelper</span><span class="p">.</span><span class="n">IsObjectResult</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ActionDescriptor</span><span class="p">.</span><span class="n">GetMethodInfo</span><span class="p">().</span><span class="n">ReturnType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	    <span class="c1">// 设置 HTTP 上下文响应所返回的错误代码，由具体异常决定。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">HttpContext</span><span class="p">.</span><span class="n">Response</span><span class="p">.</span><span class="n">StatusCode</span> <span class="p">=</span> <span class="n">GetStatusCode</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	    <span class="c1">// 重新封装响应返回的具体内容。采用 AjaxResponse 进行封装</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">Result</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ObjectResult</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="k">new</span> <span class="n">AjaxResponse</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">_errorInfoBuilder</span><span class="p">.</span><span class="n">BuildForException</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">Exception</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">                <span class="n">context</span><span class="p">.</span><span class="n">Exception</span> <span class="k">is</span> <span class="n">AbpAuthorizationException</span>
+</span></span><span class="line"><span class="cl">            <span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	    <span class="c1">// 触发异常处理事件</span>
+</span></span><span class="line"><span class="cl">        <span class="n">EventBus</span><span class="p">.</span><span class="n">Trigger</span><span class="p">(</span><span class="k">this</span><span class="p">,</span> <span class="k">new</span> <span class="n">AbpHandledExceptionData</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">Exception</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="c1">// 处理完成，将异常上下文的内容置为空</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">Exception</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span> <span class="c1">//Handled!</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 根据不同的异常类型返回不同的 HTTP 错误码</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">virtual</span> <span class="kt">int</span> <span class="n">GetStatusCode</span><span class="p">(</span><span class="n">ExceptionContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">Exception</span> <span class="k">is</span> <span class="n">AbpAuthorizationException</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">context</span><span class="p">.</span><span class="n">HttpContext</span><span class="p">.</span><span class="n">User</span><span class="p">.</span><span class="n">Identity</span><span class="p">.</span><span class="n">IsAuthenticated</span>
+</span></span><span class="line"><span class="cl">                <span class="p">?</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">HttpStatusCode</span><span class="p">.</span><span class="n">Forbidden</span>
+</span></span><span class="line"><span class="cl">                <span class="p">:</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">HttpStatusCode</span><span class="p">.</span><span class="n">Unauthorized</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">Exception</span> <span class="k">is</span> <span class="n">AbpValidationException</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">HttpStatusCode</span><span class="p">.</span><span class="n">BadRequest</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">Exception</span> <span class="k">is</span> <span class="n">EntityNotFoundException</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">HttpStatusCode</span><span class="p">.</span><span class="n">NotFound</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">HttpStatusCode</span><span class="p">.</span><span class="n">InternalServerError</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>以上就是 Abp 针对异常处理的具体操作了，在这里面涉及到的 <code>WrapResultAttribute</code> 、 <code>AjaxResponse</code> 、 <code>IErrorInfoBuilder</code> 都会在后面说明，但是具体的逻辑已经在过滤器所体现了。</p>
+<h3 id="23-接口返回值包装">2.3 接口返回值包装</h3>
+<p>Abp 针对所有 API 返回的数据都会进行一次包装，使得其返回值内容类似于下面的内容。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;result&#34;</span><span class="p">:</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;totalCount&#34;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;items&#34;</span><span class="p">:</span> <span class="p">[]</span>
+</span></span><span class="line"><span class="cl">  <span class="p">},</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;targetUrl&#34;</span><span class="p">:</span> <span class="kc">null</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;success&#34;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;error&#34;</span><span class="p">:</span> <span class="kc">null</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;unAuthorizedRequest&#34;</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;__abp&#34;</span><span class="p">:</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>其中的 <code>result</code> 节点才是你接口真正返回的内容，其余的 <code>targetUrl</code> 之类的都是属于 Abp 包装器给你进行封装的。</p>
+<h4 id="231-包装器特性">2.3.1 包装器特性</h4>
+<p>其中，Abp 预置的包装器有两种，第一个是 <code>WrapResultAttribute</code> 。它有两个 <code>bool</code> 类型的参数，默认均为 <code>true</code> ，一个叫 <code>WrapOnSuccess</code> 一个 叫做 <code>WrapOnError</code> ，分别用于确定成功或则失败后是否包装具体信息。像之前的 <code>OnException()</code> 方法里面就有用该值进行判断是否包装异常信息。</p>
+<p>除了 <code>WarpResultAttribute</code> 特性，还有一个 <code>DontWrapResultAttribute</code> 的特性，该特性直接继承自 <code>WarpResultAttribute</code> ，只不过它的 <code>WrapOnSuccess</code> 与 <code>WrapOnError</code> 都为 <code>fasle</code> 状态，也就是说无论接口调用结果是成功还是失败，都不会进行结果包装。该特性可以直接打在接口方法、控制器、接口之上，类似于这样：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TestApplicationService</span> <span class="p">:</span> <span class="n">ApplicationService</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [DontWrapResult]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">Get</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">await</span> <span class="n">Task</span><span class="p">.</span><span class="n">FromResult</span><span class="p">(</span><span class="s">&#34;Hello World&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>那么这个接口的返回值就不会带有其他附加信息，而直接会按照 Json 来序列化返回你的对象。</p>
+<p>在拦截异常的时候，如果你没有给接口方法打上 <code>DontWarpResult</code> 特性，那么他就会直接使用 <code>IAbpAspNetCoreConfiguration</code> 的 <code>DefaultWrapResultAttribute</code> 属性指定的默认特性，该默认特性如果没有显式指定则为 <code>WrapResultAttribute</code> 。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">AbpAspNetCoreConfiguration</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">DefaultWrapResultAttribute</span> <span class="p">=</span> <span class="k">new</span> <span class="n">WrapResultAttribute</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ...IAbpAspNetCoreConfiguration 的默认实现的构造函数</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ...省略掉了其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="232-具体包装行为">2.3.2 具体包装行为</h4>
+<p>Abp 针对正常的接口数据返回与异常数据返回都是采用的 <code>AjaxResponse</code> 来进行封装的，转到其基类的定义可以看到在里面定义的那几个属性就是我们接口返回出来的数据。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">AjaxResponseBase</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 目标 Url 地址</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">TargetUrl</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 接口调用是否成功</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">Success</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 当接口调用失败时，错误信息存放在此处</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ErrorInfo</span> <span class="n">Error</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 是否是未授权的请求</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">UnAuthorizedRequest</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 用于标识接口是否基于 Abp 框架开发</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">__abp</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>So，从刚才的 <strong>[2.2 节](#2.2 异常拦截)</strong> 可以看到他是直接 <code>new</code> 了一个 <code>AjaxResponse</code> 对象，然后使用 <code>IErrorInfoBuilder</code> 来构建了一个 <code>ErrorInfo</code> 错误信息对象传入到 <code>AjaxResponse</code> 对象当中并且返回。</p>
+<p>那么问题来了，这里的 <code>IErrorInfoBuilder</code> 是怎样来进行包装的呢？</p>
+<h4 id="233-异常包装器">2.3.3 异常包装器</h4>
+<p>当 Abp 捕获到异常之后，会通过 <code>IErrorInfoBuilder</code> 的 <code>BuildForException()</code> 方法来将异常转换为 <code>ErrorInfo</code> 对象。它的默认实现只有一个，就是 <code>ErrorInfoBuilder</code> ，内部结构也很简单，其 <code>BuildForException()</code> 方法直接通过内部的一个转换器进行转换，也就是 <code>IExceptionToErrorInfoConverter</code>，直接调用的 <code>IExceptionToErrorInfoConverter.Convert()</code> 方法。</p>
+<p>同时它拥有另外一个方法，叫做 <code>AddExceptionConverter()</code>，可以传入你自己实现的异常转换器。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">ErrorInfoBuilder</span> <span class="p">:</span> <span class="n">IErrorInfoBuilder</span><span class="p">,</span> <span class="n">ISingletonDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">IExceptionToErrorInfoConverter</span> <span class="n">Converter</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ErrorInfoBuilder</span><span class="p">(</span><span class="n">IAbpWebCommonModuleConfiguration</span> <span class="n">configuration</span><span class="p">,</span> <span class="n">ILocalizationManager</span> <span class="n">localizationManager</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="c1">// 异常包装器默认使用的 DefaultErrorInfoConverter 来进行转换</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Converter</span> <span class="p">=</span> <span class="k">new</span> <span class="n">DefaultErrorInfoConverter</span><span class="p">(</span><span class="n">configuration</span><span class="p">,</span> <span class="n">localizationManager</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 根据异常来构建异常信息</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ErrorInfo</span> <span class="n">BuildForException</span><span class="p">(</span><span class="n">Exception</span> <span class="n">exception</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">Converter</span><span class="p">.</span><span class="n">Convert</span><span class="p">(</span><span class="n">exception</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// 添加用户自定义的异常转换器</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">AddExceptionConverter</span><span class="p">(</span><span class="n">IExceptionToErrorInfoConverter</span> <span class="n">converter</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">converter</span><span class="p">.</span><span class="n">Next</span> <span class="p">=</span> <span class="n">Converter</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Converter</span> <span class="p">=</span> <span class="n">converter</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="234-异常转换器">2.3.4 异常转换器</h4>
+<p>Abp 要包装异常，具体的操作是由转换器来决定的，Abp 实现了一个默认的转换器，叫做 <code>DefaultErrorInfoConverter</code>，在其内部，注入了 <code>IAbpWebCommonModuleConfiguration</code> 配置项，而用户可以通过配置该选项的 <code>SendAllExceptionsToClients</code> 属性来决定是否将异常输出给客户端。</p>
+<p>我们先来看一下他的 <code>Convert()</code> 核心方法：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">ErrorInfo</span> <span class="n">Convert</span><span class="p">(</span><span class="n">Exception</span> <span class="n">exception</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 封装 ErrorInfo 对象</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">errorInfo</span> <span class="p">=</span> <span class="n">CreateErrorInfoWithoutCode</span><span class="p">(</span><span class="n">exception</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果具体的异常实现有 IHasErrorCode 接口，则将错误码也封装到 ErrorInfo 对象内部</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">exception</span> <span class="k">is</span> <span class="n">IHasErrorCode</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">errorInfo</span><span class="p">.</span><span class="n">Code</span> <span class="p">=</span> <span class="p">(</span><span class="n">exception</span> <span class="k">as</span> <span class="n">IHasErrorCode</span><span class="p">).</span><span class="n">Code</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">errorInfo</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>核心十分简单，而 <code>CreateErrorInfoWithoutCode()</code> 方法内部呢也是一些具体的逻辑，根据异常类型的不同，执行不同的转换逻辑。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="n">ErrorInfo</span> <span class="n">CreateErrorInfoWithoutCode</span><span class="p">(</span><span class="n">Exception</span> <span class="n">exception</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果要发送所有异常，则使用 CreateDetailedErrorInfoFromException() 方法进行封装</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">SendAllExceptionsToClients</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">CreateDetailedErrorInfoFromException</span><span class="p">(</span><span class="n">exception</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果有多个异常，并且其内部异常为 UserFriendlyException 或者 AbpValidationException 则将内部异常拿出来放在最外层进行包装</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">exception</span> <span class="k">is</span> <span class="n">AggregateException</span> <span class="p">&amp;&amp;</span> <span class="n">exception</span><span class="p">.</span><span class="n">InnerException</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">aggException</span> <span class="p">=</span> <span class="n">exception</span> <span class="k">as</span> <span class="n">AggregateException</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">aggException</span><span class="p">.</span><span class="n">InnerException</span> <span class="k">is</span> <span class="n">UserFriendlyException</span> <span class="p">||</span>
+</span></span><span class="line"><span class="cl">            <span class="n">aggException</span><span class="p">.</span><span class="n">InnerException</span> <span class="k">is</span> <span class="n">AbpValidationException</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">exception</span> <span class="p">=</span> <span class="n">aggException</span><span class="p">.</span><span class="n">InnerException</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果一场类型为 UserFriendlyException 则直接通过 ErrorInfo 构造函数进行构建</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">exception</span> <span class="k">is</span> <span class="n">UserFriendlyException</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">userFriendlyException</span> <span class="p">=</span> <span class="n">exception</span> <span class="k">as</span> <span class="n">UserFriendlyException</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">new</span> <span class="n">ErrorInfo</span><span class="p">(</span><span class="n">userFriendlyException</span><span class="p">.</span><span class="n">Message</span><span class="p">,</span> <span class="n">userFriendlyException</span><span class="p">.</span><span class="n">Details</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果为参数类一场，则使用不同的构造函数进行构建，并且在这里可以看到他通过 L 函数调用的多语言提示</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">exception</span> <span class="k">is</span> <span class="n">AbpValidationException</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">new</span> <span class="n">ErrorInfo</span><span class="p">(</span><span class="n">L</span><span class="p">(</span><span class="s">&#34;ValidationError&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">ValidationErrors</span> <span class="p">=</span> <span class="n">GetValidationErrorInfos</span><span class="p">(</span><span class="n">exception</span> <span class="k">as</span> <span class="n">AbpValidationException</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Details</span> <span class="p">=</span> <span class="n">GetValidationErrorNarrative</span><span class="p">(</span><span class="n">exception</span> <span class="k">as</span> <span class="n">AbpValidationException</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">};</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果是实体未找到的异常，则包含具体的实体类型信息与实体 ID 值</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">exception</span> <span class="k">is</span> <span class="n">EntityNotFoundException</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">entityNotFoundException</span> <span class="p">=</span> <span class="n">exception</span> <span class="k">as</span> <span class="n">EntityNotFoundException</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">entityNotFoundException</span><span class="p">.</span><span class="n">EntityType</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">new</span> <span class="n">ErrorInfo</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">string</span><span class="p">.</span><span class="n">Format</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">L</span><span class="p">(</span><span class="s">&#34;EntityNotFound&#34;</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">entityNotFoundException</span><span class="p">.</span><span class="n">EntityType</span><span class="p">.</span><span class="n">Name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">entityNotFoundException</span><span class="p">.</span><span class="n">Id</span>
+</span></span><span class="line"><span class="cl">                <span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">new</span> <span class="n">ErrorInfo</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">entityNotFoundException</span><span class="p">.</span><span class="n">Message</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果是未授权的一场，一样的执行不同的操作</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">exception</span> <span class="k">is</span> <span class="n">Abp</span><span class="p">.</span><span class="n">Authorization</span><span class="p">.</span><span class="n">AbpAuthorizationException</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">authorizationException</span> <span class="p">=</span> <span class="n">exception</span> <span class="k">as</span> <span class="n">Abp</span><span class="p">.</span><span class="n">Authorization</span><span class="p">.</span><span class="n">AbpAuthorizationException</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">new</span> <span class="n">ErrorInfo</span><span class="p">(</span><span class="n">authorizationException</span><span class="p">.</span><span class="n">Message</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 除了以上这几个固定的异常需要处理之外，其他的所有异常统一返回内部服务器错误信息。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">new</span> <span class="n">ErrorInfo</span><span class="p">(</span><span class="n">L</span><span class="p">(</span><span class="s">&#34;InternalServerError&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>所以整体异常处理还是比较复杂的，进行了多层封装，但是结构还是十分清晰的。</p>
+<h2 id="3扩展">3.扩展</h2>
+<h3 id="31-显示额外的异常信息">3.1 显示额外的异常信息</h3>
+<p>如果你需要在调用接口而产生异常的时候展示异常的详细信息，可以通过在启动模块的 <code>PreInitialize()</code> (预加载方法) 当中加入 <code>Configuration.Modules.AbpWebCommon().SendAllExceptionsToClients = true;</code> 即可，例如：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[DependsOn(typeof(AbpAspNetCoreModule))]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TestWebStartupModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">PreInitialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="n">Configuration</span><span class="p">.</span><span class="n">Modules</span><span class="p">.</span><span class="n">AbpWebCommon</span><span class="p">().</span><span class="n">SendAllExceptionsToClients</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="32-监听异常事件">3.2 监听异常事件</h3>
+<p>使用 Abp 框架的时候，你可以随时通过监听 <code>AbpHandledExceptionData</code> 事件来使用自己的逻辑处理产生的异常。比如说产生异常时向监控服务报警，或者说将异常信息持久化到其他数据库等等。</p>
+<p>你只需要编写如下代码即可实现监听异常事件：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">ExceptionEventHandler</span> <span class="p">:</span> <span class="n">IEventHandler</span><span class="p">&lt;</span><span class="n">AbpHandledExceptionData</span><span class="p">&gt;,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// Handler handles the event by implementing this method.</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;param name=&#34;eventData&#34;&gt;Event data&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">HandleEvent</span><span class="p">(</span><span class="n">AbpHandledExceptionData</span> <span class="n">eventData</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;当前异常信息为：{eventData.Exception.Message}&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>如果你觉得看的有点吃力的话，可以跳转到 <strong><a class="link" href="https://www.cnblogs.com/myzony/p/9413351.html"  target="_blank" rel="noopener"
+    >这里</a></strong> 了解 Abp 的事件总线实现。</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/aspnetboilerplate/">AspNetBoilerplate</a>
+        
+            <a href="/tags/%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/">异常处理</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/why-not-use-async-void/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">为什么不要使用 async void ？</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/why-does-abp-vnext-throw-an-exception-if-it-does-not-use-the-unit-of-work/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">ABP vNext 不使用工作单元为什么会抛出异常</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/a-problem-of-abnormal-swallowing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">异常吞噬问题一则</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-mongodb-retrofits-the-default-audit-log-storage-location/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp &#43; MongoDb 改造默认的审计日志存储位置</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-source-code-analysis-seventeen-aspnet-core-integration/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp 源码分析：十七、ASP.NET Core 集成</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2022 演示站点
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#0简介">0.简介</a></li>
+    <li><a href="#1启动流程">1.启动流程</a>
+      <ol>
+        <li><a href="#11-流程图">1.1 流程图</a></li>
+        <li><a href="#12-代码流程">1.2 代码流程</a></li>
+      </ol>
+    </li>
+    <li><a href="#2代码分析">2.代码分析</a>
+      <ol>
+        <li><a href="#21-基本定义">2.1 基本定义</a></li>
+        <li><a href="#22-异常拦截">2.2 异常拦截</a></li>
+        <li><a href="#23-接口返回值包装">2.3 接口返回值包装</a>
+          <ol>
+            <li><a href="#231-包装器特性">2.3.1 包装器特性</a></li>
+            <li><a href="#232-具体包装行为">2.3.2 具体包装行为</a></li>
+            <li><a href="#233-异常包装器">2.3.3 异常包装器</a></li>
+            <li><a href="#234-异常转换器">2.3.4 异常转换器</a></li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+    <li><a href="#3扩展">3.扩展</a>
+      <ol>
+        <li><a href="#31-显示额外的异常信息">3.1 显示额外的异常信息</a></li>
+        <li><a href="#32-监听异常事件">3.2 监听异常事件</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>
