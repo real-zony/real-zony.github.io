@@ -266,11 +266,24 @@
 
         
         <div class="article-subtitle">
-            一、安装基本环境 1. 调整 SWAP 分区大小 (可选) 如果你的服务器配置内存过低，低于 4 G 的话都建议添加 SWAP 交换区。按照顺序依次执行以下代码：
-1 2 3 4 /bin/dd if=/dev/zero of=/var/swap.1 bs=1M count=8000 mkswap /var/swap.1 swapon /var/swap.1 sed -i &#39;$a /var/swap.1 swap swap default 0 0&#39; /etc/fstab 这里 count=8000 是你需要指定的 Swap 文件大小，你可以执行成你自己想要的交换文件大小，当然越大越好。
-2. 安装运行库 首先进行基本的系统更新，这里直接使用阿里云的 Yum 源进行更新，依次执行以下代码：
-1 2 3 4 5 wget -O /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-6.repo yum clean all yum makecache yum -y update yum -y upgrade 下面就开始安装数据库与执行 GeoIP 编译所需要的必要文件，依然按次序执行下列代码：
-1 2 3 4 yum -y install gcc gcc-c++ make zlib-devel libc.
+            <h3 id="一安装基本环境">一、安装基本环境</h3>
+<h4 id="1-调整-swap-分区大小-可选">1. 调整 SWAP 分区大小 (可选)</h4>
+<p>如果你的服务器配置内存过低，低于 4 G 的话都建议添加 SWAP 交换区。按照顺序依次执行以下代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">/bin/dd <span class="k">if</span><span class="o">=</span>/dev/zero <span class="nv">of</span><span class="o">=</span>/var/swap.1 <span class="nv">bs</span><span class="o">=</span>1M <span class="nv">count</span><span class="o">=</span><span class="m">8000</span>
+</span></span><span class="line"><span class="cl">mkswap /var/swap.1
+</span></span><span class="line"><span class="cl">swapon /var/swap.1
+</span></span><span class="line"><span class="cl">sed -i <span class="s1">&#39;$a /var/swap.1 swap swap default 0 0&#39;</span> /etc/fstab
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里 <code>count=8000</code> 是你需要指定的 Swap 文件大小，你可以执行成你自己想要的交换文件大小，当然越大越好。</p>
             </h3>
         </div>
         
@@ -333,14 +346,21 @@
 
         
         <div class="article-subtitle">
-            在之前有些过一篇文章 《使用 DryIoc 替换 Abp 的 DI 框架》 ，在该文章里面我尝试通过以替换 IocManager 内部的 IContainer 来实现使用我们自己的 DI 框架。替换了之后我们基本上是可以正常使用了，不过仍然还存在有以下两个比较显著的问题。
-拦截器功能无法正常使用，需要重复递归查找真实类型，消耗性能。 针对于通过 IServiceCollection.AddScoped() 方法添加的 Scoped 类型的解析存在问题。 下面我们就来针对于上述问题进行问题的分析与解决。
-1. 问题 1 1.1 现象与原因 首先，来看一下问题 1 ，针对于问题 1 我在 Github 上面向作者请教了一下，造成嵌套注册的原因很简单。因为之所以我们解析的时候，原来的注册类型会解析出来代理类。
-关于上述原因可以参考 DryIoc 的 Github 问题 #50 。
-这是因为 DryIoc 是通过替换了原有注册类型的实现，而如果按照之前我们那篇文章的方法，每次注册事件被触发的时候就会针对注册类型嵌套一层代理类。这样如果某个类型有多个拦截器，这样就会造成一个类型嵌套的问题，在外层的拦截器被拦截到的时候无法获取到当前代理的真实类型。
-1.2 思路与解决方法 解决思路也比较简单，就是我们在注册某个类型的时候，触发了拦截器注入事件。在这个时候，我们并不真正的执行代理类的一个操作。而是将需要代理的类型与它的拦截器类型通过字典存储起来，然后在类型完全注册完成之后，通过遍历这个字典，我们来一次性地为每一个注册类型进行拦截器代理。
-思路清晰了，那么我们就可以编写代码来进行实现了，首先我们先为 IocManager 增加一个内部的字典，用于存储注册类-拦截器。
-1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 public class IocManager : IIocManager { // .
+            <p>在之前有些过一篇文章 <a class="link" href="https://blog.myzony.com/use-dryioc-replace-abp-di-framework/"  target="_blank" rel="noopener"
+    >《使用 DryIoc 替换 Abp 的 DI 框架》</a> ，在该文章里面我尝试通过以替换 <code>IocManager</code> 内部的 <code>IContainer</code> 来实现使用我们自己的 DI 框架。替换了之后我们基本上是可以正常使用了，不过仍然还存在有以下两个比较显著的问题。</p>
+<ol>
+<li>拦截器功能无法正常使用，需要重复递归查找真实类型，消耗性能。</li>
+<li>针对于通过 <code>IServiceCollection.AddScoped()</code> 方法添加的 Scoped 类型的解析存在问题。</li>
+</ol>
+<p>下面我们就来针对于上述问题进行问题的分析与解决。</p>
+<h3 id="1-问题-1">1. 问题 1</h3>
+<h4 id="11-现象与原因">1.1 现象与原因</h4>
+<p>首先，来看一下问题 1 ，针对于问题 1 我在 Github 上面向作者请教了一下，造成嵌套注册的原因很简单。因为之所以我们解析的时候，原来的注册类型会解析出来代理类。</p>
+<blockquote>
+<p>关于上述原因可以参考 DryIoc 的 Github 问题 <a class="link" href="https://github.com/dadhi/DryIoc/issues/50"  target="_blank" rel="noopener"
+    >#50</a> 。</p>
+</blockquote>
+<p>这是因为 DryIoc 是通过替换了原有注册类型的实现，而如果按照之前我们那篇文章的方法，每次注册事件被触发的时候就会针对注册类型嵌套一层代理类。这样如果某个类型有多个拦截器，这样就会造成一个类型嵌套的问题，在外层的拦截器被拦截到的时候无法获取到当前代理的真实类型。</p>
             </h3>
         </div>
         
@@ -403,14 +423,10 @@
 
         
         <div class="article-subtitle">
-            0. 简介 整个 Abp 框架最为核心的除了 Abp 库之外，其次就是 Abp.AspNetCore 库了。虽然 Abp 本身是可以用于控制台程序的，不过那样的话 Abp 就基本没什么用，还是需要集合 ASP.NET Core 才能发挥它真正的作用。
-在 Abp.AspNetCore 库里面，Abp 通过 WindsorRegistrationHelper.CreateServiceProvider() 接管了 ASP.NET Core 自带的 Ioc 容器。除此之外，还针对 Controller 的生成规则也进行了替换，以便实现 Dynamic API 功能。
-总的来说，整个 Abp 框架与 ASP.NET Core 集成的功能都放在这个库里面的，所以说这个库还是相当重要的。这个项目又依赖于 Abp.Web.Common 库，这个库是存放了很多公用方法或者工具类的，后面也会有讲述。
-1. 启动流程 首先在 Abp.AspNetCore 库里面，Abp 提供了两个扩展方法。
-第一个则是 AddAbp&lt;TStartupModule&gt;() 方法。
-该方法是 IServiceCollection 的扩展方法，用于在 ASP.NET Core 项目里面的 Startup 的 ConfigureService() 进行配置。通过该方法，Abp 会接管默认的 DI 框架，改为使用 Castle Windsor，并且进行一些 MVC 相关的配置。
-第二个则是 UseAbp() 方法。
-该方法是 IApplicationBuilder 的扩展方法，用于 Startup 类里面的 Configure() 配置。通过该方法，Abp 会执行一系列初始化操作，在这个时候 Abp 框架才算是真正地启动了起来。
+            <h2 id="0-简介">0. 简介</h2>
+<p>整个 Abp 框架最为核心的除了 <strong>Abp</strong> 库之外，其次就是 <strong>Abp.AspNetCore</strong> 库了。虽然 Abp 本身是可以用于控制台程序的，不过那样的话 Abp 就基本没什么用，还是需要集合 ASP.NET Core 才能发挥它真正的作用。</p>
+<p>在 <strong>Abp.AspNetCore</strong> 库里面，Abp 通过 <code>WindsorRegistrationHelper.CreateServiceProvider()</code> 接管了 ASP.NET Core 自带的 Ioc 容器。除此之外，还针对 <code>Controller</code> 的生成规则也进行了替换，以便实现 Dynamic API 功能。</p>
+<p>总的来说，整个 Abp 框架与 ASP.NET Core 集成的功能都放在这个库里面的，所以说这个库还是相当重要的。这个项目又依赖于 <strong>Abp.Web.Common</strong> 库，这个库是存放了很多公用方法或者工具类的，后面也会有讲述。</p>
             </h3>
         </div>
         
@@ -473,14 +489,17 @@
 
         
         <div class="article-subtitle">
-            一、背景 你说我 Castle Windsor 库用得好好的，为啥要大费周章的替换成 DryIoc 库呢？那就是性能，DryIoc 是一款优秀而且轻量级的 DI 框架，整个项目代码就两个文件，加起来代码 1 万行左右(PS: 大部分都是注释)。
-在各个 Ioc 容器的性能评测当中，DryIoc 以其优异的性能成为我选择使用他的原因。Abp 使用的 Castle Windsor 在解析复杂对象的时候，速度非常慢，而替换为 DryIoc 之后速度可以提升 150% 以上。
-【注意】
-本文仅对 .NET Core 相关的库进行更改并测试，.NET Framework 相关的库并没有进行修改测试。
-二、准备 你需要准备如下原料：
-Abp 源码 一份。 测试用的项目一份。 Visual Studio 2017 或者 Rider 一份。 .NET 程序猿一枚。 三、分析 首先，Abp 框架的大部分动作基本上都是通过 IIocManager 这个接口对象进行实现的，它抽象了一层作为一个 DI 框架的操作类。它的默认实现是使用的 Castle Windsor 来进行组件的注入与解析，所以我们只需要将其改为使用 DryIoc 的容器其进行操作即可。
-其次，在 Abp 框架的很多地方都有用到 Castle Windsor 的 IWindsorContainer 对象，但一般用到该方法的地方都是注入或者绑定组件注册事件，这些我们都可以重新实现的。
-做完了以上的工作仅仅是代表我们的 Abp 的所有组件都可以通过 DryIoc 来进行注册和解析，不过要和 ASP.
+            <h2 id="一背景">一、背景</h2>
+<p>你说我 Castle Windsor 库用得好好的，为啥要大费周章的替换成 <strong><a class="link" href="https://github.com/dadhi/DryIoc"  target="_blank" rel="noopener"
+    >DryIoc</a></strong> 库呢？那就是性能，<strong><a class="link" href="https://github.com/dadhi/DryIoc"  target="_blank" rel="noopener"
+    >DryIoc</a></strong> 是一款优秀而且轻量级的 DI 框架，整个项目代码就两个文件，加起来代码 1 万行左右(PS: 大部分都是注释)。</p>
+<p>在各个 Ioc 容器的性能评测当中，<strong><a class="link" href="https://github.com/dadhi/DryIoc"  target="_blank" rel="noopener"
+    >DryIoc</a></strong> 以其优异的性能成为我选择使用他的原因。Abp 使用的 Castle Windsor 在解析复杂对象的时候，速度非常慢，而替换为 <strong><a class="link" href="https://github.com/dadhi/DryIoc"  target="_blank" rel="noopener"
+    >DryIoc</a></strong> 之后速度可以提升 150% 以上。</p>
+<blockquote>
+<p>【注意】</p>
+<p>本文仅对 .NET Core 相关的库进行更改并测试，.NET Framework 相关的库并没有进行修改测试。</p>
+</blockquote>
             </h3>
         </div>
         
@@ -543,23 +562,12 @@ Abp 源码 一份。 测试用的项目一份。 Visual Studio 2017 或者 Rider
 
         
         <div class="article-subtitle">
-            一、CLR 线程池基础 一般来说如果计算机的 CPU 利用率没有 100% ，那么说明很多进程的部分线程没有运行。可能在等待 文件/网络/数据库等设备读取或者写入数据，又可能是等待按键、鼠标移动等事件。
-执行 I/O 限制的操作时，操作系统通过设备驱动程序通知硬件干活，而 CPU 处于一种空闲状态。而在现代应用程序当中，使用线程池来执行计算限制的操作，而不是手动创建线程。
-每个 CLR 都有自己独立的线程池，并且由各自 CLR 控制的所有 AppDomain 所共享。
-线程池本身维护了一个请求队列，当程序需要执行一个异步操作的时候，会将一个记录项追加到队列之中，然后由线程池将该记录项分派给线程池线程，如果没有线程则创建一个新的线程。线程任务处理完整之后，将该线程放入线程池中等待以后进行复用。
-线程池本身是启发式的，结合程序负载，他会自己根据当前线程池内线程的状态销毁/新增线程。
-二、执行简单的计算限制操作 通过 ThreadPool 静态类，我们可以方便地使用线程池中的线程为我们执行一些计算限制的异步操作。只需要调用 ThreadPool 的 QueueUserWorkItem(WaitCallBack callback) 方法，或者是他的另一个重载方法，接收一个 state 值作为参数。
-他的两个方法都是非阻塞的，调用之后会立即返回。
-WaitCallBack 的方法签名如下：
-1 delegate void WaitCallBack(Object state); 在 CLR 的线程池中，将 callback 委托作为工作项添加到队列当中，然后由线程池分发线程进行处理。
-【注意】
-一旦回调方法抛出了未处理的异常，CLR 会立即终止进程。
-三、执行上下文 每个线程都有一个执行上下文的数据结构，包含由安全设置，宿主设置和逻辑调用上下文数据(AsyncLocal 与 CallContext)。
-当在某个线程(例如主线程)使用了另外一个线程(辅助线程)，就会产生执行上下文由调用者线程流向被调用线程。这会对性能造成一定的影响，这是因为执行上下文包含有大量地信息。而如果辅助线程又调用了更多的辅助线程，这个时候执行上下问的复制开销就非常大。
-我们可以通过 ExecutionContext 类控制线程的执行上下文是否流向辅助线程，只有辅助线程不需要访问执行上下文时可以阻止执行上下文流动。当阻止了执行上下文流动时，辅助线程会使用最后一次与其关联的任意执行上下文，这个时候对于安全设置等就不可信，不应执行任何依赖于执行上下文的操作。
-一般来说在主线程，可以通过 ExecutionContext.SuppressFlow(); 方法阻止执行上下文流动，然后再通过 ExecutionContext.RestoreFlow(); 恢复流动。
-四、协作式取消和超时 .NET 提供了标准的取消操作模式，这个模式是协作式的，也就是你要取消的操作必须显式声明自己可以被取消。这是因为用户在执行某些长耗时的计算限制操作的时候，可能会因为等待时间太长或者其他原因需要取消这个操作。
-首先我们通过 System.Threading.CancellationTokenSource 对象管理或者取消对象状态，使用时直接 new 一个即可，而该对象拥有一个 CancellationToken 对象。
+            <h2 id="一clr-线程池基础">一、CLR 线程池基础</h2>
+<p>一般来说如果计算机的 CPU 利用率没有 100% ，那么说明很多进程的部分线程没有运行。可能在等待 文件/网络/数据库等设备读取或者写入数据，又可能是等待按键、鼠标移动等事件。</p>
+<p>执行 I/O 限制的操作时，操作系统通过设备驱动程序通知硬件干活，而 CPU 处于一种空闲状态。而在现代应用程序当中，使用线程池来执行计算限制的操作，而不是手动创建线程。</p>
+<p>每个 CLR 都有自己独立的线程池，并且由各自 CLR 控制的所有 AppDomain 所共享。</p>
+<p>线程池本身维护了一个请求队列，当程序需要执行一个异步操作的时候，会将一个记录项追加到队列之中，然后由线程池将该记录项分派给线程池线程，如果没有线程则创建一个新的线程。线程任务处理完整之后，将该线程放入线程池中等待以后进行复用。</p>
+<p>线程池本身是启发式的，结合程序负载，他会自己根据当前线程池内线程的状态销毁/新增线程。</p>
             </h3>
         </div>
         
