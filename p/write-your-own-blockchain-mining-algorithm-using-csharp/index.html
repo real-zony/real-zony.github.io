@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='文章原文来自：Code your own blockchain mining algorithm in Go! ，原始文章通过 Go 语言来实现的，这里仍然是承接上一篇文章，来使用 C# &#43; .Net Core 实现我们的挖矿算法。
+强烈建议阅读前先阅读这篇文章 什么是加密货币挖掘？ 一个加密货币的价值体现在它的稀缺性上，如果任何人都可以任意构造一个比特币，那么比特币就毫无价值，所以比特币的区块链会让参与者完成一项“工作”，根据这个工作的最终结果还分发比特币，这个过程就被叫做“挖矿”。这就类似于一个黄金矿工花一些时间来工作，然后获得一点黄金。
+挖矿的原理 如果你百度/谷歌搜索 比特币挖矿的原理 的话，都会给你说是计算一个复杂的数学问题而已，但是这么说的话太笼统而且也太简单。采矿引擎如何工作这是一个重要的知识点，所以我们需要了解一些密码学知识和哈希算法相关的知识，才能知道挖矿的基本原理。
+哈希/散列介绍 单向加密人类能够理解的输入，例如 Hello World ，并将其扔到某个加密函数(即所谓的复杂的数学问题)，加密函数的算法越复杂，逆向工程就越困难。
+例如一个 SHA - 256 的例子，**这个网站**可以很快的计算散列值，让我们来散列 “Hello World” 看看会得到什么结果：
+不管你试验几次都会得到一样的散列值，在编程中这种被称之为幂等性。
+加密算法的一个基本特性就是，它们很难通过逆向工程来得到明文结果，但是十分容易验证他们的加密结果，例如这里的 “Hello World” 很难通过逆向工程得到他的原明文结果，比特币采用的是 Double SHA-256 也就是将明文通过 SHA-256 计算过一次之后，再拿 SHA-256 针对散列值再次进行计算，在这里我们只使用 SHA-256 来进行加密。
+工作证明 比特币通过让参与者散列随机的字母与数字的组合，直到计算出来的散列包含前导 0。
+例如我们计算 886 的散列值可以得到如下结果：
+1 000f21ac06aceb9cdd0575e82d0d85fc39bed0a7a1d71970ba1641666a44f530 它返回了 3 个 0 作为前缀的散列值，但是我们怎么知道 886 计算出来的散列结果产生了 3 个 0 呢？
+答案是我并不需要知道。。。我需要知道矿工给我的散列值前导有几个零就好了，并不需要复杂的算法来验证整个散列值的有效性。'><title>使用 C# 编写自己的区块链挖矿算法</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/write-your-own-blockchain-mining-algorithm-using-csharp/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='使用 C# 编写自己的区块链挖矿算法'>
+<meta property='og:description' content='文章原文来自：Code your own blockchain mining algorithm in Go! ，原始文章通过 Go 语言来实现的，这里仍然是承接上一篇文章，来使用 C# &#43; .Net Core 实现我们的挖矿算法。
+强烈建议阅读前先阅读这篇文章 什么是加密货币挖掘？ 一个加密货币的价值体现在它的稀缺性上，如果任何人都可以任意构造一个比特币，那么比特币就毫无价值，所以比特币的区块链会让参与者完成一项“工作”，根据这个工作的最终结果还分发比特币，这个过程就被叫做“挖矿”。这就类似于一个黄金矿工花一些时间来工作，然后获得一点黄金。
+挖矿的原理 如果你百度/谷歌搜索 比特币挖矿的原理 的话，都会给你说是计算一个复杂的数学问题而已，但是这么说的话太笼统而且也太简单。采矿引擎如何工作这是一个重要的知识点，所以我们需要了解一些密码学知识和哈希算法相关的知识，才能知道挖矿的基本原理。
+哈希/散列介绍 单向加密人类能够理解的输入，例如 Hello World ，并将其扔到某个加密函数(即所谓的复杂的数学问题)，加密函数的算法越复杂，逆向工程就越困难。
+例如一个 SHA - 256 的例子，**这个网站**可以很快的计算散列值，让我们来散列 “Hello World” 看看会得到什么结果：
+不管你试验几次都会得到一样的散列值，在编程中这种被称之为幂等性。
+加密算法的一个基本特性就是，它们很难通过逆向工程来得到明文结果，但是十分容易验证他们的加密结果，例如这里的 “Hello World” 很难通过逆向工程得到他的原明文结果，比特币采用的是 Double SHA-256 也就是将明文通过 SHA-256 计算过一次之后，再拿 SHA-256 针对散列值再次进行计算，在这里我们只使用 SHA-256 来进行加密。
+工作证明 比特币通过让参与者散列随机的字母与数字的组合，直到计算出来的散列包含前导 0。
+例如我们计算 886 的散列值可以得到如下结果：
+1 000f21ac06aceb9cdd0575e82d0d85fc39bed0a7a1d71970ba1641666a44f530 它返回了 3 个 0 作为前缀的散列值，但是我们怎么知道 886 计算出来的散列结果产生了 3 个 0 呢？
+答案是我并不需要知道。。。我需要知道矿工给我的散列值前导有几个零就好了，并不需要复杂的算法来验证整个散列值的有效性。'>
+<meta property='og:url' content='https://real-zony.github.io/p/write-your-own-blockchain-mining-algorithm-using-csharp/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='.NET' /><meta property='article:tag' content='区块链' /><meta property='article:published_time' content='2018-05-07T10:55:00&#43;00:00'/><meta property='article:modified_time' content='2018-05-07T10:55:00&#43;00:00'/>
+<meta name="twitter:title" content="使用 C# 编写自己的区块链挖矿算法">
+<meta name="twitter:description" content="文章原文来自：Code your own blockchain mining algorithm in Go! ，原始文章通过 Go 语言来实现的，这里仍然是承接上一篇文章，来使用 C# &#43; .Net Core 实现我们的挖矿算法。
+强烈建议阅读前先阅读这篇文章 什么是加密货币挖掘？ 一个加密货币的价值体现在它的稀缺性上，如果任何人都可以任意构造一个比特币，那么比特币就毫无价值，所以比特币的区块链会让参与者完成一项“工作”，根据这个工作的最终结果还分发比特币，这个过程就被叫做“挖矿”。这就类似于一个黄金矿工花一些时间来工作，然后获得一点黄金。
+挖矿的原理 如果你百度/谷歌搜索 比特币挖矿的原理 的话，都会给你说是计算一个复杂的数学问题而已，但是这么说的话太笼统而且也太简单。采矿引擎如何工作这是一个重要的知识点，所以我们需要了解一些密码学知识和哈希算法相关的知识，才能知道挖矿的基本原理。
+哈希/散列介绍 单向加密人类能够理解的输入，例如 Hello World ，并将其扔到某个加密函数(即所谓的复杂的数学问题)，加密函数的算法越复杂，逆向工程就越困难。
+例如一个 SHA - 256 的例子，**这个网站**可以很快的计算散列值，让我们来散列 “Hello World” 看看会得到什么结果：
+不管你试验几次都会得到一样的散列值，在编程中这种被称之为幂等性。
+加密算法的一个基本特性就是，它们很难通过逆向工程来得到明文结果，但是十分容易验证他们的加密结果，例如这里的 “Hello World” 很难通过逆向工程得到他的原明文结果，比特币采用的是 Double SHA-256 也就是将明文通过 SHA-256 计算过一次之后，再拿 SHA-256 针对散列值再次进行计算，在这里我们只使用 SHA-256 来进行加密。
+工作证明 比特币通过让参与者散列随机的字母与数字的组合，直到计算出来的散列包含前导 0。
+例如我们计算 886 的散列值可以得到如下结果：
+1 000f21ac06aceb9cdd0575e82d0d85fc39bed0a7a1d71970ba1641666a44f530 它返回了 3 个 0 作为前缀的散列值，但是我们怎么知道 886 计算出来的散列结果产生了 3 个 0 呢？
+答案是我并不需要知道。。。我需要知道矿工给我的散列值前导有几个零就好了，并不需要复杂的算法来验证整个散列值的有效性。">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/write-your-own-blockchain-mining-algorithm-using-csharp/">使用 C# 编写自己的区块链挖矿算法</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">May 07, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 3 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>文章原文来自：<a class="link" href="https://medium.com/@mycoralhealth/code-your-own-blockchain-mining-algorithm-in-go-82c6a71aba1f"  target="_blank" rel="noopener"
+    >Code your own blockchain mining algorithm in Go!</a> ，原始文章通过 Go 语言来实现的，这里仍然是承接上一篇文章，来使用 C# + .Net Core 实现我们的挖矿算法。</p>
+<h2 id="强烈建议阅读前先阅读这篇文章httpwwwcnblogscommyzonyp8478789html"><a class="link" href="http://www.cnblogs.com/myzony/p/8478789.html"  target="_blank" rel="noopener"
+    >强烈建议阅读前先阅读这篇文章</a></h2>
+<h2 id="什么是加密货币挖掘">什么是加密货币挖掘？</h2>
+<p>一个加密货币的价值体现在它的稀缺性上，如果任何人都可以任意构造一个比特币，那么比特币就毫无价值，所以比特币的区块链会让参与者完成一项“工作”，根据这个工作的最终结果还分发比特币，这个过程就被叫做“挖矿”。这就类似于一个黄金矿工花一些时间来工作，然后获得一点黄金。</p>
+<h2 id="挖矿的原理">挖矿的原理</h2>
+<p>如果你百度/谷歌搜索 <code>比特币挖矿的原理</code> 的话，都会给你说是计算一个复杂的数学问题而已，但是这么说的话太笼统而且也太简单。采矿引擎如何工作这是一个重要的知识点，所以我们需要了解一些密码学知识和哈希算法相关的知识，才能知道挖矿的基本原理。</p>
+<h3 id="哈希散列介绍">哈希/散列介绍</h3>
+<p>单向加密人类能够理解的输入，例如 <strong><code>Hello World</code></strong> ，并将其扔到某个加密函数(即所谓的复杂的数学问题)，加密函数的算法越复杂，逆向工程就越困难。</p>
+<p>例如一个 SHA - 256 的例子，**<a class="link" href="http://tool.oschina.net/encrypt?type=2"  target="_blank" rel="noopener"
+    >这个网站</a>**可以很快的计算散列值，让我们来散列 “Hello World” 看看会得到什么结果：</p>
+<p><img src="/p/write-your-own-blockchain-mining-algorithm-using-csharp/5b2f46678bae2.png"
+	width="1100"
+	height="540"
+	srcset="/p/write-your-own-blockchain-mining-algorithm-using-csharp/5b2f46678bae2_hu1029545b365e980f01bc9217db0c0e6e_18256_480x0_resize_box_3.png 480w, /p/write-your-own-blockchain-mining-algorithm-using-csharp/5b2f46678bae2_hu1029545b365e980f01bc9217db0c0e6e_18256_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="203"
+		data-flex-basis="488px"
+	
+></p>
+<p>不管你试验几次都会得到一样的散列值，在编程中这种被称之为<em>幂等性</em>。</p>
+<p>加密算法的一个基本特性就是，它们很难通过逆向工程来得到明文结果，但是十分容易验证他们的加密结果，例如这里的 “Hello World” 很难通过逆向工程得到他的原明文结果，比特币采用的是 <code>Double SHA-256</code> 也就是将明文通过 SHA-256 计算过一次之后，再拿 SHA-256 针对散列值再次进行计算，在这里我们只使用 SHA-256 来进行加密。</p>
+<h2 id="工作证明">工作证明</h2>
+<p>比特币通过让参与者散列随机的字母与数字的组合，直到计算出来的散列包含前导 <code>0</code>。</p>
+<p>例如我们计算 <code>886</code> 的散列值可以得到如下结果：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">000f21ac06aceb9cdd0575e82d0d85fc39bed0a7a1d71970ba1641666a44f530
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>它返回了 <code>3</code> 个 <code>0</code> 作为前缀的散列值，但是我们怎么知道 <code>886</code> 计算出来的散列结果产生了 <code>3</code> 个 <code>0</code> 呢？</p>
+<p>答案是我并不需要知道。。。我需要知道矿工给我的散列值前导有几个零就好了，并不需要复杂的算法来验证整个散列值的有效性。</p>
+<p>比特币则稍微复杂一点，它每隔 10 分钟生成一个新的区块，新区块的散列值的难度它可以动态调整，就类似于 CLR 的 GC 一样，它可以根据目前挖矿的人数来进行难度动态调整，如果挖矿的人多的话，则调高难度，少则调低。</p>
+<h2 id="动手开发">动手开发</h2>
+<h3 id="1项目配置">1.项目配置</h3>
+<p>首先新建一个 Asp.Net Core 项目，然后选择 Empty Project(空项目) 类型，建立完成后无需进行任何配置。</p>
+<h3 id="2数据模型">2.数据模型</h3>
+<p>这里我们来创建一个具体的区块数据模型，使用的是 Struct 结构体。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">struct</span> <span class="nc">Block</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 区块位置</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">int</span> <span class="n">Index</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 区块生成时间戳</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">TimeStamp</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 心率数值</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">int</span> <span class="n">BPM</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 区块 SHA-256 散列值</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Hash</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 前一个区块 SHA-256 散列值</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">PrevHash</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 下一个区块生成难度</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">int</span> <span class="n">Difficulty</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 随机值</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Nonce</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>Difficulty</code> 是一个整形，他定义了我们希望得到哈希前导 0 的数量，前导 0 越多，生成正确的散列值就越困难，我们现在从 1 开始。</p>
+<p><code>Nonce</code> 则是每次计算块散列值所需要的随机值。</p>
+<h3 id="3-工作证明">3. 工作证明</h3>
+<p>我们首先添加一个新的方法来验证生成的散列值是否包含指定数量的前导 0 ：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// 校验 Hash 是否有效</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;param name=&#34;hashStr&#34;&gt;Hash 值&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;param name=&#34;difficulty&#34;&gt;难度&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;returns&gt;&lt;/returns&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="kt">bool</span> <span class="n">IsHashValid</span><span class="p">(</span><span class="kt">string</span> <span class="n">hashStr</span><span class="p">,</span> <span class="kt">int</span> <span class="n">difficulty</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">bytes</span> <span class="p">=</span> <span class="n">Enumerable</span><span class="p">.</span><span class="n">Range</span><span class="p">(</span><span class="m">0</span><span class="p">,</span> <span class="n">hashStr</span><span class="p">.</span><span class="n">Length</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">Where</span><span class="p">(</span><span class="n">n</span> <span class="p">=&gt;</span> <span class="n">n</span> <span class="p">%</span> <span class="m">2</span> <span class="p">==</span> <span class="m">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">Select</span><span class="p">(</span><span class="n">n</span> <span class="p">=&gt;</span> <span class="n">Convert</span><span class="p">.</span><span class="n">ToByte</span><span class="p">(</span><span class="n">hashStr</span><span class="p">.</span><span class="n">Substring</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="m">2</span><span class="p">),</span> <span class="m">16</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">ToArray</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">bits</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BitArray</span><span class="p">(</span><span class="n">bytes</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">for</span> <span class="p">(</span><span class="kt">var</span> <span class="n">i</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span> <span class="n">i</span> <span class="p">&lt;</span> <span class="n">difficulty</span><span class="p">;</span> <span class="n">i</span><span class="p">++)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">if</span> <span class="p">(</span><span class="n">bits</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>然后我们更改了之前区块 Hash 的生成方法：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// 计算区块 HASH 值</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;param name=&#34;block&#34;&gt;区块实例&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;returns&gt;计算完成的区块散列值&lt;/returns&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="kt">string</span> <span class="n">CalculateHash</span><span class="p">(</span><span class="n">Block</span> <span class="n">block</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">string</span> <span class="n">calculationStr</span> <span class="p">=</span> <span class="s">$&#34;{block.Index}{block.TimeStamp}{block.BPM}{block.PrevHash}{block.Nonce}&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">SHA256</span> <span class="n">sha256Generator</span> <span class="p">=</span> <span class="n">SHA256</span><span class="p">.</span><span class="n">Create</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">byte</span><span class="p">[]</span> <span class="n">sha256HashBytes</span> <span class="p">=</span> <span class="n">sha256Generator</span><span class="p">.</span><span class="n">ComputeHash</span><span class="p">(</span><span class="n">Encoding</span><span class="p">.</span><span class="n">UTF8</span><span class="p">.</span><span class="n">GetBytes</span><span class="p">(</span><span class="n">calculationStr</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">StringBuilder</span> <span class="n">sha256StrBuilder</span> <span class="p">=</span> <span class="k">new</span> <span class="n">StringBuilder</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">byte</span> <span class="n">@byte</span> <span class="k">in</span> <span class="n">sha256HashBytes</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">sha256StrBuilder</span><span class="p">.</span><span class="n">Append</span><span class="p">(</span><span class="n">@byte</span><span class="p">.</span><span class="n">ToString</span><span class="p">(</span><span class="s">&#34;x2&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">sha256StrBuilder</span><span class="p">.</span><span class="n">ToString</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在这里我们新增新增了 Nonce 随机值作为散列生成的依据。</p>
+<p>那么我们生成新区块的时候就顺便来挖矿吧：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// 生成新的区块</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;param name=&#34;oldBlock&#34;&gt;旧的区块数据&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;param name=&#34;BPM&#34;&gt;心率&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;returns&gt;新的区块&lt;/returns&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="n">Block</span> <span class="n">GenerateBlock</span><span class="p">(</span><span class="n">Block</span> <span class="n">oldBlock</span><span class="p">,</span> <span class="kt">int</span> <span class="n">BPM</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Block</span> <span class="n">newBlock</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Block</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Index</span> <span class="p">=</span> <span class="n">oldBlock</span><span class="p">.</span><span class="n">Index</span> <span class="p">+</span> <span class="m">1</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">TimeStamp</span> <span class="p">=</span> <span class="n">CalculateCurrentTimeUTC</span><span class="p">(),</span>
+</span></span><span class="line"><span class="cl">        <span class="n">BPM</span> <span class="p">=</span> <span class="n">BPM</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">PrevHash</span> <span class="p">=</span> <span class="n">oldBlock</span><span class="p">.</span><span class="n">Hash</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Difficulty</span> <span class="p">=</span> <span class="n">Difficulty</span>
+</span></span><span class="line"><span class="cl">    <span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 挖矿 ing...</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span> <span class="p">;</span> <span class="n">i</span><span class="p">++)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">newBlock</span><span class="p">.</span><span class="n">Nonce</span> <span class="p">=</span> <span class="n">i</span><span class="p">.</span><span class="n">ToString</span><span class="p">(</span><span class="s">&#34;x2&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="n">IsHashValid</span><span class="p">(</span><span class="n">CalculateHash</span><span class="p">(</span><span class="n">newBlock</span><span class="p">),</span> <span class="n">Difficulty</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;目前结果：{CalculateHash(newBlock)} ，正在计算中...&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Task</span><span class="p">.</span><span class="n">Delay</span><span class="p">(</span><span class="m">1</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">else</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;目前结果：{CalculateHash(newBlock)} ，计算完毕...&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="n">newBlock</span><span class="p">.</span><span class="n">Hash</span> <span class="p">=</span> <span class="n">CalculateHash</span><span class="p">(</span><span class="n">newBlock</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 原有代码</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// newBlock.Hash = CalculateHash(newBlock);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">newBlock</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="效果">效果</h2>
+<p><img src="/p/write-your-own-blockchain-mining-algorithm-using-csharp/5b2f46826a7f0.png"
+	width="1396"
+	height="646"
+	srcset="/p/write-your-own-blockchain-mining-algorithm-using-csharp/5b2f46826a7f0_hu044a435de5f4b420bc45817a5157d065_104709_480x0_resize_box_3.png 480w, /p/write-your-own-blockchain-mining-algorithm-using-csharp/5b2f46826a7f0_hu044a435de5f4b420bc45817a5157d065_104709_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="216"
+		data-flex-basis="518px"
+	
+></p>
+<p><img src="/p/write-your-own-blockchain-mining-algorithm-using-csharp/5b2f4699e2663.png"
+	width="1571"
+	height="755"
+	srcset="/p/write-your-own-blockchain-mining-algorithm-using-csharp/5b2f4699e2663_huf89783ad5e55527a1322b96da172b0be_118515_480x0_resize_box_3.png 480w, /p/write-your-own-blockchain-mining-algorithm-using-csharp/5b2f4699e2663_huf89783ad5e55527a1322b96da172b0be_118515_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="208"
+		data-flex-basis="499px"
+	
+></p>
+<h2 id="结语">结语</h2>
+<p>其实代码并不复杂，但是这几十行代码表明了区块链挖矿的本质，后面你可以参考原文实现 P2P 与 股权权益证明方法与智能合约。</p>
+<p>项目代码地址：http://git.myzony.com/Zony/BlockChain.git</p>
+<p>PDF 文件地址：http://git.myzony.com/Zony/BlockChain/src/6ef2bdb7d9a086d8e214603c88670896de6b108c/PDF 文件/[C%23] 使用 C%23 编写自己区块链的挖矿算法.pdf</p>
+<h3 id="code-a-simple-p2p-blockchain-in-gohttpsmediumcommycoralhealthcode-a-simple-p2p-blockchain-in-go-46662601f417"><a class="link" href="https://medium.com/@mycoralhealth/code-a-simple-p2p-blockchain-in-go-46662601f417"  target="_blank" rel="noopener"
+    >Code a simple P2P blockchain in Go.</a></h3>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/.net/">.NET</a>
+        
+            <a href="/tags/%E5%8C%BA%E5%9D%97%E9%93%BE/">区块链</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/200-lines-of-code-to-implement-blockchain-using-csharp/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">200 行代码使用 C# 实现区块链</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/problems-with-containerizing-a-wcf-service/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">WCF 服务容器化的一些问题</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/record-of-problems-encountered-in-cefsharp-developing-touch-screen-terminals/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">CefSharp 开发触屏终端遇到的问题记录</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/why-implement-the-idisposable-interface/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">为什么要实现 IDisposable 接口?</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/use-csharp-to-implement-the-analysis-and-coding-of-cj-t188-water-meter-protocol-and-dl-t645-electricity-meter-protocol/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">使用 C# 实现 CJ-T188 水表协议和 DL-T645 电表协议的解析与编码</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#强烈建议阅读前先阅读这篇文章httpwwwcnblogscommyzonyp8478789html"><a href="http://www.cnblogs.com/myzony/p/8478789.html">强烈建议阅读前先阅读这篇文章</a></a></li>
+    <li><a href="#什么是加密货币挖掘">什么是加密货币挖掘？</a></li>
+    <li><a href="#挖矿的原理">挖矿的原理</a>
+      <ol>
+        <li><a href="#哈希散列介绍">哈希/散列介绍</a></li>
+      </ol>
+    </li>
+    <li><a href="#工作证明">工作证明</a></li>
+    <li><a href="#动手开发">动手开发</a>
+      <ol>
+        <li><a href="#1项目配置">1.项目配置</a></li>
+        <li><a href="#2数据模型">2.数据模型</a></li>
+        <li><a href="#3-工作证明">3. 工作证明</a></li>
+      </ol>
+    </li>
+    <li><a href="#效果">效果</a></li>
+    <li><a href="#结语">结语</a>
+      <ol>
+        <li><a href="#code-a-simple-p2p-blockchain-in-gohttpsmediumcommycoralhealthcode-a-simple-p2p-blockchain-in-go-46662601f417"><a href="https://medium.com/@mycoralhealth/code-a-simple-p2p-blockchain-in-go-46662601f417">Code a simple P2P blockchain in Go.</a></a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

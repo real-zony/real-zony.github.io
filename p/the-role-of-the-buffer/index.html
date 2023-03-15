@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='经常听到缓冲区的概念，但始终对它的作用与具体实现有很多疑问，最近拜读了《Linux程序设计》 4TH之后，总算有了大概的理解。 该书举了一个例子，对一个10M文件的复制操作三种不同的实现，速度有不同的体现。 首先包含头文件：
+1 2 3 #include &amp;lt;unistd.h&amp;gt; #include &amp;lt;stdlib.h&amp;gt; #include &amp;lt;stdio.h&amp;gt; 首先看第一个实现，直接使用read与write的系统底层调用进行文件复制：
+1 2 3 4 5 6 7 8 9 10 11 int Func1() { char c; int in,out; in = open(&amp;#34;file.in&amp;#34;,O_RDONLY); out = open(&amp;#34;file.out&amp;#34;,O_WRONLY|O_CREAT,S_IRUSR|S_IWUSR); while(read(in,&amp;amp;c,1)==1) { write(out,&amp;amp;c,1); } } 以上程序运行之后会将file.in文件复制到file.out文件当中，我们使用TIMEFORMAT=&amp;quot;&amp;quot; time ./Test
+1.19user 39.37system 0:41.63elapsed 97%CPU (0avgtext&#43;0avgdata 1172maxresident)k 0inputs&#43;24984outputs (0major&#43;63minor)pagefaults 0swaps
+也就是我们花了39.37秒才完成了文件复制操作。 我们每次读入1个字节调用一次read函数，10M=1024KB=1048576byte，也就是我们调用了10万次read函数。
+我们看下第二个实现，这个实现采用了一个1K的缓冲区：
+1 2 3 4 5 6 7 8 9 10 11 12 int Func2() { char buffer[1024]; int in,out; int nread; in = open(&amp;#34;file.'><title>缓冲区的作用</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/the-role-of-the-buffer/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='缓冲区的作用'>
+<meta property='og:description' content='经常听到缓冲区的概念，但始终对它的作用与具体实现有很多疑问，最近拜读了《Linux程序设计》 4TH之后，总算有了大概的理解。 该书举了一个例子，对一个10M文件的复制操作三种不同的实现，速度有不同的体现。 首先包含头文件：
+1 2 3 #include &amp;lt;unistd.h&amp;gt; #include &amp;lt;stdlib.h&amp;gt; #include &amp;lt;stdio.h&amp;gt; 首先看第一个实现，直接使用read与write的系统底层调用进行文件复制：
+1 2 3 4 5 6 7 8 9 10 11 int Func1() { char c; int in,out; in = open(&amp;#34;file.in&amp;#34;,O_RDONLY); out = open(&amp;#34;file.out&amp;#34;,O_WRONLY|O_CREAT,S_IRUSR|S_IWUSR); while(read(in,&amp;amp;c,1)==1) { write(out,&amp;amp;c,1); } } 以上程序运行之后会将file.in文件复制到file.out文件当中，我们使用TIMEFORMAT=&amp;quot;&amp;quot; time ./Test
+1.19user 39.37system 0:41.63elapsed 97%CPU (0avgtext&#43;0avgdata 1172maxresident)k 0inputs&#43;24984outputs (0major&#43;63minor)pagefaults 0swaps
+也就是我们花了39.37秒才完成了文件复制操作。 我们每次读入1个字节调用一次read函数，10M=1024KB=1048576byte，也就是我们调用了10万次read函数。
+我们看下第二个实现，这个实现采用了一个1K的缓冲区：
+1 2 3 4 5 6 7 8 9 10 11 12 int Func2() { char buffer[1024]; int in,out; int nread; in = open(&amp;#34;file.'>
+<meta property='og:url' content='https://real-zony.github.io/p/the-role-of-the-buffer/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C&#43;&#43;' /><meta property='article:tag' content='Linux' /><meta property='article:published_time' content='2016-04-25T13:25:00&#43;00:00'/><meta property='article:modified_time' content='2016-04-25T13:25:00&#43;00:00'/>
+<meta name="twitter:title" content="缓冲区的作用">
+<meta name="twitter:description" content="经常听到缓冲区的概念，但始终对它的作用与具体实现有很多疑问，最近拜读了《Linux程序设计》 4TH之后，总算有了大概的理解。 该书举了一个例子，对一个10M文件的复制操作三种不同的实现，速度有不同的体现。 首先包含头文件：
+1 2 3 #include &amp;lt;unistd.h&amp;gt; #include &amp;lt;stdlib.h&amp;gt; #include &amp;lt;stdio.h&amp;gt; 首先看第一个实现，直接使用read与write的系统底层调用进行文件复制：
+1 2 3 4 5 6 7 8 9 10 11 int Func1() { char c; int in,out; in = open(&amp;#34;file.in&amp;#34;,O_RDONLY); out = open(&amp;#34;file.out&amp;#34;,O_WRONLY|O_CREAT,S_IRUSR|S_IWUSR); while(read(in,&amp;amp;c,1)==1) { write(out,&amp;amp;c,1); } } 以上程序运行之后会将file.in文件复制到file.out文件当中，我们使用TIMEFORMAT=&amp;quot;&amp;quot; time ./Test
+1.19user 39.37system 0:41.63elapsed 97%CPU (0avgtext&#43;0avgdata 1172maxresident)k 0inputs&#43;24984outputs (0major&#43;63minor)pagefaults 0swaps
+也就是我们花了39.37秒才完成了文件复制操作。 我们每次读入1个字节调用一次read函数，10M=1024KB=1048576byte，也就是我们调用了10万次read函数。
+我们看下第二个实现，这个实现采用了一个1K的缓冲区：
+1 2 3 4 5 6 7 8 9 10 11 12 int Func2() { char buffer[1024]; int in,out; int nread; in = open(&amp;#34;file.">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/the-role-of-the-buffer/">缓冲区的作用</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Apr 25, 2016</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 1 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>经常听到缓冲区的概念，但始终对它的作用与具体实现有很多疑问，最近拜读了《Linux程序设计》 4TH之后，总算有了大概的理解。
+该书举了一个例子，对一个10M文件的复制操作三种不同的实现，速度有不同的体现。
+首先包含头文件：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;unistd.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stdlib.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>首先看第一个实现，直接使用read与write的系统底层调用进行文件复制：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">Func1</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">char</span> <span class="n">c</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">in</span><span class="p">,</span><span class="n">out</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">in</span> <span class="o">=</span> <span class="nf">open</span><span class="p">(</span><span class="s">&#34;file.in&#34;</span><span class="p">,</span><span class="n">O_RDONLY</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">out</span> <span class="o">=</span> <span class="nf">open</span><span class="p">(</span><span class="s">&#34;file.out&#34;</span><span class="p">,</span><span class="n">O_WRONLY</span><span class="o">|</span><span class="n">O_CREAT</span><span class="p">,</span><span class="n">S_IRUSR</span><span class="o">|</span><span class="n">S_IWUSR</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">while</span><span class="p">(</span><span class="nf">read</span><span class="p">(</span><span class="n">in</span><span class="p">,</span><span class="o">&amp;</span><span class="n">c</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span><span class="o">==</span><span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">write</span><span class="p">(</span><span class="n">out</span><span class="p">,</span><span class="o">&amp;</span><span class="n">c</span><span class="p">,</span><span class="mi">1</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>以上程序运行之后会将file.in文件复制到file.out文件当中，我们使用TIMEFORMAT=&quot;&quot; time ./Test</p>
+<blockquote>
+<p>1.19user 39.37system 0:41.63elapsed 97%CPU (0avgtext+0avgdata 1172maxresident)k
+0inputs+24984outputs (0major+63minor)pagefaults 0swaps</p>
+</blockquote>
+<p>也就是我们花了39.37秒才完成了文件复制操作。
+我们每次读入1个字节调用一次read函数，10M=1024KB=1048576byte，也就是我们调用了10万次read函数。</p>
+<p>我们看下第二个实现，这个实现采用了一个1K的缓冲区：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">Func2</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">char</span> <span class="n">buffer</span><span class="p">[</span><span class="mi">1024</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">in</span><span class="p">,</span><span class="n">out</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">nread</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">in</span> <span class="o">=</span> <span class="nf">open</span><span class="p">(</span><span class="s">&#34;file.in&#34;</span><span class="p">,</span><span class="n">O_RDONLY</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">out</span> <span class="o">=</span> <span class="nf">open</span><span class="p">(</span><span class="s">&#34;file.out&#34;</span><span class="p">,</span><span class="n">O_WRONLY</span><span class="o">|</span><span class="n">O_CREAT</span><span class="p">,</span><span class="n">S_IRUSR</span><span class="o">|</span><span class="n">S_IWUSR</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">while</span><span class="p">((</span><span class="n">nread</span> <span class="o">=</span> <span class="nf">read</span><span class="p">(</span><span class="n">in</span><span class="p">,</span><span class="o">&amp;</span><span class="n">buffer</span><span class="p">,</span><span class="mi">1024</span><span class="p">))</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">write</span><span class="p">(</span><span class="n">out</span><span class="p">,</span><span class="n">buffer</span><span class="p">,</span><span class="n">nread</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><blockquote>
+<p>0.00user 0.07system 0:00.08elapsed 89%CPU (0avgtext+0avgdata 1112maxresident)k
+0inputs+24976outputs (0major+62minor)pagefaults 0swaps</p>
+</blockquote>
+<p>第二个实现则仅仅需要1秒不到的时间即可实现文件复制功能，因为只需要执行1024次操作即可。</p>
+<p>下面第三个实现则是使用的标准库里面的文件操作：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">Func3</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">FILE</span><span class="o">*</span> <span class="n">in</span><span class="p">,</span><span class="o">*</span><span class="n">out</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">c</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">in</span> <span class="o">=</span> <span class="nf">fopen</span><span class="p">(</span><span class="s">&#34;file.in&#34;</span><span class="p">,</span><span class="s">&#34;r&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">out</span> <span class="o">=</span> <span class="nf">fopen</span><span class="p">(</span><span class="s">&#34;file.out&#34;</span><span class="p">,</span><span class="s">&#34;w&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">while</span><span class="p">((</span><span class="n">c</span><span class="o">=</span><span class="nf">fgetc</span><span class="p">(</span><span class="n">in</span><span class="p">)</span> <span class="o">!=</span> <span class="n">EOF</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">fputc</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="n">out</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><blockquote>
+<p>0.40user 0.07system 0:00.52elapsed 92%CPU (0avgtext+0avgdata 1380maxresident)k
+0inputs+24976outputs (0major+70minor)pagefaults 0swaps</p>
+</blockquote>
+<p>这种实现所消耗的时间与第二种实现相差不多，但为什么同样是读取一个字符却跟第一个差距这么大，因为在stdio库当中的FILE结构当中实现了一个缓冲区，只有当缓冲区满的时候才会进行调用。</p>
+<p>根据上面三个实现，体现了不同的实现效率与性能的极大差异，所以在实际的程序开发当中应该找到性能与稳定的平衡点。</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c&#43;&#43;/">C&#43;&#43;</a>
+        
+            <a href="/tags/linux/">Linux</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/eintr---signaled-interrupts-and-slow-system-calls/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">EINTR-信号中断与慢系统调用</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/user-mode-and-kernel-mode/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">用户态与内核态</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/get-the-absolute-path-of-the-program-running-under-linux/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">在Linux下获得程序运行的绝对路径</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/implement-a-simple-communication-protocol-in-c/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">用 C&#43;&#43; 实现一个简单的通信协议</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

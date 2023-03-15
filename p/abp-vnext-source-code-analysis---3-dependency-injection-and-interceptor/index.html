@@ -1,0 +1,2126 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、简要说明 ABP vNext 框架在使用依赖注入服务的时候，是直接使用的微软提供的 Microsoft.Extensions.DependencyInjection 包。这里与原来的 ABP 框架就不一样了，原来的 ABP 框架还需要抽象出来一个 IIocManager 用来管理整个 IoC 容器，现在则直接操作 IServiceCollection 与 IServiceProvider 进行组件的注册/解析。
+这里需要注意的是，虽然现在的依赖注入服务是使用微软官方那一套库进行操作，但是 ABP vNext 还是为我们提供了组件自动注册、拦截器这些基础功能。
+'><title>Abp vNext 源码分析 - 3. 依赖注入与拦截器</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/abp-vnext-source-code-analysis---3-dependency-injection-and-interceptor/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp vNext 源码分析 - 3. 依赖注入与拦截器'>
+<meta property='og:description' content='一、简要说明 ABP vNext 框架在使用依赖注入服务的时候，是直接使用的微软提供的 Microsoft.Extensions.DependencyInjection 包。这里与原来的 ABP 框架就不一样了，原来的 ABP 框架还需要抽象出来一个 IIocManager 用来管理整个 IoC 容器，现在则直接操作 IServiceCollection 与 IServiceProvider 进行组件的注册/解析。
+这里需要注意的是，虽然现在的依赖注入服务是使用微软官方那一套库进行操作，但是 ABP vNext 还是为我们提供了组件自动注册、拦截器这些基础功能。
+'>
+<meta property='og:url' content='https://real-zony.github.io/p/abp-vnext-source-code-analysis---3-dependency-injection-and-interceptor/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='ABP vNext' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='ASP.NET Core' /><meta property='article:tag' content='ASP.NET Core MVC' /><meta property='article:tag' content='依赖注入' /><meta property='article:tag' content='Autofac' /><meta property='article:published_time' content='2019-04-23T02:45:42&#43;00:00'/><meta property='article:modified_time' content='2019-04-23T02:45:42&#43;00:00'/>
+<meta name="twitter:title" content="Abp vNext 源码分析 - 3. 依赖注入与拦截器">
+<meta name="twitter:description" content="一、简要说明 ABP vNext 框架在使用依赖注入服务的时候，是直接使用的微软提供的 Microsoft.Extensions.DependencyInjection 包。这里与原来的 ABP 框架就不一样了，原来的 ABP 框架还需要抽象出来一个 IIocManager 用来管理整个 IoC 容器，现在则直接操作 IServiceCollection 与 IServiceProvider 进行组件的注册/解析。
+这里需要注意的是，虽然现在的依赖注入服务是使用微软官方那一套库进行操作，但是 ABP vNext 还是为我们提供了组件自动注册、拦截器这些基础功能。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-vnext-source-code-analysis---3-dependency-injection-and-interceptor/">Abp vNext 源码分析 - 3. 依赖注入与拦截器</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Apr 23, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 11 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一简要说明">一、简要说明</h2>
+<p>ABP vNext 框架在使用依赖注入服务的时候，是直接使用的微软提供的 <strong>Microsoft.Extensions.DependencyInjection</strong> 包。这里与原来的 ABP 框架就不一样了，原来的 ABP 框架还需要抽象出来一个 <code>IIocManager</code> 用来管理整个 IoC 容器，现在则直接操作 <code>IServiceCollection</code> 与 <code>IServiceProvider</code> 进行组件的注册/解析。</p>
+<p>这里需要注意的是，虽然现在的依赖注入服务是使用微软官方那一套库进行操作，但是 ABP vNext 还是为我们提供了组件自动注册、拦截器这些基础功能。</p>
+<h2 id="二源码分析">二、源码分析</h2>
+<h3 id="21-组件自动注册">2.1 组件自动注册</h3>
+<p>ABP vNext 仍然在其 Core 库为我们提供了三种接口，即 <code>ISingletonDependency</code> 和 <code>ITransientDependency</code> 、<code>IScopedDependency</code> 接口，方便我们的类型/组件自动注册，这三种接口分别对应了对象的 <strong>单例</strong>、<strong>瞬时</strong>、<strong>范围</strong> 生命周期。只要任何类型/接口实现了以上任意接口，ABP vNext 就会在系统启动时候，将这些对象注册到 IoC 容器当中。</p>
+<p>那么究竟是在什么时候呢？回顾上一章的模块系统的文章，在模块系统调用模块的 <code>ConfigureService()</code> 的时候，就会有一个 <code>services.AddAssembly(module.Type.Assembly)</code> ，他会将模块的所属的程序集传入。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">ModuleLoader</span> <span class="p">:</span> <span class="n">IModuleLoader</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">	<span class="k">protected</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">ConfigureServices</span><span class="p">(</span><span class="n">List</span><span class="p">&lt;</span><span class="n">IAbpModuleDescriptor</span><span class="p">&gt;</span> <span class="n">modules</span><span class="p">,</span> <span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">//ConfigureServices</span>
+</span></span><span class="line"><span class="cl">		<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">module</span> <span class="k">in</span> <span class="n">modules</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">module</span><span class="p">.</span><span class="n">Instance</span> <span class="k">is</span> <span class="n">AbpModule</span> <span class="n">abpModule</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="c1">// 是否跳过服务的自动注册，默认为 false。</span>
+</span></span><span class="line"><span class="cl">				<span class="k">if</span> <span class="p">(!</span><span class="n">abpModule</span><span class="p">.</span><span class="n">SkipAutoServiceRegistration</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="p">{</span>
+</span></span><span class="line"><span class="cl">					<span class="n">services</span><span class="p">.</span><span class="n">AddAssembly</span><span class="p">(</span><span class="n">module</span><span class="p">.</span><span class="n">Type</span><span class="p">.</span><span class="n">Assembly</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">				<span class="p">}</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="n">module</span><span class="p">.</span><span class="n">Instance</span><span class="p">.</span><span class="n">ConfigureServices</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>看来核心就在于这个 <code>AddAssembly()</code> 扩展方法了，跳转到方法的内部，发现真正干事的是 <strong><code>IConventionalRegistrar</code></strong> 对象，暂且称之为规约注册器，而且我们可以拥有多个规约注册器，你可以自己实现自动注册规则。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="n">IServiceCollection</span> <span class="n">AddAssembly</span><span class="p">(</span><span class="k">this</span> <span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> <span class="n">Assembly</span> <span class="n">assembly</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得所有规约注册器，然后调用规约注册器的 AddAssmbly 方法注册类型。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">registrar</span> <span class="k">in</span> <span class="n">services</span><span class="p">.</span><span class="n">GetConventionalRegistrars</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">registrar</span><span class="p">.</span><span class="n">AddAssembly</span><span class="p">(</span><span class="n">services</span><span class="p">,</span> <span class="n">assembly</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">services</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>该接口定义了三个方法，支持传入程序集、类型数组、具体类型，他们的默认实现都在抽象类 <code>ConventionalRegistrarBase</code> 当中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IConventionalRegistrar</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">AddAssembly</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> <span class="n">Assembly</span> <span class="n">assembly</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">AddTypes</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> <span class="k">params</span> <span class="n">Type</span><span class="p">[]</span> <span class="n">types</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">AddType</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> <span class="n">Type</span> <span class="n">type</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>抽象类当中的实现也非常简单，他们最终都是调用的 <code>AddType()</code> 方法来将类型注册到 <code>IServiceCollection</code> 当中的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">ConventionalRegistrarBase</span> <span class="p">:</span> <span class="n">IConventionalRegistrar</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">AddAssembly</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> <span class="n">Assembly</span> <span class="n">assembly</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 获得程序集内的所有类型，过滤掉抽象类和泛型类型。</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">types</span> <span class="p">=</span> <span class="n">AssemblyHelper</span>
+</span></span><span class="line"><span class="cl">			<span class="p">.</span><span class="n">GetAllTypes</span><span class="p">(</span><span class="n">assembly</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="p">.</span><span class="n">Where</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">				<span class="n">type</span> <span class="p">=&gt;</span> <span class="n">type</span> <span class="p">!=</span> <span class="k">null</span> <span class="p">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">						<span class="n">type</span><span class="p">.</span><span class="n">IsClass</span> <span class="p">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">						<span class="p">!</span><span class="n">type</span><span class="p">.</span><span class="n">IsAbstract</span> <span class="p">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">						<span class="p">!</span><span class="n">type</span><span class="p">.</span><span class="n">IsGenericType</span>
+</span></span><span class="line"><span class="cl">			<span class="p">).</span><span class="n">ToArray</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">AddTypes</span><span class="p">(</span><span class="n">services</span><span class="p">,</span> <span class="n">types</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">AddTypes</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> <span class="k">params</span> <span class="n">Type</span><span class="p">[]</span> <span class="n">types</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">type</span> <span class="k">in</span> <span class="n">types</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">AddType</span><span class="p">(</span><span class="n">services</span><span class="p">,</span> <span class="n">type</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">abstract</span> <span class="k">void</span> <span class="n">AddType</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> <span class="n">Type</span> <span class="n">type</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>所以我们的重点就在于 <code>AddType()</code> 方法，ABP vNext 框架默认的规约注册器叫做 <code>DefaultConventionalRegistrar</code>，跳转到其定义可以发现在其内部，除了对三种生命周期接口处理之外，如果类型使用了 <strong><code>DependencyAttribute</code> 特性</strong>，也会根据该特性的参数配置进行不同的注册逻辑。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">AddType</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> <span class="n">Type</span> <span class="n">type</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 判断类型是否标注了 DisableConventionalRegistration 特性，如果有标注，则跳过。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">IsConventionalRegistrationDisabled</span><span class="p">(</span><span class="n">type</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 获得 Dependency 特性，如果没有则返回 null。</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">dependencyAttribute</span> <span class="p">=</span> <span class="n">GetDependencyAttributeOrNull</span><span class="p">(</span><span class="n">type</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 优先使用 Dependency 特性所指定的生命周期，如果不存在则根据 type 实现的接口确定生命周期。</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">lifeTime</span> <span class="p">=</span> <span class="n">GetLifeTimeOrNull</span><span class="p">(</span><span class="n">type</span><span class="p">,</span> <span class="n">dependencyAttribute</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">lifeTime</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 获得等待注册的类型定义，类型的定义优先使用 ExposeServices 特性指定的类型，如果没有则使用</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 类型当中接口以 I 开始，后面为实现类型名称的接口。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">serviceType</span> <span class="k">in</span> <span class="n">AutoRegistrationHelper</span><span class="p">.</span><span class="n">GetExposedServices</span><span class="p">(</span><span class="n">services</span><span class="p">,</span> <span class="n">type</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">serviceDescriptor</span> <span class="p">=</span> <span class="n">ServiceDescriptor</span><span class="p">.</span><span class="n">Describe</span><span class="p">(</span><span class="n">serviceType</span><span class="p">,</span> <span class="n">type</span><span class="p">,</span> <span class="n">lifeTime</span><span class="p">.</span><span class="n">Value</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">dependencyAttribute</span><span class="p">?.</span><span class="n">ReplaceServices</span> <span class="p">==</span> <span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// 替换服务。</span>
+</span></span><span class="line"><span class="cl">			<span class="n">services</span><span class="p">.</span><span class="n">Replace</span><span class="p">(</span><span class="n">serviceDescriptor</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">dependencyAttribute</span><span class="p">?.</span><span class="n">TryRegister</span> <span class="p">==</span> <span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// 注册服务。</span>
+</span></span><span class="line"><span class="cl">			<span class="n">services</span><span class="p">.</span><span class="n">TryAdd</span><span class="p">(</span><span class="n">serviceDescriptor</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// 注册服务。</span>
+</span></span><span class="line"><span class="cl">			<span class="n">services</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">serviceDescriptor</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里就是在 <code>GetLifeTimeOrNull()</code> 内部的 <code>GetServiceLifetimeFromClassHierarcy()</code> 方法确定了每个接口对应的生命周期。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="n">ServiceLifetime</span><span class="p">?</span> <span class="n">GetServiceLifetimeFromClassHierarcy</span><span class="p">(</span><span class="n">Type</span> <span class="n">type</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">ITransientDependency</span><span class="p">).</span><span class="n">GetTypeInfo</span><span class="p">().</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">type</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">ServiceLifetime</span><span class="p">.</span><span class="n">Transient</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">ISingletonDependency</span><span class="p">).</span><span class="n">GetTypeInfo</span><span class="p">().</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">type</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">ServiceLifetime</span><span class="p">.</span><span class="n">Singleton</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">IScopedDependency</span><span class="p">).</span><span class="n">GetTypeInfo</span><span class="p">().</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">type</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">ServiceLifetime</span><span class="p">.</span><span class="n">Scoped</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>如果读者有用过 AutoFac 或者 Castle Windsor 这些依赖注入框架的话，就知道我们要注册一个类型，需要知道该类型的定义和实现。这里的 <code>AutoRegistrationHelper</code> 工具类就会为我们确定注册类型的类型定义，与其默认实现。</p>
+<p>例如我有两个接口 <code>IDemoTest</code>、<code>IDemoTestTwo</code>，和他们的默认实现 <code>DemoTest</code> ，我可以有以下几种方法来确定我的注册类型。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="c1">// 指定了两个接口类型的实现都是 DemoTest，在注册的时候就会执行两次注册。</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 分别是 services.AddTransient&lt;IDemoTest,DemoTest&gt;();</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// services.AddTransient&lt;IDemoTestTwo,DemoTest&gt;();</span>
+</span></span><span class="line"><span class="cl"><span class="na">[ExposeServices(typeof(IDemoTest),typeof(IDemoTestTwo))]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">DemoTest</span> <span class="p">:</span> <span class="n">IDemoTest</span><span class="p">,</span><span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 或者不显式指定，只需要接口定义符合约定即可。</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// services.AddTransient&lt;IDemoTest,DemoTest&gt;();</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">DemoTest</span> <span class="p">:</span> <span class="n">IDemoTest</span><span class="p">,</span><span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 如果连注册接口都没有指定，那么就直接注入当前的实现类型。</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// services.AddTransient&lt;DemoTest&gt;();</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">DemoTest</span> <span class="p">:</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-方法拦截器">2.2 方法拦截器</h3>
+<h4 id="221-abp-vnext-新的抽象层">2.2.1 ABP vNext 新的抽象层</h4>
+<p>在 ABP vNext 框架当中，将方法拦截器抽象了一层 <code>IAbpInterceptor</code>，但实际实现还是使用的 Castle.Core 所提供的动态代理功能，其定义在 <code>Volo.Abp.Dependency.DynamicProxy</code> 文件夹当中，如下图。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---3-dependency-injection-and-interceptor/1555946779214.png"
+	width="500"
+	height="150"
+	srcset="/p/abp-vnext-source-code-analysis---3-dependency-injection-and-interceptor/1555946779214_hu51a6e7774b400dcc276bd0cb530d254a_13078_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---3-dependency-injection-and-interceptor/1555946779214_hu51a6e7774b400dcc276bd0cb530d254a_13078_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1555946779214"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="333"
+		data-flex-basis="800px"
+	
+></p>
+<p>ABP vNext 将拦截器和方法调用模型都进行了定义，其中 <code>AbpInterceptor</code> 则是 <code>IAbpInterceptor</code> 的默认抽象实现。在<code>ProxyHelper</code> 工具类当中，提供了从代理对象获取真实类型的方法。(<strong>PS: 通过 Castle.Core 代理后的对象与原有类型定义是不一致的。</strong>)</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="c1">// ABP vNext 当中的拦截器定义</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IAbpInterceptor</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 同步方法拦截。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">void</span> <span class="n">Intercept</span><span class="p">(</span><span class="n">IAbpMethodInvocation</span> <span class="n">invocation</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 异步方法拦截。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Task</span> <span class="n">InterceptAsync</span><span class="p">(</span><span class="n">IAbpMethodInvocation</span> <span class="n">invocation</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// ABP vNext 当中拦截器的默认抽象实现。</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">AbpInterceptor</span> <span class="p">:</span> <span class="n">IAbpInterceptor</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">abstract</span> <span class="k">void</span> <span class="n">Intercept</span><span class="p">(</span><span class="n">IAbpMethodInvocation</span> <span class="n">invocation</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 异步方法本质上还是调用同步方法，并返回一个已完成的 Task。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">virtual</span> <span class="n">Task</span> <span class="n">InterceptAsync</span><span class="p">(</span><span class="n">IAbpMethodInvocation</span> <span class="n">invocation</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Intercept</span><span class="p">(</span><span class="n">invocation</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">Task</span><span class="p">.</span><span class="n">CompletedTask</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>至于 <code>IAbpMethodInvocation</code> 接口，则是封装了一个被拦截方法调用时的各种参数，例如被拦截方法的在调用时所传递的参数，返回值类型，方法定义等。而 ABP vNext 也为它建立了一个 <code>CastleAbpMethodInvocationAdapter</code> 适配器，实现了上述接口。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IAbpMethodInvocation</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">object</span><span class="p">[]</span> <span class="n">Arguments</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">IReadOnlyDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;</span> <span class="n">ArgumentsDictionary</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">Type</span><span class="p">[]</span> <span class="n">GenericArguments</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="kt">object</span> <span class="n">TargetObject</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">MethodInfo</span> <span class="n">Method</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="kt">object</span> <span class="n">ReturnValue</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">void</span> <span class="n">Proceed</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">Task</span> <span class="n">ProceedAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="222-castlecore-动态代理的集成">2.2.2 Castle.Core 动态代理的集成</h4>
+<p>ABP vNext 在实际使用的时候，还是通过 Castle.Core 提供的动态代理功能来实现拦截器，相关的代码存放在 <strong>Volo.Abp.Castle.Core</strong> 库和 <strong>Volo.Abp.Autofac</strong> 库当中。</p>
+<p>首先我们来看 Castle.Core 库对接口 <code>IAbpMethodInvocation</code> 和 <code>IAbpInterceptor</code> 的实现，在 <code>CastleAbpInterceptorAdapter</code> 中通过适配器来定义了一个标准的 Castle 拦截器，这个拦截器可以传入 ABP vNext 定义的 <code>IAbpInterceptor</code> 作为其泛型参数。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">CastleAbpInterceptorAdapter</span><span class="p">&lt;</span><span class="n">TInterceptor</span><span class="p">&gt;</span> <span class="p">:</span> <span class="n">IInterceptor</span>
+</span></span><span class="line"><span class="cl">	<span class="k">where</span> <span class="n">TInterceptor</span> <span class="p">:</span> <span class="n">IAbpInterceptor</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>Castle 的拦截器也会有一个 <code>Intercept()</code> 方法，该方法将在被拦截方法执行的时候触发。在触发之后，会根据当前方法的定义进行不同的操作，这里异步方法和同步方法处理逻辑是不一样的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">Intercept</span><span class="p">(</span><span class="n">IInvocation</span> <span class="n">invocation</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">proceedInfo</span> <span class="p">=</span> <span class="n">invocation</span><span class="p">.</span><span class="n">CaptureProceedInfo</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">method</span> <span class="p">=</span> <span class="n">invocation</span><span class="p">.</span><span class="n">MethodInvocationTarget</span> <span class="p">??</span> <span class="n">invocation</span><span class="p">.</span><span class="n">Method</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 判断执行的方法是否是异步方法。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">method</span><span class="p">.</span><span class="n">IsAsync</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">InterceptAsyncMethod</span><span class="p">(</span><span class="n">invocation</span><span class="p">,</span> <span class="n">proceedInfo</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">else</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">InterceptSyncMethod</span><span class="p">(</span><span class="n">invocation</span><span class="p">,</span> <span class="n">proceedInfo</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里我们以异步方法为例，其内部又会根据方法的返回值是否是 Task 进行不同的操作，因为如果是泛型的 Task，说明该异步方法是有返回值的，所以处理逻辑也不一样。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">void</span> <span class="n">InterceptAsyncMethod</span><span class="p">(</span><span class="n">IInvocation</span> <span class="n">invocation</span><span class="p">,</span> <span class="n">IInvocationProceedInfo</span> <span class="n">proceedInfo</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">invocation</span><span class="p">.</span><span class="n">Method</span><span class="p">.</span><span class="n">ReturnType</span> <span class="p">==</span> <span class="k">typeof</span><span class="p">(</span><span class="n">Task</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">invocation</span><span class="p">.</span><span class="n">ReturnValue</span> <span class="p">=</span> <span class="n">MethodExecuteWithoutReturnValueAsync</span>
+</span></span><span class="line"><span class="cl">			<span class="p">.</span><span class="n">Invoke</span><span class="p">(</span><span class="k">this</span><span class="p">,</span> <span class="k">new</span> <span class="kt">object</span><span class="p">[]</span> <span class="p">{</span> <span class="n">invocation</span><span class="p">,</span> <span class="n">proceedInfo</span> <span class="p">});</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">else</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">invocation</span><span class="p">.</span><span class="n">ReturnValue</span> <span class="p">=</span> <span class="n">MethodExecuteWithReturnValueAsync</span>
+</span></span><span class="line"><span class="cl">			<span class="p">.</span><span class="n">MakeGenericMethod</span><span class="p">(</span><span class="n">invocation</span><span class="p">.</span><span class="n">Method</span><span class="p">.</span><span class="n">ReturnType</span><span class="p">.</span><span class="n">GenericTypeArguments</span><span class="p">[</span><span class="m">0</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl">			<span class="p">.</span><span class="n">Invoke</span><span class="p">(</span><span class="k">this</span><span class="p">,</span> <span class="k">new</span> <span class="kt">object</span><span class="p">[]</span> <span class="p">{</span><span class="n">invocation</span><span class="p">,</span> <span class="n">proceedInfo</span><span class="p">});</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>进一步解析在返回类型为 <code>Task</code> 时，它所调用的方法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">ExecuteWithoutReturnValueAsync</span><span class="p">(</span><span class="n">IInvocation</span> <span class="n">invocation</span><span class="p">,</span> <span class="n">IInvocationProceedInfo</span> <span class="n">proceedInfo</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 注意这里，该用法在之前的 C# 多线程学习笔记文章有说过，作用是出让当前核心给其他线程。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">await</span> <span class="n">Task</span><span class="p">.</span><span class="n">Yield</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 调用真实的拦截器，根据传入的方法调用模型去拦截真实的方法。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">await</span> <span class="n">_abpInterceptor</span><span class="p">.</span><span class="n">InterceptAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">		<span class="k">new</span> <span class="n">CastleAbpMethodInvocationAdapter</span><span class="p">(</span><span class="n">invocation</span><span class="p">,</span> <span class="n">proceedInfo</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>从上述代码可以得知，ABP vNext 的拦截器动作现在被包裹在一个 Castle 拦截器内部进行的。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---3-dependency-injection-and-interceptor/1555980916284.png"
+	width="686"
+	height="382"
+	srcset="/p/abp-vnext-source-code-analysis---3-dependency-injection-and-interceptor/1555980916284_hudd25fc66a51e33603476174c4520f46b_57762_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---3-dependency-injection-and-interceptor/1555980916284_hudd25fc66a51e33603476174c4520f46b_57762_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1555980916284"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="179"
+		data-flex-basis="430px"
+	
+></p>
+<p><img src="/p/abp-vnext-source-code-analysis---3-dependency-injection-and-interceptor/Snipaste_2019-04-23_10-37-32.png"
+	width="1080"
+	height="511"
+	srcset="/p/abp-vnext-source-code-analysis---3-dependency-injection-and-interceptor/Snipaste_2019-04-23_10-37-32_hua8a79f4784475ceec37add0e5d90d84a_34105_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---3-dependency-injection-and-interceptor/Snipaste_2019-04-23_10-37-32_hua8a79f4784475ceec37add0e5d90d84a_34105_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="Snipaste_2019-04-23_10-37-32"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="211"
+		data-flex-basis="507px"
+	
+></p>
+<p>那么，我们的 Castle.Core 拦截器在什么时候与类型进行绑定的呢，每个拦截器又是如何与特性的类型进行注册的呢？这里我以审计日志拦截器为例，看一下它在系统当中是如何注册，并被使用的。</p>
+<p>审计日志相关的代码存放在 <strong>Volo.Abp.Auditing</strong> 库中，我们找到 <code>AuditingInterceptor</code> 类型，查看其定义可以看到它也是继承自 <code>AbpInterceptor</code> 抽象基类。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AuditingInterceptor</span> <span class="p">:</span> <span class="n">AbpInterceptor</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>接着我们根据名字找到了拦截器的注册工具类 <code>AuditingInterceptorRegistrar</code>，在类型的定义当中 <code>ShouldIntercept()</code> 与 <code>ShouldAuditTypeByDefault()</code> 根据传入的 Type 类型，根据特定的逻辑决定是否为该类型关联审计日志拦截器。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">static</span> <span class="kt">bool</span> <span class="n">ShouldIntercept</span><span class="p">(</span><span class="n">Type</span> <span class="n">type</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">ShouldAuditTypeByDefault</span><span class="p">(</span><span class="n">type</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果类型的任意方法启用了 Auditied 特性，则应用拦截器。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">type</span><span class="p">.</span><span class="n">GetMethods</span><span class="p">().</span><span class="n">Any</span><span class="p">(</span><span class="n">m</span> <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="n">IsDefined</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AuditedAttribute</span><span class="p">),</span> <span class="k">true</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="kt">bool</span> <span class="n">ShouldAuditTypeByDefault</span><span class="p">(</span><span class="n">Type</span> <span class="n">type</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 判断类型是否使用了 Audited 特性，使用了则应用审计日志拦截器。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">type</span><span class="p">.</span><span class="n">IsDefined</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AuditedAttribute</span><span class="p">),</span> <span class="k">true</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 判断类型是否使用了 DisableAuditing 特性，使用了则不关联拦截器。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">type</span><span class="p">.</span><span class="n">IsDefined</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">DisableAuditingAttribute</span><span class="p">),</span> <span class="k">true</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果类型实现了 IAuditingEnabled 接口，则启用拦截器。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">IAuditingEnabled</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">type</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>我们这里需要关注的是 <code>RegisterIfNeeded()</code> 方法，它在审计日志模块的预加载方法就被添加到了一个 <code>ServiceRegistrationActionList</code> 集合当中，这个集合会在后面 AutoFac 进行类型注册的时候被使用。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">void</span> <span class="n">RegisterIfNeeded</span><span class="p">(</span><span class="n">IOnServiceRegistredContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果类型允许被审计日志拦截器所拦截，则在类型关联的拦截器上下文当中添加审计日志拦截器。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">ShouldIntercept</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ImplementationType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">context</span><span class="p">.</span><span class="n">Interceptors</span><span class="p">.</span><span class="n">TryAdd</span><span class="p">&lt;</span><span class="n">AuditingInterceptor</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">PreConfigureServices</span><span class="p">(</span><span class="n">ServiceConfigurationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 将这个 Action 加入 List。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">.</span><span class="n">OnRegistred</span><span class="p">(</span><span class="n">AuditingInterceptorRegistrar</span><span class="p">.</span><span class="n">RegisterIfNeeded</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>继续查看 <code>OnRegistred()</code> 的代码，得到如下的定义，可以看到最后的 Action 会被添加到一个 <code>ServiceRegistrationActionList</code> 访问器中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">void</span> <span class="n">OnRegistred</span><span class="p">(</span><span class="k">this</span> <span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> <span class="n">Action</span><span class="p">&lt;</span><span class="n">IOnServiceRegistredContext</span><span class="p">&gt;</span> <span class="n">registrationAction</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">GetOrCreateRegistrationActionList</span><span class="p">(</span><span class="n">services</span><span class="p">).</span><span class="n">Add</span><span class="p">(</span><span class="n">registrationAction</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="n">ServiceRegistrationActionList</span> <span class="n">GetRegistrationActionList</span><span class="p">(</span><span class="k">this</span> <span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">GetOrCreateRegistrationActionList</span><span class="p">(</span><span class="n">services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">static</span> <span class="n">ServiceRegistrationActionList</span> <span class="n">GetOrCreateRegistrationActionList</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">actionList</span> <span class="p">=</span> <span class="n">services</span><span class="p">.</span><span class="n">GetSingletonInstanceOrNull</span><span class="p">&lt;</span><span class="n">IObjectAccessor</span><span class="p">&lt;</span><span class="n">ServiceRegistrationActionList</span><span class="p">&gt;&gt;()?.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">actionList</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">actionList</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ServiceRegistrationActionList</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">services</span><span class="p">.</span><span class="n">AddObjectAccessor</span><span class="p">(</span><span class="n">actionList</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">actionList</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>AutoFac 在执行注册操作的时候，会调用 <code>AutofacRegistration</code> 静态类的 <code>Register</code> 方法，该方法会遍历整个 <code>IServiceCollection</code> 集合。在将类型注册到 AutoFac 的 IoC 容器中的时候，在它的内部会调用 <code>AbpRegistrationBuilderExtensions</code> 提供的扩展方法为具体的类型添加过滤器。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">static</span> <span class="k">void</span> <span class="n">Register</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">		<span class="n">ContainerBuilder</span> <span class="n">builder</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">moduleContainer</span> <span class="p">=</span> <span class="n">services</span><span class="p">.</span><span class="n">GetSingletonInstance</span><span class="p">&lt;</span><span class="n">IModuleContainer</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 获取之前添加的上下文集合，即审计日志拦截器在预加载方法添加的 Action 集合。</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">registrationActionList</span> <span class="p">=</span> <span class="n">services</span><span class="p">.</span><span class="n">GetRegistrationActionList</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">service</span> <span class="k">in</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">service</span><span class="p">.</span><span class="n">ImplementationType</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="kt">var</span> <span class="n">serviceTypeInfo</span> <span class="p">=</span> <span class="n">service</span><span class="p">.</span><span class="n">ServiceType</span><span class="p">.</span><span class="n">GetTypeInfo</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">serviceTypeInfo</span><span class="p">.</span><span class="n">IsGenericTypeDefinition</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="n">builder</span>
+</span></span><span class="line"><span class="cl">					<span class="p">.</span><span class="n">RegisterGeneric</span><span class="p">(</span><span class="n">service</span><span class="p">.</span><span class="n">ImplementationType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">					<span class="p">.</span><span class="n">As</span><span class="p">(</span><span class="n">service</span><span class="p">.</span><span class="n">ServiceType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">					<span class="p">.</span><span class="n">ConfigureLifecycle</span><span class="p">(</span><span class="n">service</span><span class="p">.</span><span class="n">Lifetime</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">					<span class="c1">// 这里是重点，传入了 Action 集合，调用了扩展方法。</span>
+</span></span><span class="line"><span class="cl">					<span class="p">.</span><span class="n">ConfigureAbpConventions</span><span class="p">(</span><span class="n">moduleContainer</span><span class="p">,</span> <span class="n">registrationActionList</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// ... 注释了其他代码。</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// ... 注释了其他代码。</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>下面是扩展方法所定义的相关代码，注意阅读注释。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="n">IRegistrationBuilder</span><span class="p">&lt;</span><span class="n">TLimit</span><span class="p">,</span> <span class="n">TActivatorData</span><span class="p">,</span> <span class="n">TRegistrationStyle</span><span class="p">&gt;</span> <span class="n">ConfigureAbpConventions</span><span class="p">&lt;</span><span class="n">TLimit</span><span class="p">,</span> <span class="n">TActivatorData</span><span class="p">,</span> <span class="n">TRegistrationStyle</span><span class="p">&gt;(</span>
+</span></span><span class="line"><span class="cl">		<span class="k">this</span> <span class="n">IRegistrationBuilder</span><span class="p">&lt;</span><span class="n">TLimit</span><span class="p">,</span> <span class="n">TActivatorData</span><span class="p">,</span> <span class="n">TRegistrationStyle</span><span class="p">&gt;</span> <span class="n">registrationBuilder</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">		<span class="n">IModuleContainer</span> <span class="n">moduleContainer</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">		<span class="n">ServiceRegistrationActionList</span> <span class="n">registrationActionList</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">where</span> <span class="n">TActivatorData</span> <span class="p">:</span> <span class="n">ReflectionActivatorData</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 注释了其他代码。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">registrationBuilder</span> <span class="p">=</span> <span class="n">registrationBuilder</span><span class="p">.</span><span class="n">InvokeRegistrationActions</span><span class="p">(</span><span class="n">registrationActionList</span><span class="p">,</span> <span class="n">serviceType</span><span class="p">,</span> <span class="n">implementationType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 注释了其他代码。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">static</span> <span class="n">IRegistrationBuilder</span><span class="p">&lt;</span><span class="n">TLimit</span><span class="p">,</span> <span class="n">TActivatorData</span><span class="p">,</span> <span class="n">TRegistrationStyle</span><span class="p">&gt;</span> <span class="n">InvokeRegistrationActions</span><span class="p">&lt;</span><span class="n">TLimit</span><span class="p">,</span> <span class="n">TActivatorData</span><span class="p">,</span> <span class="n">TRegistrationStyle</span><span class="p">&gt;(</span><span class="k">this</span> <span class="n">IRegistrationBuilder</span><span class="p">&lt;</span><span class="n">TLimit</span><span class="p">,</span> <span class="n">TActivatorData</span><span class="p">,</span> <span class="n">TRegistrationStyle</span><span class="p">&gt;</span> <span class="n">registrationBuilder</span><span class="p">,</span> <span class="n">ServiceRegistrationActionList</span> <span class="n">registrationActionList</span><span class="p">,</span> <span class="n">Type</span> <span class="n">serviceType</span><span class="p">,</span> <span class="n">Type</span> <span class="n">implementationType</span><span class="p">)</span> 
+</span></span><span class="line"><span class="cl">	<span class="k">where</span> <span class="n">TActivatorData</span> <span class="p">:</span> <span class="n">ReflectionActivatorData</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 构造上下文，以便去调用之前传入的 Action。</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">serviceRegistredArgs</span> <span class="p">=</span> <span class="k">new</span> <span class="n">OnServiceRegistredContext</span><span class="p">(</span><span class="n">serviceType</span><span class="p">,</span> <span class="n">implementationType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">registrationAction</span> <span class="k">in</span> <span class="n">registrationActionList</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 以审计日志拦截器为例，这里会调用在预加载方法传入的 AuditingInterceptorRegistrar.RegisterIfNeeded 方法。</span>
+</span></span><span class="line"><span class="cl">		<span class="n">registrationAction</span><span class="p">.</span><span class="n">Invoke</span><span class="p">(</span><span class="n">serviceRegistredArgs</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 这里的 Interceptors 实际上就是 AuditingInterceptorRegistrar.RegisterIfNeeded 内部添加的拦截器哦。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">serviceRegistredArgs</span><span class="p">.</span><span class="n">Interceptors</span><span class="p">.</span><span class="n">Any</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">registrationBuilder</span> <span class="p">=</span> <span class="n">registrationBuilder</span><span class="p">.</span><span class="n">AddInterceptors</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">			<span class="n">serviceType</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			<span class="n">serviceRegistredArgs</span><span class="p">.</span><span class="n">Interceptors</span>
+</span></span><span class="line"><span class="cl">		<span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">registrationBuilder</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">static</span> <span class="n">IRegistrationBuilder</span><span class="p">&lt;</span><span class="n">TLimit</span><span class="p">,</span> <span class="n">TActivatorData</span><span class="p">,</span> <span class="n">TRegistrationStyle</span><span class="p">&gt;</span> <span class="n">AddInterceptors</span><span class="p">&lt;</span><span class="n">TLimit</span><span class="p">,</span> <span class="n">TActivatorData</span><span class="p">,</span> <span class="n">TRegistrationStyle</span><span class="p">&gt;(</span>
+</span></span><span class="line"><span class="cl">	<span class="k">this</span> <span class="n">IRegistrationBuilder</span><span class="p">&lt;</span><span class="n">TLimit</span><span class="p">,</span> <span class="n">TActivatorData</span><span class="p">,</span> <span class="n">TRegistrationStyle</span><span class="p">&gt;</span> <span class="n">registrationBuilder</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">	<span class="n">Type</span> <span class="n">serviceType</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IEnumerable</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;</span> <span class="n">interceptors</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">where</span> <span class="n">TActivatorData</span> <span class="p">:</span> <span class="n">ReflectionActivatorData</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 注释了其他代码。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">interceptor</span> <span class="k">in</span> <span class="n">interceptors</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 构造真实的拦截器，并与类型集成。</span>
+</span></span><span class="line"><span class="cl">		<span class="n">registrationBuilder</span><span class="p">.</span><span class="n">InterceptedBy</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">			<span class="k">typeof</span><span class="p">(</span><span class="n">CastleAbpInterceptorAdapter</span><span class="p">&lt;&gt;).</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">interceptor</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">registrationBuilder</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="23-对象访问器">2.3 对象访问器</h3>
+<p>在第一章节的时候，我们就遇到过 <code>IObjectAccessor&lt;T&gt;</code> 接口，基本上是针对该接口所提供的 <code>Value</code> 属性进行操作，下面就是该接口的定义和它的默认实现 <code>ObjectAccessor&lt;T&gt;</code>，十分简单，就一个泛型的 Value。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IObjectAccessor</span><span class="p">&lt;</span><span class="k">out</span> <span class="n">T</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [CanBeNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="n">T</span> <span class="n">Value</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">ObjectAccessor</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span> <span class="p">:</span> <span class="n">IObjectAccessor</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">T</span> <span class="n">Value</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">ObjectAccessor</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">ObjectAccessor</span><span class="p">([</span><span class="n">CanBeNull</span><span class="p">]</span> <span class="n">T</span> <span class="n">obj</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Value</span> <span class="p">=</span> <span class="n">obj</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>仅仅看上述的代码，是看不出什么名堂的，接着我们来到它的扩展方法定义 <code>ServiceCollectionObjectAccessorExtensions</code> 。</p>
+<p>可以看到其核心的代码在于 <code>ObjectAccessor&lt;T&gt; AddObjectAccessor&lt;T&gt;(this IServiceCollection services, ObjectAccessor&lt;T&gt; accessor)</code> 这个重载方法。它首先判断某个特定泛型的对象访问器是否被注册，如果被注册直接抛出异常，没有则继续。</p>
+<p>最后呢通过一个小技巧，将某个特定类型的对象访问器作为单例注册到 IoC 容器的头部，方便快速检索。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="n">ObjectAccessor</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span> <span class="n">AddObjectAccessor</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;(</span><span class="k">this</span> <span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> <span class="n">ObjectAccessor</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span> <span class="n">accessor</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">services</span><span class="p">.</span><span class="n">Any</span><span class="p">(</span><span class="n">s</span> <span class="p">=&gt;</span> <span class="n">s</span><span class="p">.</span><span class="n">ServiceType</span> <span class="p">==</span> <span class="k">typeof</span><span class="p">(</span><span class="n">ObjectAccessor</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;)))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">throw</span> <span class="k">new</span> <span class="n">Exception</span><span class="p">(</span><span class="s">&#34;An object accessor is registered before for type: &#34;</span> <span class="p">+</span> <span class="k">typeof</span><span class="p">(</span><span class="n">T</span><span class="p">).</span><span class="n">AssemblyQualifiedName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">//Add to the beginning for fast retrieve</span>
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">Insert</span><span class="p">(</span><span class="m">0</span><span class="p">,</span> <span class="n">ServiceDescriptor</span><span class="p">.</span><span class="n">Singleton</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">ObjectAccessor</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;),</span> <span class="n">accessor</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">Insert</span><span class="p">(</span><span class="m">0</span><span class="p">,</span> <span class="n">ServiceDescriptor</span><span class="p">.</span><span class="n">Singleton</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">IObjectAccessor</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;),</span> <span class="n">accessor</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">accessor</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>使用的时候，从第一章就有见到，这里的对象访问器可以传入一个类型。这个时候其 Value 就是空的，但并不影响该类型的解析，只需要在真正使用之前将其 Value 值赋值为实例对象即可。</p>
+<p>只是目前来看，该类型的作用并不是十分明显，更多的时候是一个占位类型而已，你可以在任意时间替换某个类型的对象访问器内部的 Value 值。</p>
+<h3 id="24-服务的范围工厂">2.4 服务的范围工厂</h3>
+<p>我们知道在依赖注入框架当中，有一种特别的生命周期叫做 Scoped 周期，这个周期在我之前的相关文章有讲过，它是一个比较特别的生命周期。</p>
+<p>简单来说，Scoped 对象的生命周期只有在某个范围内是单例存在的，例如以下伪代码，用户会请求 <code>ScopedTest()</code> 接口：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">HomeController</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Task</span> <span class="n">ScopedTest</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">using</span><span class="p">(</span><span class="kt">var</span> <span class="n">scope</span> <span class="p">=</span> <span class="n">ScopedFactory</span><span class="p">.</span><span class="n">CreateScope</span><span class="p">&lt;</span><span class="n">TestApp</span><span class="p">&gt;())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">scope</span><span class="p">.</span><span class="n">ChildContainer</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">TestApp</span><span class="p">&gt;.</span><span class="n">Name</span> <span class="p">=</span> <span class="s">&#34;111&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="n">scope</span><span class="p">.</span><span class="n">ChildContainer</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">TestController</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TestController</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TestController</span><span class="p">(</span><span class="n">TestApp</span> <span class="n">app</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Console</span><span class="p">.</span><span class="n">WritleLine</span><span class="p">(</span><span class="n">app</span><span class="p">.</span><span class="n">Name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>最后在 TestController 中，控制台会输出 <code>111</code> 作为结果，在 HomeController 中 <code>ScopedTest()</code> 语句块结束的时候，obj 对象会被释放，在后续的请求当中，TestApp 都是作为一个 Scoped 对象生存的。</p>
+<p>所以流程可以分为以下几步：</p>
+<ol>
+<li>通过 ScopeFactory 创建一个 Scope 范围。</li>
+<li>通过 Scope 范围内的子容器，解析对象。</li>
+<li>子容器在解析时，如果解析出来的类型是 Scope 生命周期，则在整个 Scope 存活期间，<strong>它都是单例的</strong>。</li>
+<li>Scope 范围释放，会调用销毁内部的子容器，并销毁掉所有解析出来的对象。</li>
+</ol>
+<p>在 <strong>Volo.Abp.Autofac</strong> 库当中，定义了使用 AutoFac 封装的范围工厂与服务范围类型的定义，他们将会作为默认的 <code>IServiceScopeFactory</code> 实现。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">internal</span> <span class="k">class</span> <span class="nc">AutofacServiceScopeFactory</span> <span class="p">:</span> <span class="n">IServiceScopeFactory</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">ILifetimeScope</span> <span class="n">_lifetimeScope</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">AutofacServiceScopeFactory</span><span class="p">(</span><span class="n">ILifetimeScope</span> <span class="n">lifetimeScope</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">this</span><span class="p">.</span><span class="n">_lifetimeScope</span> <span class="p">=</span> <span class="n">lifetimeScope</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">IServiceScope</span> <span class="n">CreateScope</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="k">new</span> <span class="n">AutofacServiceScope</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="n">_lifetimeScope</span><span class="p">.</span><span class="n">BeginLifetimeScope</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里可以看到，在构建这个工厂的时候，会注入一个 <code>ILifetimScope</code>，这个东西就是 AutoFac 提供的 <strong>子容器</strong>。在 <code>CreateScope()</code> 方法内部，我们通过构造一个 Scope 作为具体的范围解析对象，并将子容器传入到它的内部。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">internal</span> <span class="k">class</span> <span class="nc">AutofacServiceScope</span> <span class="p">:</span> <span class="n">IServiceScope</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">ILifetimeScope</span> <span class="n">_lifetimeScope</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">AutofacServiceScope</span><span class="p">(</span><span class="n">ILifetimeScope</span> <span class="n">lifetimeScope</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 构造子容器。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">this</span><span class="p">.</span><span class="n">_lifetimeScope</span> <span class="p">=</span> <span class="n">lifetimeScope</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">this</span><span class="p">.</span><span class="n">ServiceProvider</span> <span class="p">=</span> <span class="k">this</span><span class="p">.</span><span class="n">_lifetimeScope</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IServiceProvider</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">IServiceProvider</span> <span class="n">ServiceProvider</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">Dispose</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 范围释放的时候，释放子容器。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">this</span><span class="p">.</span><span class="n">_lifetimeScope</span><span class="p">.</span><span class="n">Dispose</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>那么是在什么时候，我们的范围工厂会被调用来构造一个 <code>IServiceScope</code> 对象呢？就是在 ASP.NET Core 每次请求的时候，它在获得其内部的 <code>RequestServices</code> 时，就会通过 <code>IServiceProvidersFeature</code> 来创建一个 Scope 范围。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">IServiceProvider</span> <span class="n">RequestServices</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">get</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(!</span><span class="n">_requestServicesSet</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">_context</span><span class="p">.</span><span class="n">Response</span><span class="p">.</span><span class="n">RegisterForDispose</span><span class="p">(</span><span class="k">this</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// 通过工厂，创建一个范围解析对象，这里就是 AutofacServiceScopeFactory。</span>
+</span></span><span class="line"><span class="cl">			<span class="n">_scope</span> <span class="p">=</span> <span class="n">_scopeFactory</span><span class="p">.</span><span class="n">CreateScope</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">			<span class="n">_requestServices</span> <span class="p">=</span> <span class="n">_scope</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="n">_requestServicesSet</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">_requestServices</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">set</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_requestServices</span> <span class="p">=</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_requestServicesSet</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>所以，我们在每次请求的时候，针对于 Scope 声明周期的对象，默认的话都是在整个请求处理期间，都是单例的，除非显式使用 <code>using</code> 语句块声明作用域。</p>
+<p>而在 ABP vNext 中给我们提供了两个 Scoped Factory，分别是 <code>HttpContextServiceScopeFactory</code> 和 <code>DefaultServiceScopeFactory</code> ，它们都继承自 <code>IHybridServiceScopeFactory</code> 接口。</p>
+<p>这个 <code>IHybridServiceScopeFactory</code> 接口只是一个空的接口，并继承自 Microsoft Dependency Inject 提供的 <code>IServiceScopeFactory</code> 工厂接口。</p>
+<p>但在实际注入的时候，并不会替换掉默认的 <code>IServiceScopeFactory</code> 实现。因为在 <code>IHybridServiceScopeFactory</code> 的默认两个实现的定义上，他们都显式得通过 <code>ExposeServices</code> 特性说明了自己是哪些类型的默认实现，且一般使用的时候，都是通过注入 <code>IHybridServiceScopeFactory</code> 并结合 <code>using</code> 语句块来操作。</p>
+<p>例如在 <strong>Volo.Abp.Data</strong> 库的 <code>DataSeeder</code> 类型中，有如下用法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">SeedAsync</span><span class="p">(</span><span class="n">DataSeedContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">scope</span> <span class="p">=</span> <span class="n">ServiceScopeFactory</span><span class="p">.</span><span class="n">CreateScope</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">contributorType</span> <span class="k">in</span> <span class="n">Options</span><span class="p">.</span><span class="n">Contributors</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="kt">var</span> <span class="n">contributor</span> <span class="p">=</span> <span class="p">(</span><span class="n">IDataSeedContributor</span><span class="p">)</span> <span class="n">scope</span>
+</span></span><span class="line"><span class="cl">				<span class="p">.</span><span class="n">ServiceProvider</span>
+</span></span><span class="line"><span class="cl">				<span class="p">.</span><span class="n">GetRequiredService</span><span class="p">(</span><span class="n">contributorType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="k">await</span> <span class="n">contributor</span><span class="p">.</span><span class="n">SeedAsync</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>只是这两个实现有什么不同呢？通过两个类型的名字就可以看出来，一个是给 ASP.NET Core MVC 程序使用的，另一个则是默认的范围工厂，下面我们从代码层面上来比较一下两者之间的差别。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[ExposeServices(
+</span></span></span><span class="line"><span class="cl"><span class="na">	typeof(IHybridServiceScopeFactory), 
+</span></span></span><span class="line"><span class="cl"><span class="na">	typeof(DefaultServiceScopeFactory)
+</span></span></span><span class="line"><span class="cl"><span class="na">	)]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">DefaultServiceScopeFactory</span> <span class="p">:</span> <span class="n">IHybridServiceScopeFactory</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 直接注入封装的 AutofacServiceScopeFactory。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">protected</span> <span class="n">IServiceScopeFactory</span> <span class="n">Factory</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">DefaultServiceScopeFactory</span><span class="p">(</span><span class="n">IServiceScopeFactory</span> <span class="n">factory</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Factory</span> <span class="p">=</span> <span class="n">factory</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">IServiceScope</span> <span class="n">CreateScope</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 通过 AutofacServiceScopeFactory 创建一个 scope。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">Factory</span><span class="p">.</span><span class="n">CreateScope</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>HttpContextServiceScopeFactory</code> 是放在 AspNetCore 模块下的，从他的 <code>Dependency</code> 特性可以看出来，他会替换掉默认的 <code>DefaultServiceScopeFactory</code> 实现。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[ExposeServices(
+</span></span></span><span class="line"><span class="cl"><span class="na">	typeof(IHybridServiceScopeFactory),
+</span></span></span><span class="line"><span class="cl"><span class="na">	typeof(HttpContextServiceScopeFactory)
+</span></span></span><span class="line"><span class="cl"><span class="na">	)]</span>
+</span></span><span class="line"><span class="cl"><span class="na">[Dependency(ReplaceServices = true)]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">HttpContextServiceScopeFactory</span> <span class="p">:</span> <span class="n">IHybridServiceScopeFactory</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">protected</span> <span class="n">IHttpContextAccessor</span> <span class="n">HttpContextAccessor</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// AutoFacServiceScopeFactory</span>
+</span></span><span class="line"><span class="cl">	<span class="k">protected</span> <span class="n">IServiceScopeFactory</span> <span class="n">ServiceScopeFactory</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">HttpContextServiceScopeFactory</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">		<span class="n">IHttpContextAccessor</span> <span class="n">httpContextAccessor</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">		<span class="n">IServiceScopeFactory</span> <span class="n">serviceScopeFactory</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">HttpContextAccessor</span> <span class="p">=</span> <span class="n">httpContextAccessor</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">ServiceScopeFactory</span> <span class="p">=</span> <span class="n">serviceScopeFactory</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">virtual</span> <span class="n">IServiceScope</span> <span class="n">CreateScope</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 假如 HTTP 上下文为空，直接使用 AutoFacScopeFactory 创建一个范围。</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">httpContext</span> <span class="p">=</span> <span class="n">HttpContextAccessor</span><span class="p">.</span><span class="n">HttpContext</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">httpContext</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="n">ServiceScopeFactory</span><span class="p">.</span><span class="n">CreateScope</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="c1">// 使用 HttpContext 的 RequestServices 构建一个 Scope。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="k">new</span> <span class="n">NonDisposedHttpContextServiceScope</span><span class="p">(</span><span class="n">httpContext</span><span class="p">.</span><span class="n">RequestServices</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">protected</span> <span class="k">class</span> <span class="nc">NonDisposedHttpContextServiceScope</span> <span class="p">:</span> <span class="n">IServiceScope</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">public</span> <span class="n">IServiceProvider</span> <span class="n">ServiceProvider</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">public</span> <span class="n">NonDisposedHttpContextServiceScope</span><span class="p">(</span><span class="n">IServiceProvider</span> <span class="n">serviceProvider</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">ServiceProvider</span> <span class="p">=</span> <span class="n">serviceProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">public</span> <span class="k">void</span> <span class="n">Dispose</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到，后者如果在 HttpContext 不为 null 的时候，是使用的 <code>HttpContext.RequestServices</code> 作为这个 Scope 的解析器。</p>
+<blockquote>
+<p><code>RequestServices</code>, on the other hand, is a <em>scoped</em> container created from the root on each request.</p>
+</blockquote>
+<p>翻译成中文的意思就是，它是在每个请求的的时候创建的独立范围容器，其实就是开头所说的子容器。</p>
+<h3 id="25-类型注册完成的动作">2.5 类型注册完成的动作</h3>
+<p>其实这个玩意儿应该放在 2.2 节之前讲，只是在写完之后我才看到相关类型是放在依赖注入相关的文件夹当中，这里还请各位读者理解一下。</p>
+<p>早期在 Castle Windsor 当中，类型在注册完成的时候会有一个注册完成的事件，用户可以挂载该事件来进行一些特殊的处理，比如说为类型添加动态代理。在 ABP vNext 当中因为支持多种不同的依赖注入框架，所以就没有类似的事件来做处理。</p>
+<p>ABP vNext 则封装了一个 <code>ServiceRegistrationActionList</code> 类型，该类型用于存储在类型注册完成之后，用户可以执行的操作，可以看到它就是一个 Action 集合，用于存放一系列回调方法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">ServiceRegistrationActionList</span> <span class="p">:</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Action</span><span class="p">&lt;</span><span class="n">IOnServiceRegistredContext</span><span class="p">&gt;&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>由 2.2 节得知，这个玩意儿是在每一个类型注册完成之后，都会被遍历调用其中的 Action 动作。在调用的时候，会将当前注册完成的类型封装成一个 <code>IOnServiceRegistredContext</code> 对象，传递给具体的委托，这样委托就能够知道当前调用的类型，也就能够将拦截器放在其 <code>Interceptors</code> 属性当中了。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IOnServiceRegistredContext</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">ITypeList</span><span class="p">&lt;</span><span class="n">IAbpInterceptor</span><span class="p">&gt;</span> <span class="n">Interceptors</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">Type</span> <span class="n">ImplementationType</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="三总结">三、总结</h2>
+<p>ABP vNext 框架针对于依赖注入这块的工作也进行了大量的精简，就代码量来说，比原有 ABP 框架减少了差不多一半左右，而且整个逻辑也比原来更加简洁易懂。</p>
+<p>开发人员在使用的时候，其实最多的是关注如何注入自己想要的类型。通过了解 ABP vNext 底层的代码， 方便我们清楚拦截器和依赖注入框架的具体过程，这样在后面扩展功能的时候才能够做到心中有数。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/abp-vnext/">ABP vNext</a>
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/asp.net-core/">ASP.NET Core</a>
+        
+            <a href="/tags/asp.net-core-mvc/">ASP.NET Core MVC</a>
+        
+            <a href="/tags/%E4%BE%9D%E8%B5%96%E6%B3%A8%E5%85%A5/">依赖注入</a>
+        
+            <a href="/tags/autofac/">Autofac</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-multi-tenancy/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 多租户</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一简要说明">一、简要说明</a></li>
+    <li><a href="#二源码分析">二、源码分析</a>
+      <ol>
+        <li><a href="#21-组件自动注册">2.1 组件自动注册</a></li>
+        <li><a href="#22-方法拦截器">2.2 方法拦截器</a>
+          <ol>
+            <li><a href="#221-abp-vnext-新的抽象层">2.2.1 ABP vNext 新的抽象层</a></li>
+            <li><a href="#222-castlecore-动态代理的集成">2.2.2 Castle.Core 动态代理的集成</a></li>
+          </ol>
+        </li>
+        <li><a href="#23-对象访问器">2.3 对象访问器</a></li>
+        <li><a href="#24-服务的范围工厂">2.4 服务的范围工厂</a></li>
+        <li><a href="#25-类型注册完成的动作">2.5 类型注册完成的动作</a></li>
+      </ol>
+    </li>
+    <li><a href="#三总结">三、总结</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

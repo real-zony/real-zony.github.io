@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、背景 在平时开发过程当中需要针对 MySQL 数据库进行监控，这里我们可以使用 Grafana 和 Prometheus 来实现监控功能。Grafana 是一款功能强大的仪表盘面板，支持多种数据源，可以自定义图表进行监控。而 Prometheus 就是 Grafana 支持的数据源之一，Prometheus 负责采集需要监控的数据，然后通过 Grafana 展示出来。
+Prometheus 拥有多种 Exporter 进行监控数据的导出，这里我们使用的是 Mysql Exporter 来进行数据库状态的监控。
+很久没写博客了，最近实在太忙，工作之余在研究 Abp vNext。
+二、动手实践 首先参考博文《Linux 下的 Docker 安装与使用》安装好 Docker，之后再参考博文 《CentOS 7.x 安装 Docker-Compose》安装好 Docker-Compose 之后，就可以开始我们的工作了。
+'><title>使用 Docker 部署 Grafana &#43; Prometheus 监控 MySQL 数据库</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='使用 Docker 部署 Grafana &#43; Prometheus 监控 MySQL 数据库'>
+<meta property='og:description' content='一、背景 在平时开发过程当中需要针对 MySQL 数据库进行监控，这里我们可以使用 Grafana 和 Prometheus 来实现监控功能。Grafana 是一款功能强大的仪表盘面板，支持多种数据源，可以自定义图表进行监控。而 Prometheus 就是 Grafana 支持的数据源之一，Prometheus 负责采集需要监控的数据，然后通过 Grafana 展示出来。
+Prometheus 拥有多种 Exporter 进行监控数据的导出，这里我们使用的是 Mysql Exporter 来进行数据库状态的监控。
+很久没写博客了，最近实在太忙，工作之余在研究 Abp vNext。
+二、动手实践 首先参考博文《Linux 下的 Docker 安装与使用》安装好 Docker，之后再参考博文 《CentOS 7.x 安装 Docker-Compose》安装好 Docker-Compose 之后，就可以开始我们的工作了。
+'>
+<meta property='og:url' content='https://real-zony.github.io/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='MySQL' /><meta property='article:tag' content='Docker' /><meta property='article:tag' content='Linux' /><meta property='article:tag' content='Prometheus' /><meta property='article:tag' content='Grafana' /><meta property='article:published_time' content='2019-01-11T03:15:13&#43;00:00'/><meta property='article:modified_time' content='2019-01-11T03:15:13&#43;00:00'/>
+<meta name="twitter:title" content="使用 Docker 部署 Grafana &#43; Prometheus 监控 MySQL 数据库">
+<meta name="twitter:description" content="一、背景 在平时开发过程当中需要针对 MySQL 数据库进行监控，这里我们可以使用 Grafana 和 Prometheus 来实现监控功能。Grafana 是一款功能强大的仪表盘面板，支持多种数据源，可以自定义图表进行监控。而 Prometheus 就是 Grafana 支持的数据源之一，Prometheus 负责采集需要监控的数据，然后通过 Grafana 展示出来。
+Prometheus 拥有多种 Exporter 进行监控数据的导出，这里我们使用的是 Mysql Exporter 来进行数据库状态的监控。
+很久没写博客了，最近实在太忙，工作之余在研究 Abp vNext。
+二、动手实践 首先参考博文《Linux 下的 Docker 安装与使用》安装好 Docker，之后再参考博文 《CentOS 7.x 安装 Docker-Compose》安装好 Docker-Compose 之后，就可以开始我们的工作了。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/">使用 Docker 部署 Grafana &#43; Prometheus 监控 MySQL 数据库</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jan 11, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 2 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一背景">一、背景</h2>
+<p>在平时开发过程当中需要针对 MySQL 数据库进行监控，这里我们可以使用 Grafana 和 Prometheus 来实现监控功能。Grafana 是一款功能强大的仪表盘面板，支持多种数据源，可以自定义图表进行监控。而 Prometheus 就是 Grafana 支持的数据源之一，Prometheus 负责采集需要监控的数据，然后通过 Grafana 展示出来。</p>
+<p>Prometheus 拥有多种 Exporter 进行监控数据的导出，这里我们使用的是 Mysql Exporter 来进行数据库状态的监控。</p>
+<blockquote>
+<p>很久没写博客了，最近实在太忙，工作之余在研究 Abp vNext。</p>
+</blockquote>
+<h2 id="二动手实践">二、动手实践</h2>
+<p>首先参考博文<a class="link" href="https://www.cnblogs.com/myzony/p/9071210.html#4159789"  target="_blank" rel="noopener"
+    >《Linux 下的 Docker 安装与使用》</a>安装好 Docker，之后再参考博文 <a class="link" href="https://www.cnblogs.com/myzony/p/10253615.html"  target="_blank" rel="noopener"
+    >《CentOS 7.x 安装 Docker-Compose》</a>安装好 Docker-Compose 之后，就可以开始我们的工作了。</p>
+<h3 id="21-编写-docker-composeyaml-文件">2.1 编写 Docker-Compose.Yaml 文件</h3>
+<p>首先我们确定会启动起来三个服务，分别是 MySQL-Exporter (监控 MySQL 指标)、Prometheus (收集 Exporter 的数据)、Grafana (从 Prometheus 读取指标数据，并展示出来)。</p>
+<p>所以 yaml 文件的内容大体如下，这里也增加了响应的注释方便大家学习。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s1">&#39;2&#39;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">services</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">exporter</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">container_name</span><span class="p">:</span><span class="w"> </span><span class="l">mysql-exporter-dev</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l">prom/mysqld-exporter</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="c"># 这里指定的是要监控的 MySQL 数据库，这里我们以启动的 test-mysql 容器为示范。</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="c"># 实际应用当中，应该配置为具体的数据库实例。</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="l">DATA_SOURCE_NAME=root:root@(test-mysql:3306)/</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">prometheus</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">container_name</span><span class="p">:</span><span class="w"> </span><span class="l">prometheus</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l">prom/prometheus</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="s2">&#34;20001:9090&#34;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c"># 映射普罗米修斯的配置文件，用于配置 Exporter，这里的文件应该在后面创建好，具体</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c"># 路径以实际为准。</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="l">/root/Docker/Volumes/Prometheus/prometheus.yml:/etc/prometheus/prometheus.yml</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">grafana</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">container_name</span><span class="p">:</span><span class="w"> </span><span class="l">grafana</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l">grafana/grafana</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="c"># 配置 Grafana 的默认根 URL。</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="l">GF_SERVER_ROOT_URL=http://192.168.100.107:20002</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="c"># 配置 Grafana 的默认 admin 密码。</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="l">GF_SECURITY_ADMIN_PASSWORD=admin</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="s2">&#34;20002:3000&#34;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c"># 映射 Grafana 的数据文件，方便后面进行更改。</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">volumes</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="l">/root/Docker/Volumes/Grafana:/var/lib/grafana</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="c"># 本服务只是用于演示，实际使用请注释掉本服务。</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">mysql</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">container_name</span><span class="p">:</span><span class="w"> </span><span class="l">test-mysql</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l">mysql</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="l">MYSQL_ROOT_PASSWORD=root</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c"># 这里如果需要连接外部 MySQL 就需要处在同一个网络。</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">networks</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">default</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">external</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l">mysql-monitor</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-配置-prometheusyml-文件">2.2 配置 prometheus.yml 文件</h3>
+<p>在 prometheus.yaml 文件当中存储了所有 Exporter 的信息，所以我们需要创建一个自己的 prometheus.yml 文件，映射到容器当中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">global</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">scrape_interval</span><span class="p">:</span><span class="w">     </span><span class="l">15s</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">evaluation_interval</span><span class="p">:</span><span class="w"> </span><span class="l">15s</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">alerting</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">alertmanagers</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span>- <span class="nt">static_configs</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span>- <span class="nt">targets</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="c"># - alertmanager:9093</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">scrape_configs</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="c"># Prometheus 监控配置</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span>- <span class="nt">job_name</span><span class="p">:</span><span class="w"> </span><span class="s1">&#39;prometheus&#39;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">static_configs</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="nt">targets</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;prometheus:9090&#39;</span><span class="p">]</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="c"># MySQL 监控配置</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span>- <span class="nt">job_name</span><span class="p">:</span><span class="w"> </span><span class="s1">&#39;mysql&#39;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c"># 抓取间隔</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">scrape_interval</span><span class="p">:</span><span class="w"> </span><span class="l">5s</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">static_configs</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="c"># 这里配置的是具体的 MySQL Exporter 的地址，在之前的 docker compose 文件</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="c"># 定义当中，mysql exporter 的容器名为 mysql-exporter-dev。</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="nt">targets</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;mysql-exporter-dev:9104&#39;</span><span class="p">]</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="23-启动">2.3 启动</h3>
+<p>首先我们要建立一个监控用的 Docker 网络，与 Docker Compose 文件对应：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker network create mysql-monitor
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547172507289.png"
+	width="620"
+	height="64"
+	srcset="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547172507289_hu86e628c60e763ca136054e17ba0178fd_8211_480x0_resize_box_3.png 480w, /p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547172507289_hu86e628c60e763ca136054e17ba0178fd_8211_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1547172507289"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="968"
+		data-flex-basis="2325px"
+	
+></p>
+<p>假设 yaml 文件名称为 docker-compose.yaml ，执行以下命令来创建我们的容器。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker-compose -f ./docker-compose.yaml -p MySQL-Monitor up -d
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547172663367.png"
+	width="758"
+	height="481"
+	srcset="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547172663367_hu7adcd812f2cd2d988e4bb5051ba0e920_44884_480x0_resize_box_3.png 480w, /p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547172663367_hu7adcd812f2cd2d988e4bb5051ba0e920_44884_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1547172663367"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="157"
+		data-flex-basis="378px"
+	
+></p>
+<p>但是呢，有时候可能会提示以下信息，说没有对应的权限，这个时候你使用 chmod 命令改变以下 Grafana 文件夹的权限即可。</p>
+<p><img src="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547172760795.png"
+	width="1055"
+	height="75"
+	srcset="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547172760795_hu2fa7a9d379563cf5fb9502ec915a8bd1_10713_480x0_resize_box_3.png 480w, /p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547172760795_hu2fa7a9d379563cf5fb9502ec915a8bd1_10713_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1547172760795"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="1406"
+		data-flex-basis="3376px"
+	
+></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">chmod -R <span class="m">777</span> /root/Docker/Volumes/Grafana
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>之后，再次运行 <code>docker-compose -f ./docker-compose.yaml -p MySQL-Monitor up -d</code> 命令，启动服务。第一次启动可能会有点慢，Grafana 需要迁移相关的数据，等待一会儿之后访问 机器IP:20002 就可以看到 Grafana 了。</p>
+<h3 id="24-配置">2.4 配置</h3>
+<p>首先我们需要在 Grafana 配置 Prometheus 数据源，登录 Grafana 之后，选择数据源。</p>
+<p><img src="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547173070282.png"
+	width="350"
+	height="519"
+	srcset="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547173070282_hud8f1268d40f690cd2fde45386927504a_26516_480x0_resize_box_3.png 480w, /p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547173070282_hud8f1268d40f690cd2fde45386927504a_26516_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1547173070282"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="67"
+		data-flex-basis="161px"
+	
+></p>
+<p>选择 Prometheus。</p>
+<p><img src="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547173095399.png"
+	width="1046"
+	height="617"
+	srcset="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547173095399_hued0c43df587640faf75bd03037f30673_159661_480x0_resize_box_3.png 480w, /p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547173095399_hued0c43df587640faf75bd03037f30673_159661_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1547173095399"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="169"
+		data-flex-basis="406px"
+	
+></p>
+<p>之后在 URL 填入 Prometheus 的容器名字 + 端口，点击 Save &amp; Test，这里一定要注意数据源的名字叫做 <strong>Prometheus</strong>，不然等会儿导入我的面板是无法使用的。</p>
+<p><img src="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547174734110.png"
+	width="584"
+	height="813"
+	srcset="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547174734110_hu95d18dc004cd7bb48b8f0f72cf72f446_50511_480x0_resize_box_3.png 480w, /p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547174734110_hu95d18dc004cd7bb48b8f0f72cf72f446_50511_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1547174734110"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="71"
+		data-flex-basis="172px"
+	
+></p>
+<p>导入我们的 Dashboard 文件。</p>
+<p><img src="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547173196473.png"
+	width="239"
+	height="285"
+	srcset="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547173196473_hud3def0cda5ca58db356b75e67e316bc1_13850_480x0_resize_box_3.png 480w, /p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547173196473_hud3def0cda5ca58db356b75e67e316bc1_13850_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1547173196473"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="83"
+		data-flex-basis="201px"
+	
+></p>
+<p><img src="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547174761536.png"
+	width="992"
+	height="391"
+	srcset="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547174761536_hu541590666390d2e6a8001c083187f300_23373_480x0_resize_box_3.png 480w, /p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547174761536_hu541590666390d2e6a8001c083187f300_23373_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1547174761536"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="253"
+		data-flex-basis="608px"
+	
+></p>
+<h3 id="25-文件下载地址">2.5 文件下载地址</h3>
+<p><a class="link" href="https://myzony1.oss-cn-qingdao.aliyuncs.com/MySQL%e8%af%a6%e7%bb%86%e7%bb%9f%e8%ae%a1.zip"  target="_blank" rel="noopener"
+    ><strong>DashBoard 文件点击我下载</strong></a></p>
+<h3 id="三效果图">三、效果图</h3>
+<p><img src="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547171321625.png"
+	width="1918"
+	height="994"
+	srcset="/p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547171321625_hu471877767754480976c1c973a6bc0f6a_215688_480x0_resize_box_3.png 480w, /p/deploy-grafana-prometheus-with-docker-to-monitor-mysql-database/1547171321625_hu471877767754480976c1c973a6bc0f6a_215688_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1547171321625"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="192"
+		data-flex-basis="463px"
+	
+></p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/mysql/">MySQL</a>
+        
+            <a href="/tags/docker/">Docker</a>
+        
+            <a href="/tags/linux/">Linux</a>
+        
+            <a href="/tags/prometheus/">Prometheus</a>
+        
+            <a href="/tags/grafana/">Grafana</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/docker-container-directory-garbled-problem-with-dotnet-core/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">dotNET Core 的 Docker 容器目录乱码问题</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/docker-install-elk/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Docker 安装 ELK</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/jenkins-combines-docker-to-implement-low-level-ci/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Jenkins 结合 Docker 实现低配版的 CI&amp;CD</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/install-docker-compose-on-centos-7x/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">CentOS 7.x 安装 Docker-Compose</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/ddns-tool-based-on-alibaba-cloud-dns-api/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">基于阿里云 DNS API 实现的 DDNS 工具</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一背景">一、背景</a></li>
+    <li><a href="#二动手实践">二、动手实践</a>
+      <ol>
+        <li><a href="#21-编写-docker-composeyaml-文件">2.1 编写 Docker-Compose.Yaml 文件</a></li>
+        <li><a href="#22-配置-prometheusyml-文件">2.2 配置 prometheus.yml 文件</a></li>
+        <li><a href="#23-启动">2.3 启动</a></li>
+        <li><a href="#24-配置">2.4 配置</a></li>
+        <li><a href="#25-文件下载地址">2.5 文件下载地址</a></li>
+        <li><a href="#三效果图">三、效果图</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

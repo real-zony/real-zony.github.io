@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='0.简要介绍 在 Abp 框架当中通过各种 Configuration 来实现模块的配置，Abp 本身提供的很多基础设施功能的一些在运行时的行为是通过很多不同的 Configuration 来开放给用户进行一些自定义配置的。
+比如说缓存模块，我要配置缓存的过期时间，Abp 默认是 1 个小时，但是我也可以自己来定义，直接赋值或者从配置项来读取都是由具体使用者来控制的，所以 Abp 通过各种 Configuration 类来控制一些运行时参数。
+这些 Abp 本身基础设施的配置类都是存放在 \Abp\src\Abp\Configuration\Startup\ 这个文件夹内部的，我们来看一下他们的依赖关系。
+1.启动流程 从上图可以看到在 IAbpStartupConfiguration 内部拥有诸多引用(可能没有列举完成，可以在其定义看到)，基本上 Abp 自己的基础设施配置都在这里面。
+那么 IAbpStartupConfiguration 自己内部的这些属性是在哪儿初始化的呢，其实就是在之前讲过的 AbpBootstrapper 的 Initialize() 内部初始化的。再看下代码：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 public virtual void Initialize() { try { // 其他代码 IocManager.IocContainer.Install(new AbpCoreInstaller()); IocManager.Resolve&amp;lt;AbpStartupConfiguration&amp;gt;().Initialize(); // 其他代码 } catch (Exception ex) { _logger.Fatal(ex.ToString(), ex); throw; } } 在 AbpCoreInstaller 类内部之前也说过，在这里面统一注入了这些 Configuration 的单例，同时解析出 AbpStartupConfiguration ，调用其 Initialzie() 方法来对自己的那些 xxxConfiguration 接口赋值，代码如下：'><title>Abp 源码分析：四、模块配置</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/abp-source-code-analysis-4-module-configuration/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp 源码分析：四、模块配置'>
+<meta property='og:description' content='0.简要介绍 在 Abp 框架当中通过各种 Configuration 来实现模块的配置，Abp 本身提供的很多基础设施功能的一些在运行时的行为是通过很多不同的 Configuration 来开放给用户进行一些自定义配置的。
+比如说缓存模块，我要配置缓存的过期时间，Abp 默认是 1 个小时，但是我也可以自己来定义，直接赋值或者从配置项来读取都是由具体使用者来控制的，所以 Abp 通过各种 Configuration 类来控制一些运行时参数。
+这些 Abp 本身基础设施的配置类都是存放在 \Abp\src\Abp\Configuration\Startup\ 这个文件夹内部的，我们来看一下他们的依赖关系。
+1.启动流程 从上图可以看到在 IAbpStartupConfiguration 内部拥有诸多引用(可能没有列举完成，可以在其定义看到)，基本上 Abp 自己的基础设施配置都在这里面。
+那么 IAbpStartupConfiguration 自己内部的这些属性是在哪儿初始化的呢，其实就是在之前讲过的 AbpBootstrapper 的 Initialize() 内部初始化的。再看下代码：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 public virtual void Initialize() { try { // 其他代码 IocManager.IocContainer.Install(new AbpCoreInstaller()); IocManager.Resolve&amp;lt;AbpStartupConfiguration&amp;gt;().Initialize(); // 其他代码 } catch (Exception ex) { _logger.Fatal(ex.ToString(), ex); throw; } } 在 AbpCoreInstaller 类内部之前也说过，在这里面统一注入了这些 Configuration 的单例，同时解析出 AbpStartupConfiguration ，调用其 Initialzie() 方法来对自己的那些 xxxConfiguration 接口赋值，代码如下：'>
+<meta property='og:url' content='https://real-zony.github.io/p/abp-source-code-analysis-4-module-configuration/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='AspNetBoilerplate' /><meta property='article:published_time' content='2018-06-26T10:15:27&#43;00:00'/><meta property='article:modified_time' content='2018-06-26T10:15:27&#43;00:00'/>
+<meta name="twitter:title" content="Abp 源码分析：四、模块配置">
+<meta name="twitter:description" content="0.简要介绍 在 Abp 框架当中通过各种 Configuration 来实现模块的配置，Abp 本身提供的很多基础设施功能的一些在运行时的行为是通过很多不同的 Configuration 来开放给用户进行一些自定义配置的。
+比如说缓存模块，我要配置缓存的过期时间，Abp 默认是 1 个小时，但是我也可以自己来定义，直接赋值或者从配置项来读取都是由具体使用者来控制的，所以 Abp 通过各种 Configuration 类来控制一些运行时参数。
+这些 Abp 本身基础设施的配置类都是存放在 \Abp\src\Abp\Configuration\Startup\ 这个文件夹内部的，我们来看一下他们的依赖关系。
+1.启动流程 从上图可以看到在 IAbpStartupConfiguration 内部拥有诸多引用(可能没有列举完成，可以在其定义看到)，基本上 Abp 自己的基础设施配置都在这里面。
+那么 IAbpStartupConfiguration 自己内部的这些属性是在哪儿初始化的呢，其实就是在之前讲过的 AbpBootstrapper 的 Initialize() 内部初始化的。再看下代码：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 public virtual void Initialize() { try { // 其他代码 IocManager.IocContainer.Install(new AbpCoreInstaller()); IocManager.Resolve&amp;lt;AbpStartupConfiguration&amp;gt;().Initialize(); // 其他代码 } catch (Exception ex) { _logger.Fatal(ex.ToString(), ex); throw; } } 在 AbpCoreInstaller 类内部之前也说过，在这里面统一注入了这些 Configuration 的单例，同时解析出 AbpStartupConfiguration ，调用其 Initialzie() 方法来对自己的那些 xxxConfiguration 接口赋值，代码如下：">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-source-code-analysis-4-module-configuration/">Abp 源码分析：四、模块配置</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jun 26, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 3 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="0简要介绍">0.简要介绍</h2>
+<p>在 Abp 框架当中通过各种 Configuration 来实现模块的配置，Abp 本身提供的很多基础设施功能的一些在运行时的行为是通过很多不同的 Configuration 来开放给用户进行一些自定义配置的。</p>
+<p>比如说缓存模块，我要配置缓存的过期时间，Abp 默认是 1 个小时，但是我也可以自己来定义，直接赋值或者从配置项来读取都是由具体使用者来控制的，所以 Abp 通过各种 Configuration 类来控制一些运行时参数。</p>
+<p>这些 Abp 本身基础设施的配置类都是存放在 <code>\Abp\src\Abp\Configuration\Startup\</code> 这个文件夹内部的，我们来看一下他们的依赖关系。</p>
+<p><img src="/p/abp-source-code-analysis-4-module-configuration/5b3212be752f7.png"
+	width="1678"
+	height="936"
+	srcset="/p/abp-source-code-analysis-4-module-configuration/5b3212be752f7_hu6ccb24f65b374e73801d2479b922ae4a_114995_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-4-module-configuration/5b3212be752f7_hu6ccb24f65b374e73801d2479b922ae4a_114995_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1530004535999"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="179"
+		data-flex-basis="430px"
+	
+></p>
+<h2 id="1启动流程">1.启动流程</h2>
+<p>从上图可以看到在 <code>IAbpStartupConfiguration</code> 内部拥有诸多引用(可能没有列举完成，可以在其定义看到)，基本上 Abp 自己的基础设施配置都在这里面。</p>
+<p>那么 <code>IAbpStartupConfiguration</code> 自己内部的这些属性是在哪儿初始化的呢，其实就是在之前讲过的 <code>AbpBootstrapper</code> 的 <code>Initialize()</code> 内部初始化的。再看下代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">Initialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">try</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 其他代码</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IocManager</span><span class="p">.</span><span class="n">IocContainer</span><span class="p">.</span><span class="n">Install</span><span class="p">(</span><span class="k">new</span> <span class="n">AbpCoreInstaller</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">AbpStartupConfiguration</span><span class="p">&gt;().</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 其他代码</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_logger</span><span class="p">.</span><span class="n">Fatal</span><span class="p">(</span><span class="n">ex</span><span class="p">.</span><span class="n">ToString</span><span class="p">(),</span> <span class="n">ex</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在 <code>AbpCoreInstaller</code> 类内部之前也说过，在这里面统一注入了这些 Configuration 的单例，同时解析出 <code>AbpStartupConfiguration</code> ，调用其 <code>Initialzie()</code> 方法来对自己的那些 xxxConfiguration 接口赋值，代码如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">Initialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Localization</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">ILocalizationConfiguration</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Modules</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IModuleConfigurations</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Features</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IFeatureConfiguration</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Navigation</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">INavigationConfiguration</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Authorization</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IAuthorizationConfiguration</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Validation</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IValidationConfiguration</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Settings</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">ISettingsConfiguration</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">UnitOfWork</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IUnitOfWorkDefaultOptions</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">EventBus</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IEventBusConfiguration</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">MultiTenancy</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IMultiTenancyConfig</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Auditing</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IAuditingConfiguration</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Caching</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">ICachingConfiguration</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">BackgroundJobs</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IBackgroundJobConfiguration</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Notifications</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">INotificationConfiguration</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">EmbeddedResources</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IEmbeddedResourcesConfiguration</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">EntityHistory</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IEntityHistoryConfiguration</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">CustomConfigProviders</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">ICustomConfigProvider</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">ServiceReplaceActions</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">,</span> <span class="n">Action</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>所以，在模块定义的基类 <code>AbpModule</code> 当中，早就注入了 <code>IAbpStartupConfiguration</code> 接口，让你很方便的就可以在模块的预加载的时候配置各种基础设施的参数。举个栗子：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">PreInitialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Configuration</span><span class="p">.</span><span class="n">Caching</span><span class="p">.</span><span class="n">ConfigureAll</span><span class="p">(</span><span class="n">z</span><span class="p">=&gt;</span><span class="n">z</span><span class="p">.</span><span class="n">DefaultSlidingExpireTime</span> <span class="p">=</span> <span class="n">TimeSpan</span><span class="p">.</span><span class="n">FromHours</span><span class="p">(</span><span class="m">1</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="/p/abp-source-code-analysis-4-module-configuration/5b3212be5d70a.png"
+	width="600"
+	height="80"
+	srcset="/p/abp-source-code-analysis-4-module-configuration/5b3212be5d70a_huff561f23a731815a53498711aa8c184c_29308_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-4-module-configuration/5b3212be5d70a_huff561f23a731815a53498711aa8c184c_29308_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1530003198685"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="750"
+		data-flex-basis="1800px"
+	
+></p>
+<p>可以看到这里我们的 Configuration 属性其实就是 <code>IAbpStartupConfiguration</code> 接口。</p>
+<h2 id="2代码分析">2.代码分析</h2>
+<h3 id="21自定义模块配置">2.1自定义模块配置</h3>
+<p>我们可以看到 <code>IAbpStartupConfiguration</code> 除了自己拥有大量基础设施的配置类，同时他还继承一个基类叫做 <code>DictionaryBasedConfig</code> ，那么 Abp 框架为什么要这么写呢？</p>
+<p>其实这个基类的作用就是存放用户自定义的 Configuration 类型的，细心观察的话会发现在 <code>AbpStartupConfiguration</code> 的内部有一个 <code>Get</code> 方法，该方法就是用来获取存储的配置类型。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">T</span> <span class="n">Get</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 调用基类的 GetOrCreate 方法，不存在的话直接从 IocContainer 中解析</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">GetOrCreate</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">T</span><span class="p">).</span><span class="n">FullName</span><span class="p">,</span> <span class="p">()</span> <span class="p">=&gt;</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;());</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在 <code>DictionaryBasedConfig</code> 中维护了一个字典 <code>CustomSettings</code> ，其 Key/Value 类型为 string/object ，因为在 Abp 框架当中是不知道你自定义模块配置类的类型的，所以存了一个 object 对象。</p>
+<p>然后就有以下用法，首先在模块 <code>PreInitialize()</code> 方法当中注入你需要注入的配置类：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">PreInitialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 注入配置类</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IocManager</span><span class="p">.</span><span class="n">Register</span><span class="p">&lt;</span><span class="n">IAbpAspNetCoreConfiguration</span><span class="p">,</span> <span class="n">AbpAspNetCoreConfiguration</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 替换服务，后面讲解</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Configuration</span><span class="p">.</span><span class="n">ReplaceService</span><span class="p">&lt;</span><span class="n">IPrincipalAccessor</span><span class="p">,</span> <span class="n">AspNetCorePrincipalAccessor</span><span class="p">&gt;(</span><span class="n">DependencyLifeStyle</span><span class="p">.</span><span class="n">Transient</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Configuration</span><span class="p">.</span><span class="n">ReplaceService</span><span class="p">&lt;</span><span class="n">IAbpAntiForgeryManager</span><span class="p">,</span> <span class="n">AbpAspNetCoreAntiForgeryManager</span><span class="p">&gt;(</span><span class="n">DependencyLifeStyle</span><span class="p">.</span><span class="n">Transient</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Configuration</span><span class="p">.</span><span class="n">ReplaceService</span><span class="p">&lt;</span><span class="n">IClientInfoProvider</span><span class="p">,</span> <span class="n">HttpContextClientInfoProvider</span><span class="p">&gt;(</span><span class="n">DependencyLifeStyle</span><span class="p">.</span><span class="n">Transient</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>然后针对 <code>IModuleConfigurations</code> 写一个扩展方法，因为在 <code>IModuleConfigurations</code> 内部就有一个 <code>IAbpAspNetCoreConfiguration</code> 的实例，<code>IModuleConfigurations</code> 的注释就说该接口是用于配置模块的，模块可以通过编写扩展方法来添加自己的 Configuration 类：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">AbpAspNetCoreConfigurationExtensions</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// Used to configure ABP ASP.NET Core module.</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="n">IAbpAspNetCoreConfiguration</span> <span class="n">AbpAspNetCore</span><span class="p">(</span><span class="k">this</span> <span class="n">IModuleConfigurations</span> <span class="n">configurations</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 两种写法都差不多</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">configurations</span><span class="p">.</span><span class="n">AbpConfiguration</span><span class="p">.</span><span class="n">GetOrCreate</span><span class="p">(</span><span class="s">&#34;AbpModule&#34;</span><span class="p">,</span> <span class="p">()</span> <span class="p">=&gt;</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IAbpAspNetCoreConfiguration</span><span class="p">&gt;());</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">configurations</span><span class="p">.</span><span class="n">AbpConfiguration</span><span class="p">.</span><span class="n">Get</span><span class="p">&lt;</span><span class="n">IAbpAspNetCoreConfiguration</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-服务实现替换">2.2 服务实现替换</h3>
+<p>在 Abp 当中允许我们替换一些他本身的一些实现，只要你是在模块进行预加载的时候替换的话，都是可以的。而 Abp 他本身在 <code>IAbpStartupConfiguration</code> 当中提供了一个方法叫做 <code>ReplaceService()</code> 方法专门来让你替换服务。</p>
+<p>我们来看一下他的定义：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">void</span> <span class="n">ReplaceService</span><span class="p">(</span><span class="n">Type</span> <span class="n">type</span><span class="p">,</span> <span class="n">Action</span> <span class="n">replaceAction</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>emmmm，传入一个 <code>Type</code> 和 <code>Action</code>,咋跟我看到的不一样呢，Ctrl + N 搜索了一下，发现在模块里面使用的 <code>ReplaceService()</code> 方法是存放在 <code>AbpStartupConfigurationExtensions</code> 里面编写的一个静态方法，其定义如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">void</span> <span class="n">ReplaceService</span><span class="p">&lt;</span><span class="n">TType</span><span class="p">,</span> <span class="n">TImpl</span><span class="p">&gt;(</span><span class="k">this</span> <span class="n">IAbpStartupConfiguration</span> <span class="n">configuration</span><span class="p">,</span> <span class="n">DependencyLifeStyle</span> <span class="n">lifeStyle</span> <span class="p">=</span> <span class="n">DependencyLifeStyle</span><span class="p">.</span><span class="n">Singleton</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">where</span> <span class="n">TType</span> <span class="p">:</span> <span class="k">class</span>
+</span></span><span class="line"><span class="cl">	<span class="nc">where</span> <span class="n">TImpl</span> <span class="p">:</span> <span class="n">class</span><span class="p">,</span> <span class="n">TType</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">configuration</span><span class="p">.</span><span class="n">ReplaceService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TType</span><span class="p">),</span> <span class="p">()</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">configuration</span><span class="p">.</span><span class="n">IocManager</span><span class="p">.</span><span class="n">Register</span><span class="p">&lt;</span><span class="n">TType</span><span class="p">,</span> <span class="n">TImpl</span><span class="p">&gt;(</span><span class="n">lifeStyle</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">});</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>我来看看，传入一个 <code>Type</code> 和 一个 <code>Action</code> ，<code>Type</code> 用来调用 <code>IAbpStartupConfiguration</code> 的同名方法，<code>Action</code> 则是用来注册组件的。</p>
+<p>原来如此，我们再来到 <code>IAbpStartupConfiguration.ReplaceService(Type type, Action replaceAction)</code> 的具体实现：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">,</span> <span class="n">Action</span><span class="p">&gt;</span> <span class="n">ServiceReplaceActions</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">ReplaceService</span><span class="p">(</span><span class="n">Type</span> <span class="n">type</span><span class="p">,</span> <span class="n">Action</span> <span class="n">replaceAction</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">ServiceReplaceActions</span><span class="p">[</span><span class="n">type</span><span class="p">]</span> <span class="p">=</span> <span class="n">replaceAction</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>唔，就是一个字典嘛，我们来看看在什么地方用到过它。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">Initialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">replaceAction</span> <span class="k">in</span> <span class="p">((</span><span class="n">AbpStartupConfiguration</span><span class="p">)</span><span class="n">Configuration</span><span class="p">).</span><span class="n">ServiceReplaceActions</span><span class="p">.</span><span class="n">Values</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">replaceAction</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>最后我们看到在 <code>AbpKernelModule</code> 的 <code>Initialize()</code> 方法里面就会遍历这个字典，来调用之前存入的 <code>Action</code> 。</p>
+<p>因为 Abp 所有组件的注册都是在模块 <code>Initialize()</code> 内部来进行注册的，而这串代码刚好又放在 <code>AbpKernelModule</code> 的初始化方法的第一行就开始执行，所以确保你替换的组件能够在 Abp 内部组件注册前执行。</p>
+<p>所以当你要替换 Abp 内置组件服务的时候一定要记住在模块的 <code>PreInitialize()</code> 里面执行哦~</p>
+<h3 id="3-扩展abp-支持多数据库">3. 扩展：Abp 支持多数据库</h3>
+<p>如果你的 Abp 项目有多个数据库上下文实体的时候怎么办呢？</p>
+<p>在 Abp 官方 Demo 当中就有说明，你可以通过替换默认的 <code>IConnectionStringResolver</code> 来实现不同数据库的解析哦~，我们继承 <code>DefaultConnectionStringResolver</code> 实现一个 <code>MulitDbContextConnectionStringResolver</code>。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">MulitDbContextConnectionStringResolver</span> <span class="p">:</span> <span class="n">DefaultConnectionStringResolver</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">HKERPConnectionStringResolver</span><span class="p">(</span><span class="n">IAbpStartupConfiguration</span> <span class="n">configuration</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">:</span> <span class="k">base</span><span class="p">(</span><span class="n">configuration</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">override</span> <span class="kt">string</span> <span class="n">GetNameOrConnectionString</span><span class="p">(</span><span class="n">ConnectionStringResolveArgs</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s">&#34;DbContextConcreteType&#34;</span><span class="p">]</span> <span class="k">as</span> <span class="n">Type</span> <span class="p">==</span> <span class="k">typeof</span><span class="p">(</span><span class="n">ADbContext</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="kt">var</span> <span class="n">configuration</span> <span class="p">=</span> <span class="n">AppConfigurations</span><span class="p">.</span><span class="n">Get</span><span class="p">(</span><span class="n">WebContentDirectoryFinder</span><span class="p">.</span><span class="n">CalculateContentRootFolder</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// 返回 ADbContext 的 ConnectionString</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="n">configuration</span><span class="p">.</span><span class="n">GetConnectionString</span><span class="p">(</span><span class="n">AllConsts</span><span class="p">.</span><span class="n">ADbConnectionStringName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s">&#34;DbContextConcreteType&#34;</span><span class="p">]</span> <span class="k">as</span> <span class="n">Type</span> <span class="p">==</span> <span class="k">typeof</span><span class="p">(</span><span class="n">BDbContext</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="kt">var</span> <span class="n">configuration</span> <span class="p">=</span> <span class="n">AppConfigurations</span><span class="p">.</span><span class="n">Get</span><span class="p">(</span><span class="n">WebContentDirectoryFinder</span><span class="p">.</span><span class="n">CalculateContentRootFolder</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">			<span class="c1">// 返回 BDbContext 的 ConnectionString</span>
+</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="n">configuration</span><span class="p">.</span><span class="n">GetConnectionString</span><span class="p">(</span><span class="n">HKERPCRMConsts</span><span class="p">.</span><span class="n">BDbConnectionStringName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="c1">// 都不是则使用默认的数据库连接字符串</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="k">base</span><span class="p">.</span><span class="n">GetNameOrConnectionString</span><span class="p">(</span><span class="n">args</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>然后在我们的 EFCore 模块的预加载方法当中加入以下代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">Configuration</span><span class="p">.</span><span class="n">ReplaceService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">IConnectionStringResolver</span><span class="p">),</span> <span class="p">()</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IocManager</span><span class="p">.</span><span class="n">IocContainer</span><span class="p">.</span><span class="n">Register</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Component</span><span class="p">.</span><span class="n">For</span><span class="p">&lt;</span><span class="n">IConnectionStringResolver</span><span class="p">,</span> <span class="n">IDbPerTenantConnectionStringResolver</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">			<span class="p">.</span><span class="n">ImplementedBy</span><span class="p">&lt;</span><span class="n">MulitDbContextConnectionStringResolver</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">			<span class="p">.</span><span class="n">LifestyleTransient</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">		<span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">});</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>当然你也不要忘记在后面通过 <code>AddDbContext()</code> 方法来把你的数据库上下文添加到 Abp 里面去哦。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">Configuration</span><span class="p">.</span><span class="n">Modules</span><span class="p">.</span><span class="n">AbpEfCore</span><span class="p">().</span><span class="n">AddDbContext</span><span class="p">&lt;</span><span class="n">ADbContext</span><span class="p">&gt;(</span><span class="n">options</span><span class="p">=&gt;{</span> <span class="cm">/*配置代码*/</span><span class="p">});</span>
+</span></span><span class="line"><span class="cl"><span class="n">Configuration</span><span class="p">.</span><span class="n">Modules</span><span class="p">.</span><span class="n">AbpEfCore</span><span class="p">().</span><span class="n">AddDbContext</span><span class="p">&lt;</span><span class="n">BDbContext</span><span class="p">&gt;(</span><span class="n">options</span><span class="p">=&gt;{</span> <span class="cm">/*配置代码*/</span><span class="p">});</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/aspnetboilerplate/">AspNetBoilerplate</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/why-not-use-async-void/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">为什么不要使用 async void ？</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-mongodb-retrofits-the-default-audit-log-storage-location/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp &#43; MongoDb 改造默认的审计日志存储位置</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-source-code-analysis-seventeen-aspnet-core-integration/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp 源码分析：十七、ASP.NET Core 集成</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/replace-abps-di-framework-with-dryioc/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">使用 DryIoc 替换 Abp 的 DI 框架</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-source-code-analysis-sixteen-background-work-and-background-workers/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp 源码分析：十六、后台工作与后台工作者</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#0简要介绍">0.简要介绍</a></li>
+    <li><a href="#1启动流程">1.启动流程</a></li>
+    <li><a href="#2代码分析">2.代码分析</a>
+      <ol>
+        <li><a href="#21自定义模块配置">2.1自定义模块配置</a></li>
+        <li><a href="#22-服务实现替换">2.2 服务实现替换</a></li>
+        <li><a href="#3-扩展abp-支持多数据库">3. 扩展：Abp 支持多数据库</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

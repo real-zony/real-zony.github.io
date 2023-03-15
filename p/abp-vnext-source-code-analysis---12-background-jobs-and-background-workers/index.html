@@ -1,0 +1,2200 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、简要说明 文章信息：
+基于的 ABP vNext 版本：1.0.0
+创作日期：2019 年 10 月 24 日晚
+更新日期：暂无
+ABP vNext 提供了后台工作者和后台作业的支持，基本实现与原来的 ABP 框架类似，并且 ABP vNext 还提供了对 HangFire 和 RabbitMQ 的后台作业集成。开发人员在使用这些第三方库的时候，基本就是开箱即用，不需要做其他复杂的配置。
+后台作业在系统开发的过程当中，是比较常用的功能。因为总是有一些长耗时的任务，而这些任务我们不是立即响应的，例如 Excel 文档导入、批量发送短信通知等。
+后台工作者 的话，ABP vNext 的实现就是在 CLR 的 Timer 之上封装了一层，周期性地执行用户逻辑。ABP vNext 默认提供的 后台任务管理器，就是在后台工作者基础之上进行的封装。
+涉及到后台任务、后台工作者的模块一共有 6 个，它们分别是：
+Volo.Abp.Threading ：提供了一些常用的线程组件，其中 AbpTimer 就是在里面实现的。 Volo.Abp.BackgroundWorkers ：后台工作者的定义和实现。 Volo.Abp.BackgroundJobs.Abstractions ：后台任务的一些共有定义。 Volo.Abp.BackgroundJobs ：默认的后台任务管理器实现。 Volo.Abp.BackgroundJobs.HangFire ：基于 Hangfire 库实现的后台任务管理器。 Volo.Abp.BackgroundJobs.RabbitMQ ： 基于 RabbitMQ 实现的后台任务管理器。 '><title>Abp vNext 源码分析 - 12. 后台作业与后台工作者</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/abp-vnext-source-code-analysis---12-background-jobs-and-background-workers/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp vNext 源码分析 - 12. 后台作业与后台工作者'>
+<meta property='og:description' content='一、简要说明 文章信息：
+基于的 ABP vNext 版本：1.0.0
+创作日期：2019 年 10 月 24 日晚
+更新日期：暂无
+ABP vNext 提供了后台工作者和后台作业的支持，基本实现与原来的 ABP 框架类似，并且 ABP vNext 还提供了对 HangFire 和 RabbitMQ 的后台作业集成。开发人员在使用这些第三方库的时候，基本就是开箱即用，不需要做其他复杂的配置。
+后台作业在系统开发的过程当中，是比较常用的功能。因为总是有一些长耗时的任务，而这些任务我们不是立即响应的，例如 Excel 文档导入、批量发送短信通知等。
+后台工作者 的话，ABP vNext 的实现就是在 CLR 的 Timer 之上封装了一层，周期性地执行用户逻辑。ABP vNext 默认提供的 后台任务管理器，就是在后台工作者基础之上进行的封装。
+涉及到后台任务、后台工作者的模块一共有 6 个，它们分别是：
+Volo.Abp.Threading ：提供了一些常用的线程组件，其中 AbpTimer 就是在里面实现的。 Volo.Abp.BackgroundWorkers ：后台工作者的定义和实现。 Volo.Abp.BackgroundJobs.Abstractions ：后台任务的一些共有定义。 Volo.Abp.BackgroundJobs ：默认的后台任务管理器实现。 Volo.Abp.BackgroundJobs.HangFire ：基于 Hangfire 库实现的后台任务管理器。 Volo.Abp.BackgroundJobs.RabbitMQ ： 基于 RabbitMQ 实现的后台任务管理器。 '>
+<meta property='og:url' content='https://real-zony.github.io/p/abp-vnext-source-code-analysis---12-background-jobs-and-background-workers/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='ABP vNext' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='ASP.NET Core' /><meta property='article:tag' content='ASP.NET Core MVC' /><meta property='article:published_time' content='2019-10-25T08:27:00&#43;00:00'/><meta property='article:modified_time' content='2019-10-25T08:27:00&#43;00:00'/>
+<meta name="twitter:title" content="Abp vNext 源码分析 - 12. 后台作业与后台工作者">
+<meta name="twitter:description" content="一、简要说明 文章信息：
+基于的 ABP vNext 版本：1.0.0
+创作日期：2019 年 10 月 24 日晚
+更新日期：暂无
+ABP vNext 提供了后台工作者和后台作业的支持，基本实现与原来的 ABP 框架类似，并且 ABP vNext 还提供了对 HangFire 和 RabbitMQ 的后台作业集成。开发人员在使用这些第三方库的时候，基本就是开箱即用，不需要做其他复杂的配置。
+后台作业在系统开发的过程当中，是比较常用的功能。因为总是有一些长耗时的任务，而这些任务我们不是立即响应的，例如 Excel 文档导入、批量发送短信通知等。
+后台工作者 的话，ABP vNext 的实现就是在 CLR 的 Timer 之上封装了一层，周期性地执行用户逻辑。ABP vNext 默认提供的 后台任务管理器，就是在后台工作者基础之上进行的封装。
+涉及到后台任务、后台工作者的模块一共有 6 个，它们分别是：
+Volo.Abp.Threading ：提供了一些常用的线程组件，其中 AbpTimer 就是在里面实现的。 Volo.Abp.BackgroundWorkers ：后台工作者的定义和实现。 Volo.Abp.BackgroundJobs.Abstractions ：后台任务的一些共有定义。 Volo.Abp.BackgroundJobs ：默认的后台任务管理器实现。 Volo.Abp.BackgroundJobs.HangFire ：基于 Hangfire 库实现的后台任务管理器。 Volo.Abp.BackgroundJobs.RabbitMQ ： 基于 RabbitMQ 实现的后台任务管理器。 ">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-vnext-source-code-analysis---12-background-jobs-and-background-workers/">Abp vNext 源码分析 - 12. 后台作业与后台工作者</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Oct 25, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 12 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一简要说明">一、简要说明</h2>
+<blockquote>
+<p><strong>文章信息：</strong></p>
+<p>基于的 ABP vNext 版本：1.0.0</p>
+<p>创作日期：2019 年 10 月 24 日晚</p>
+<p>更新日期：暂无</p>
+</blockquote>
+<p>ABP vNext 提供了后台工作者和后台作业的支持，基本实现与原来的 ABP 框架类似，并且 ABP vNext 还提供了对 HangFire 和 RabbitMQ 的后台作业集成。开发人员在使用这些第三方库的时候，基本就是开箱即用，不需要做其他复杂的配置。</p>
+<p>后台作业在系统开发的过程当中，是比较常用的功能。因为总是有一些长耗时的任务，而这些任务我们不是立即响应的，例如 Excel 文档导入、批量发送短信通知等。</p>
+<p><strong>后台工作者</strong> 的话，ABP vNext 的实现就是在 CLR 的 <code>Timer</code> 之上封装了一层，周期性地执行用户逻辑。ABP vNext 默认提供的 <strong>后台任务管理器</strong>，就是在后台工作者基础之上进行的封装。</p>
+<p>涉及到后台任务、后台工作者的模块一共有 6 个，它们分别是：</p>
+<ul>
+<li><strong>Volo.Abp.Threading</strong> ：提供了一些常用的线程组件，其中 <code>AbpTimer</code> 就是在里面实现的。</li>
+<li><strong>Volo.Abp.BackgroundWorkers</strong> ：后台工作者的定义和实现。</li>
+<li><strong>Volo.Abp.BackgroundJobs.Abstractions</strong> ：后台任务的一些共有定义。</li>
+<li><strong>Volo.Abp.BackgroundJobs</strong> ：默认的后台任务管理器实现。</li>
+<li><strong>Volo.Abp.BackgroundJobs.HangFire</strong> ：基于 Hangfire 库实现的后台任务管理器。</li>
+<li><strong>Volo.Abp.BackgroundJobs.RabbitMQ</strong> ： 基于 RabbitMQ 实现的后台任务管理器。</li>
+</ul>
+<h2 id="二源码分析">二、源码分析</h2>
+<h3 id="21-线程组件">2.1 线程组件</h3>
+<h4 id="211-健壮的计时器">2.1.1 健壮的计时器</h4>
+<p>CLR 为我们提供了多种计时器，我们一般使用的是 <code>System.Threading.Timer</code> ，它是基于 CLR 线程池的一个周期计时器，会根据我们配置的 <code>Period</code> (周期) 定时执行。在 CLR 线程池中，所有的 <code>Timer</code> 只有 1 个线程为其服务。这个线程直到下一个计时器的触发时间，当下一个 <code>Timer</code> 对象到期时，这个线程就会将 <code>Timer</code> 的回调方法通过 <code>ThreadPool.QueueUserWorkItem()</code> 扔到线程池去执行。</p>
+<p>不过这带来了一个问题，即你的回调方法执行时间超过了计时器的周期，那么就会造成上一个任务还没执行完成又开始执行新的任务。</p>
+<p>解决这个方法其实很简单，即启动之后，将周期设置为 <code>Timeout.Infinite</code> ，这样只会执行一次。当回调方法执行完成之后，就设置 <code>dueTime</code> 参数说明下次执行要等待多久，并且周期还是 <code>Timeout.Infinite</code>。</p>
+<p>ABP vNext 已经为我们提供了健壮的计时器，该类型的定义是 <code>AbpTimer</code> ，在内部用到了 <code>volatile</code> 关键字和 <code>Monitor</code> 实现 <strong>条件变量模式</strong> 解决多线程环境下的问题。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">  1
+</span><span class="lnt">  2
+</span><span class="lnt">  3
+</span><span class="lnt">  4
+</span><span class="lnt">  5
+</span><span class="lnt">  6
+</span><span class="lnt">  7
+</span><span class="lnt">  8
+</span><span class="lnt">  9
+</span><span class="lnt"> 10
+</span><span class="lnt"> 11
+</span><span class="lnt"> 12
+</span><span class="lnt"> 13
+</span><span class="lnt"> 14
+</span><span class="lnt"> 15
+</span><span class="lnt"> 16
+</span><span class="lnt"> 17
+</span><span class="lnt"> 18
+</span><span class="lnt"> 19
+</span><span class="lnt"> 20
+</span><span class="lnt"> 21
+</span><span class="lnt"> 22
+</span><span class="lnt"> 23
+</span><span class="lnt"> 24
+</span><span class="lnt"> 25
+</span><span class="lnt"> 26
+</span><span class="lnt"> 27
+</span><span class="lnt"> 28
+</span><span class="lnt"> 29
+</span><span class="lnt"> 30
+</span><span class="lnt"> 31
+</span><span class="lnt"> 32
+</span><span class="lnt"> 33
+</span><span class="lnt"> 34
+</span><span class="lnt"> 35
+</span><span class="lnt"> 36
+</span><span class="lnt"> 37
+</span><span class="lnt"> 38
+</span><span class="lnt"> 39
+</span><span class="lnt"> 40
+</span><span class="lnt"> 41
+</span><span class="lnt"> 42
+</span><span class="lnt"> 43
+</span><span class="lnt"> 44
+</span><span class="lnt"> 45
+</span><span class="lnt"> 46
+</span><span class="lnt"> 47
+</span><span class="lnt"> 48
+</span><span class="lnt"> 49
+</span><span class="lnt"> 50
+</span><span class="lnt"> 51
+</span><span class="lnt"> 52
+</span><span class="lnt"> 53
+</span><span class="lnt"> 54
+</span><span class="lnt"> 55
+</span><span class="lnt"> 56
+</span><span class="lnt"> 57
+</span><span class="lnt"> 58
+</span><span class="lnt"> 59
+</span><span class="lnt"> 60
+</span><span class="lnt"> 61
+</span><span class="lnt"> 62
+</span><span class="lnt"> 63
+</span><span class="lnt"> 64
+</span><span class="lnt"> 65
+</span><span class="lnt"> 66
+</span><span class="lnt"> 67
+</span><span class="lnt"> 68
+</span><span class="lnt"> 69
+</span><span class="lnt"> 70
+</span><span class="lnt"> 71
+</span><span class="lnt"> 72
+</span><span class="lnt"> 73
+</span><span class="lnt"> 74
+</span><span class="lnt"> 75
+</span><span class="lnt"> 76
+</span><span class="lnt"> 77
+</span><span class="lnt"> 78
+</span><span class="lnt"> 79
+</span><span class="lnt"> 80
+</span><span class="lnt"> 81
+</span><span class="lnt"> 82
+</span><span class="lnt"> 83
+</span><span class="lnt"> 84
+</span><span class="lnt"> 85
+</span><span class="lnt"> 86
+</span><span class="lnt"> 87
+</span><span class="lnt"> 88
+</span><span class="lnt"> 89
+</span><span class="lnt"> 90
+</span><span class="lnt"> 91
+</span><span class="lnt"> 92
+</span><span class="lnt"> 93
+</span><span class="lnt"> 94
+</span><span class="lnt"> 95
+</span><span class="lnt"> 96
+</span><span class="lnt"> 97
+</span><span class="lnt"> 98
+</span><span class="lnt"> 99
+</span><span class="lnt">100
+</span><span class="lnt">101
+</span><span class="lnt">102
+</span><span class="lnt">103
+</span><span class="lnt">104
+</span><span class="lnt">105
+</span><span class="lnt">106
+</span><span class="lnt">107
+</span><span class="lnt">108
+</span><span class="lnt">109
+</span><span class="lnt">110
+</span><span class="lnt">111
+</span><span class="lnt">112
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpTimer</span> <span class="p">:</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 回调事件。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">event</span> <span class="n">EventHandler</span> <span class="n">Elapsed</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 执行周期。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">int</span> <span class="n">Period</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 定时器启动之后就开始运行，默认为 Fasle。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">RunOnStart</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 日志记录器。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ILogger</span><span class="p">&lt;</span><span class="n">AbpTimer</span><span class="p">&gt;</span> <span class="n">Logger</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">Timer</span> <span class="n">_taskTimer</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 定时器是否在执行任务，默认为 false。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">volatile</span> <span class="kt">bool</span> <span class="n">_performingTasks</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 定时器的运行状态，默认为 false。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">volatile</span> <span class="kt">bool</span> <span class="n">_isRunning</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">AbpTimer</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Logger</span> <span class="p">=</span> <span class="n">NullLogger</span><span class="p">&lt;</span><span class="n">AbpTimer</span><span class="p">&gt;.</span><span class="n">Instance</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 回调函数是 TimerCallBack，执行周期为永不执行。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_taskTimer</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Timer</span><span class="p">(</span><span class="n">TimerCallBack</span><span class="p">,</span> <span class="k">null</span><span class="p">,</span> <span class="n">Timeout</span><span class="p">.</span><span class="n">Infinite</span><span class="p">,</span> <span class="n">Timeout</span><span class="p">.</span><span class="n">Infinite</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">Start</span><span class="p">(</span><span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果传递的周期小于等于 0 ，则抛出异常。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">Period</span> <span class="p">&lt;=</span> <span class="m">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">throw</span> <span class="k">new</span> <span class="n">AbpException</span><span class="p">(</span><span class="s">&#34;Period should be set before starting the timer!&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 使用互斥锁，保证线程安全。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">lock</span> <span class="p">(</span><span class="n">_taskTimer</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 如果启动之后就需要马上执行，则设置为 0，马上执行任务，否则会等待 Period 毫秒之后再执行（1 个周期）。</span>
+</span></span><span class="line"><span class="cl">            <span class="n">_taskTimer</span><span class="p">.</span><span class="n">Change</span><span class="p">(</span><span class="n">RunOnStart</span> <span class="p">?</span> <span class="m">0</span> <span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Timeout</span><span class="p">.</span><span class="n">Infinite</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 定时器成功运行了。</span>
+</span></span><span class="line"><span class="cl">            <span class="n">_isRunning</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 释放 _taskTimer 的互斥锁。</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">Stop</span><span class="p">(</span><span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 使用互斥锁。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">lock</span> <span class="p">(</span><span class="n">_taskTimer</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 将内部定时器设置为永不执行的状态。</span>
+</span></span><span class="line"><span class="cl">            <span class="n">_taskTimer</span><span class="p">.</span><span class="n">Change</span><span class="p">(</span><span class="n">Timeout</span><span class="p">.</span><span class="n">Infinite</span><span class="p">,</span> <span class="n">Timeout</span><span class="p">.</span><span class="n">Infinite</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// 检测当前是否还有正在执行的任务，如果有则等待任务执行完成。</span>
+</span></span><span class="line"><span class="cl">            <span class="k">while</span> <span class="p">(</span><span class="n">_performingTasks</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 临时释放锁，阻塞当前线程。但是其他线程可以获取 _timer 的互斥锁。</span>
+</span></span><span class="line"><span class="cl">                <span class="n">Monitor</span><span class="p">.</span><span class="n">Wait</span><span class="p">(</span><span class="n">_taskTimer</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// 需要表示停止状态，所以标记状态为 false。</span>
+</span></span><span class="line"><span class="cl">            <span class="n">_isRunning</span> <span class="p">=</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">void</span> <span class="n">TimerCallBack</span><span class="p">(</span><span class="kt">object</span> <span class="n">state</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">lock</span> <span class="p">(</span><span class="n">_taskTimer</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 如果有任务正在运行，或者内部定时器已经停止了，则不做任何事情。</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(!</span><span class="n">_isRunning</span> <span class="p">||</span> <span class="n">_performingTasks</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// 临时停止内部定时器。</span>
+</span></span><span class="line"><span class="cl">            <span class="n">_taskTimer</span><span class="p">.</span><span class="n">Change</span><span class="p">(</span><span class="n">Timeout</span><span class="p">.</span><span class="n">Infinite</span><span class="p">,</span> <span class="n">Timeout</span><span class="p">.</span><span class="n">Infinite</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 表明马上需要执行任务了。</span>
+</span></span><span class="line"><span class="cl">            <span class="n">_performingTasks</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">try</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 调用绑定的事件。</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Elapsed</span><span class="p">.</span><span class="n">InvokeSafely</span><span class="p">(</span><span class="k">this</span><span class="p">,</span> <span class="k">new</span> <span class="n">EventArgs</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">catch</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 注意，这里将会吞噬异常。</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">finally</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">lock</span> <span class="p">(</span><span class="n">_taskTimer</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 任务执行完成，更改状态。</span>
+</span></span><span class="line"><span class="cl">                <span class="n">_performingTasks</span> <span class="p">=</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="c1">// 如果定时器还在运行，没有被停止，则启动下一个 Period 周期。</span>
+</span></span><span class="line"><span class="cl">                <span class="k">if</span> <span class="p">(</span><span class="n">_isRunning</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">_taskTimer</span><span class="p">.</span><span class="n">Change</span><span class="p">(</span><span class="n">Period</span><span class="p">,</span> <span class="n">Timeout</span><span class="p">.</span><span class="n">Infinite</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">                <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="c1">// 解除因为释放锁而阻塞的线程。</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 如果已经调用了 Stop，则会唤醒那个因为 Wait 阻塞的线程，就会使 _isRunning 置为 false。</span>
+</span></span><span class="line"><span class="cl">                <span class="n">Monitor</span><span class="p">.</span><span class="n">Pulse</span><span class="p">(</span><span class="n">_taskTimer</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里对 <code>_performingTasks</code> 和 <code>_isRunning</code> 字段设置为 <code>volatile</code> 防止指令重排和寄存器缓存。这是因为在 <code>Stop</code> 方法内部使用到的 <code>_performingTasks</code> 可能会被优化，所以将该字段设置为了易失的。</p>
+<h4 id="221-irunnable-接口">2.2.1 <code>IRunnable</code> 接口</h4>
+<p>ABP vNext 为任务的启动和停止，抽象了一个 <code>IRunnable</code> 接口。虽然描述说的是对线程的行为进行抽象，但千万千万不要手动调用 <code>Thread.Abort()</code> 。关于 <code>Thread.Abort()</code> 的坏处，这里不再多加赘述，可以参考 <strong><a class="link" href="https://blog.gkarch.com/threading/part4.html#complications-with-thread-abort"  target="_blank" rel="noopener"
+    >这篇文章</a></strong> 的描述，或者搜索其他的相关文章。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IRunnable</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 启动这个服务。</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span> <span class="n">StartAsync</span><span class="p">(</span><span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 停止这个服务。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span> <span class="n">StopAsync</span><span class="p">(</span><span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-后台工作者">2.2 后台工作者</h3>
+<h4 id="221-模块的构造">2.2.1 模块的构造</h4>
+<p>后台工作者的模块行为比较简单，它定义了在应用程序初始化和销毁时的行为。在初始化时，<strong>后台工作者管理器</strong> 获得所有 <strong>后台工作者</strong>，并开始启动它们。在销毁时，后台工作者管理器获得所有后台工作者，并开始停止他们，这样才能够做到优雅退出。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[DependsOn(
+</span></span></span><span class="line"><span class="cl"><span class="na">    typeof(AbpThreadingModule)
+</span></span></span><span class="line"><span class="cl"><span class="na">    )]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpBackgroundWorkersModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">OnApplicationInitialization</span><span class="p">(</span><span class="n">ApplicationInitializationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">options</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IOptions</span><span class="p">&lt;</span><span class="n">AbpBackgroundWorkerOptions</span><span class="p">&gt;&gt;().</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果启用了后台工作者，那么获得后台工作者管理器的实例，并调用 StartAsync 启动所有后台工作者。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">options</span><span class="p">.</span><span class="n">IsEnabled</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">AsyncHelper</span><span class="p">.</span><span class="n">RunSync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="p">()</span> <span class="p">=&gt;</span> <span class="n">context</span><span class="p">.</span><span class="n">ServiceProvider</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IBackgroundWorkerManager</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">.</span><span class="n">StartAsync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">OnApplicationShutdown</span><span class="p">(</span><span class="n">ApplicationShutdownContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">options</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IOptions</span><span class="p">&lt;</span><span class="n">AbpBackgroundWorkerOptions</span><span class="p">&gt;&gt;().</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果启用了后台工作者，那么获得后台工作者管理器的实例，并调用 StopAsync 停止所有后台工作者。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">options</span><span class="p">.</span><span class="n">IsEnabled</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">AsyncHelper</span><span class="p">.</span><span class="n">RunSync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="p">()</span> <span class="p">=&gt;</span> <span class="n">context</span><span class="p">.</span><span class="n">ServiceProvider</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IBackgroundWorkerManager</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">.</span><span class="n">StopAsync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="221-后台工作者的定义">2.2.1 后台工作者的定义</h4>
+<p>首先看看 <code>IBackgroundWorker</code> 接口的定义，是空的。不过继承了 <code>ISingletonDependency</code> 接口，说明我们的每个后台工作者都是 <strong>单例</strong> 的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// 在后台运行，执行某些任务的工作程序（线程）的接口定义。</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IBackgroundWorker</span> <span class="p">:</span> <span class="n">IRunnable</span><span class="p">,</span> <span class="n">ISingletonDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>ABP vNext 为我们定义了一个抽象的后台工作者类型 <code>BackgroundWorkerBase</code>，这个基类的设计目的是提供一些常用组件（和 <code>ApplicationService</code> 一样）。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">BackgroundWorkerBase</span> <span class="p">:</span> <span class="n">IBackgroundWorker</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">//TODO: Add UOW, Localization and other useful properties..?</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">//TODO: 是否应该提供工作单元、本地化以及其他常用的属性？</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ILogger</span><span class="p">&lt;</span><span class="n">BackgroundWorkerBase</span><span class="p">&gt;</span> <span class="n">Logger</span> <span class="p">{</span> <span class="k">protected</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">BackgroundWorkerBase</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Logger</span> <span class="p">=</span> <span class="n">NullLogger</span><span class="p">&lt;</span><span class="n">BackgroundWorkerBase</span><span class="p">&gt;.</span><span class="n">Instance</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">Task</span> <span class="n">StartAsync</span><span class="p">(</span><span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Logger</span><span class="p">.</span><span class="n">LogDebug</span><span class="p">(</span><span class="s">&#34;Started background worker: &#34;</span> <span class="p">+</span> <span class="n">ToString</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">Task</span><span class="p">.</span><span class="n">CompletedTask</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">Task</span> <span class="n">StopAsync</span><span class="p">(</span><span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Logger</span><span class="p">.</span><span class="n">LogDebug</span><span class="p">(</span><span class="s">&#34;Stopped background worker: &#34;</span> <span class="p">+</span> <span class="n">ToString</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">Task</span><span class="p">.</span><span class="n">CompletedTask</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="kt">string</span> <span class="n">ToString</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">GetType</span><span class="p">().</span><span class="n">FullName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>ABP vNext 内部只有一个默认的后台工作者实现 <code>PeriodicBackgroundWorkerBase</code>。从名字上来看，意思是就是周期执行的后台工作者，内部就是用的 <code>AbpTimer</code> 来实现，ABP vNext 将其包装起来是为了实现统一的模式(后台工作者)。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">PeriodicBackgroundWorkerBase</span> <span class="p">:</span> <span class="n">BackgroundWorkerBase</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">readonly</span> <span class="n">AbpTimer</span> <span class="n">Timer</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 也就意味着子类必须在其构造函数，指定 timer 的执行周期。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">PeriodicBackgroundWorkerBase</span><span class="p">(</span><span class="n">AbpTimer</span> <span class="n">timer</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Timer</span> <span class="p">=</span> <span class="n">timer</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Timer</span><span class="p">.</span><span class="n">Elapsed</span> <span class="p">+=</span> <span class="n">Timer_Elapsed</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 启动后台工作者。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">StartAsync</span><span class="p">(</span><span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="k">base</span><span class="p">.</span><span class="n">StartAsync</span><span class="p">(</span><span class="n">cancellationToken</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Timer</span><span class="p">.</span><span class="n">Start</span><span class="p">(</span><span class="n">cancellationToken</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 停止后台工作者。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">StopAsync</span><span class="p">(</span><span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Timer</span><span class="p">.</span><span class="n">Stop</span><span class="p">(</span><span class="n">cancellationToken</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="k">base</span><span class="p">.</span><span class="n">StopAsync</span><span class="p">(</span><span class="n">cancellationToken</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// Timer 关联的周期事件，之所以不直接挂载 DoWork，是为了捕获异常。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">void</span> <span class="n">Timer_Elapsed</span><span class="p">(</span><span class="kt">object</span> <span class="n">sender</span><span class="p">,</span> <span class="n">System</span><span class="p">.</span><span class="n">EventArgs</span> <span class="n">e</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">try</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">DoWork</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Logger</span><span class="p">.</span><span class="n">LogException</span><span class="p">(</span><span class="n">ex</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 你要周期执行的任务。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">abstract</span> <span class="k">void</span> <span class="n">DoWork</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>我们如果要实现自己的后台工作者，只需要继承该类，实现 <code>DoWork()</code> 方法即可。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TestWorker</span> <span class="p">:</span> <span class="n">PeriodicBackgroundWorkerBase</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TestWorker</span><span class="p">(</span><span class="n">AbpTimer</span> <span class="n">timer</span><span class="p">)</span> <span class="p">:</span> <span class="k">base</span><span class="p">(</span><span class="n">timer</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 每五分钟执行一次。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">timer</span><span class="p">.</span><span class="n">Period</span> <span class="p">=</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">TimeSpan</span><span class="p">.</span><span class="n">FromMinutes</span><span class="p">(</span><span class="m">5</span><span class="p">).</span><span class="n">TotalMilliseconds</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">override</span> <span class="k">void</span> <span class="n">DoWork</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;后台工作者被执行了。&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>然后在我们自己模块的 <code>OnPreApplicationInitialization()</code> 方法内解析出后台作业管理器(<code>IBackgroundWorkerManager</code>)，调用它的 <code>Add()</code> 方法，将我们定义的 <code>TestWorker</code> 添加到管理器当中即可。</p>
+<h4 id="222-后台工作者管理器">2.2.2 后台工作者管理器</h4>
+<p>所有的后台工作者都是通过 <code>IBackgroundWorkerManager</code> 进行管理的，它提供了 <code>StartAsync()</code>、<code>StopAsync()</code>、<code>Add()</code> 方法。前面两个方法就是 <code>IRunnable</code> 接口定义的，后台工作者管理器直接集成了该接口，后面的 <code>Add()</code> 方法就是用来动态添加我们的后台工作者。</p>
+<p>后台工作者管理器的默认实现是 <code>BackgroundWorkerManager</code> 类型，它内部做的事情很简单，就是维护一个后台工作者集合。每当调用 <code>StartAsync()</code> 或 <code>StopAsync()</code> 方法的时候，都从这个集合遍历后台工作者，执行他们的启动和停止方法。</p>
+<p>这里值得注意的一点是，当我们调用 <code>Add()</code> 方法添加了一个后台工作者之后，后台工作者管理器就会启动这个后台工作者。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">BackgroundWorkerManager</span> <span class="p">:</span> <span class="n">IBackgroundWorkerManager</span><span class="p">,</span> <span class="n">ISingletonDependency</span><span class="p">,</span> <span class="n">IDisposable</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="kt">bool</span> <span class="n">IsRunning</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="kt">bool</span> <span class="n">_isDisposed</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">IBackgroundWorker</span><span class="p">&gt;</span> <span class="n">_backgroundWorkers</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">BackgroundWorkerManager</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_backgroundWorkers</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">IBackgroundWorker</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">Add</span><span class="p">(</span><span class="n">IBackgroundWorker</span> <span class="n">worker</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_backgroundWorkers</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">worker</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果当前后台工作者管理器还处于运行状态，则调用工作者的 StartAsync() 方法启动。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">IsRunning</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">AsyncHelper</span><span class="p">.</span><span class="n">RunSync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="p">()</span> <span class="p">=&gt;</span> <span class="n">worker</span><span class="p">.</span><span class="n">StartAsync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">Dispose</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">_isDisposed</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">_isDisposed</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">//TODO: ???</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 启动，则遍历集合启动。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">StartAsync</span><span class="p">(</span><span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IsRunning</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">worker</span> <span class="k">in</span> <span class="n">_backgroundWorkers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">worker</span><span class="p">.</span><span class="n">StartAsync</span><span class="p">(</span><span class="n">cancellationToken</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 停止， 则遍历集合停止。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">StopAsync</span><span class="p">(</span><span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IsRunning</span> <span class="p">=</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">worker</span> <span class="k">in</span> <span class="n">_backgroundWorkers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">worker</span><span class="p">.</span><span class="n">StopAsync</span><span class="p">(</span><span class="n">cancellationToken</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>上述代码其实存在一个问题，即后台工作者被释放以后，是否还能执行 <code>Add()</code> 操作。参考我 <strong><a class="link" href="https://www.cnblogs.com/myzony/p/11712689.html"  target="_blank" rel="noopener"
+    >之前的文章</a></strong> ，其实当对象被释放之后，就应该抛出 <code>ObjectDisposedException</code> 异常。</p>
+<h3 id="23-后台作业">2.3 后台作业</h3>
+<p>比起后台工作者，我们执行一次性任务的时候，一般会使用后台作业进行处理。比起只能设置固定周期的 <code>PeriodicBackgroundWorkerBase</code> ，集成了 Hangfire 的后台作业管理器，能够让我们使用 Cron 表达式，更加灵活地设置任务的执行周期。</p>
+<h4 id="231-模块的构造">2.3.1 模块的构造</h4>
+<p>关于后台作业的模块，我们需要说道两处。第一处是位于 <strong>Volo.Abp.BackgroundJobs.Abstractions</strong> 项目的 <code>AbpBackgroundJobsAbstractionsModule</code> ，第二出则是位于 <strong>Volo.Abp.BackgroundJobs</strong> 项目的 <code>AbpBackgroundJobsModule</code> 。</p>
+<p><code>AbpBackgroundJobsAbstractionsModule</code> 的主要行为是将符合条件的后台作业，添加到 <code>AbpBackgroundJobOptions</code> 配置当中，以便后续进行使用。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">PreConfigureServices</span><span class="p">(</span><span class="n">ServiceConfigurationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">RegisterJobs</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">static</span> <span class="k">void</span> <span class="n">RegisterJobs</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">jobTypes</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果注册的类型符合 IBackgroundJob&lt;&gt; 泛型，则添加到集合当中。</span>
+</span></span><span class="line"><span class="cl">    <span class="n">services</span><span class="p">.</span><span class="n">OnRegistred</span><span class="p">(</span><span class="n">context</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">ReflectionHelper</span><span class="p">.</span><span class="n">IsAssignableToGenericType</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ImplementationType</span><span class="p">,</span> <span class="k">typeof</span><span class="p">(</span><span class="n">IBackgroundJob</span><span class="p">&lt;&gt;)))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">jobTypes</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ImplementationType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">});</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">services</span><span class="p">.</span><span class="n">Configure</span><span class="p">&lt;</span><span class="n">AbpBackgroundJobOptions</span><span class="p">&gt;(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 将数据赋值给配置类。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">jobType</span> <span class="k">in</span> <span class="n">jobTypes</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">options</span><span class="p">.</span><span class="n">AddJob</span><span class="p">(</span><span class="n">jobType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">});</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>Volo.Abp.BackgroundJobs</strong> 内部是 ABP vNext 为我们提供的 <strong>默认后台作业管理器</strong>，这个后台作业管理器 <strong>本质上是一个后台工作者</strong>。</p>
+<p>这个后台工作者会周期性(<strong>取决于 <code>AbpBackgroundJobWorkerOptions.JobPollPeriod</code> 值，默认为 5 秒种</strong>)地从 <code>IBackgroundJobStore</code> 捞出一堆后台任务，并且在后台执行。至于每次执行多少个后台任务，这也取决于 <code>AbpBackgroundJobWorkerOptions.MaxJobFetchCount</code> 的值，默认值是 1000 个。</p>
+<blockquote>
+<p>注意：</p>
+<p>这里的 Options 类是 <code>AbpBackgroundJobWorkerOptions</code>，别和 <code>AbpBackgroundWorkerOptions</code> 混淆了。</p>
+</blockquote>
+<p>所以在 <code>AbpBackgroundJobsModule</code> 模块里面，只做了一件事情，就是将负责后台作业的后台工作者，添加到后台工作者管理器种，并开始周期性地执行。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">OnApplicationInitialization</span><span class="p">(</span><span class="n">ApplicationInitializationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">options</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IOptions</span><span class="p">&lt;</span><span class="n">AbpBackgroundJobOptions</span><span class="p">&gt;&gt;().</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">options</span><span class="p">.</span><span class="n">IsJobExecutionEnabled</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 获得后台工作者管理器，并将负责后台作业的工作者添加进去。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">ServiceProvider</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IBackgroundWorkerManager</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IBackgroundJobWorker</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="232-后台作业的定义">2.3.2 后台作业的定义</h4>
+<p>在上一节里面看到，只要是实现 <code>IBackgroundJob&lt;TArgs&gt;</code> 类型的都视为一个后台作业。这个后台作业接口，只定义了一个行为，那就是执行(<code>Execute(TArgs)</code>)。这里的 <code>TArgs</code> 泛型作为执行后台作业时，需要传递的参数类型。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="c1">// 因为是传入的参数，所以泛型参数是逆变的。</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IBackgroundJob</span><span class="p">&lt;</span><span class="k">in</span> <span class="n">TArgs</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">Execute</span><span class="p">(</span><span class="n">TArgs</span> <span class="n">args</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>检查源码，发现 ABP vNext 的邮箱模块定义了一个邮件发送任务 <code>BackgroundEmailSendingJob</code>，它的实现大概如下。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">BackgroundEmailSendingJob</span> <span class="p">:</span> <span class="n">BackgroundJob</span><span class="p">&lt;</span><span class="n">BackgroundEmailSendingJobArgs</span><span class="p">&gt;,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">Execute</span><span class="p">(</span><span class="n">BackgroundEmailSendingJobArgs</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AsyncHelper</span><span class="p">.</span><span class="n">RunSync</span><span class="p">(()</span> <span class="p">=&gt;</span> <span class="n">EmailSender</span><span class="p">.</span><span class="n">SendAsync</span><span class="p">(</span><span class="n">args</span><span class="p">.</span><span class="n">To</span><span class="p">,</span> <span class="n">args</span><span class="p">.</span><span class="n">Subject</span><span class="p">,</span> <span class="n">args</span><span class="p">.</span><span class="n">Body</span><span class="p">,</span> <span class="n">args</span><span class="p">.</span><span class="n">IsBodyHtml</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="233-后台作业管理器">2.3.3 后台作业管理器</h4>
+<p>后台作业都是通过一个后台作业管理器(<code>IBackgroundJobManager</code>)进行管理的，这个接口定义了一个入队方法(<code>EnqueueAsync()</code>)，注意，我们的后台作业在入队后，不是马上执行的。</p>
+<p>说一下这个入队处理逻辑：</p>
+<ol>
+<li>首先我们会通过参数的类型，获取到任务的名称。(假设任务上面没有标注 <code>BackgroundJobNameAttribute</code> 特性，那么任务的名称就是参数类型的 <code>FullName</code> 。)</li>
+<li>构造一个 <code>BackgroundJobInfo</code> 对象。</li>
+<li>通过 <code>IBackgroundJobStore</code> 持久化任务信息。</li>
+</ol>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">EnqueueAsync</span><span class="p">&lt;</span><span class="n">TArgs</span><span class="p">&gt;(</span><span class="n">TArgs</span> <span class="n">args</span><span class="p">,</span> <span class="n">BackgroundJobPriority</span> <span class="n">priority</span> <span class="p">=</span> <span class="n">BackgroundJobPriority</span><span class="p">.</span><span class="n">Normal</span><span class="p">,</span> <span class="n">TimeSpan</span><span class="p">?</span> <span class="n">delay</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获取任务名称。</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">jobName</span> <span class="p">=</span> <span class="n">BackgroundJobNameAttribute</span><span class="p">.</span><span class="n">GetName</span><span class="p">&lt;</span><span class="n">TArgs</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">jobId</span> <span class="p">=</span> <span class="k">await</span> <span class="n">EnqueueAsync</span><span class="p">(</span><span class="n">jobName</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">priority</span><span class="p">,</span> <span class="n">delay</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">jobId</span><span class="p">.</span><span class="n">ToString</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">Guid</span><span class="p">&gt;</span> <span class="n">EnqueueAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">jobName</span><span class="p">,</span> <span class="kt">object</span> <span class="n">args</span><span class="p">,</span> <span class="n">BackgroundJobPriority</span> <span class="n">priority</span> <span class="p">=</span> <span class="n">BackgroundJobPriority</span><span class="p">.</span><span class="n">Normal</span><span class="p">,</span> <span class="n">TimeSpan</span><span class="p">?</span> <span class="n">delay</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">jobInfo</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BackgroundJobInfo</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Id</span> <span class="p">=</span> <span class="n">GuidGenerator</span><span class="p">.</span><span class="n">Create</span><span class="p">(),</span>
+</span></span><span class="line"><span class="cl">        <span class="n">JobName</span> <span class="p">=</span> <span class="n">jobName</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 通过序列化器，序列化参数值，方便存储。这里内部其实使用的是 JSON.NET 进行序列化。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">JobArgs</span> <span class="p">=</span> <span class="n">Serializer</span><span class="p">.</span><span class="n">Serialize</span><span class="p">(</span><span class="n">args</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Priority</span> <span class="p">=</span> <span class="n">priority</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">CreationTime</span> <span class="p">=</span> <span class="n">Clock</span><span class="p">.</span><span class="n">Now</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">NextTryTime</span> <span class="p">=</span> <span class="n">Clock</span><span class="p">.</span><span class="n">Now</span>
+</span></span><span class="line"><span class="cl">    <span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果任务有执行延迟，则任务的初始执行时间要加上这个延迟。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">delay</span><span class="p">.</span><span class="n">HasValue</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">jobInfo</span><span class="p">.</span><span class="n">NextTryTime</span> <span class="p">=</span> <span class="n">Clock</span><span class="p">.</span><span class="n">Now</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">delay</span><span class="p">.</span><span class="n">Value</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 持久化任务信息，方便后面执行后台作业的工作者能够取到。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">await</span> <span class="n">Store</span><span class="p">.</span><span class="n">InsertAsync</span><span class="p">(</span><span class="n">jobInfo</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">jobInfo</span><span class="p">.</span><span class="n">Id</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong><code>BackgroundJobNameAttribute</code> 相关的方法：</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="kt">string</span> <span class="n">GetName</span><span class="p">&lt;</span><span class="n">TJobArgs</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">GetName</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TJobArgs</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="kt">string</span> <span class="n">GetName</span><span class="p">([</span><span class="n">NotNull</span><span class="p">]</span> <span class="n">Type</span> <span class="n">jobArgsType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="n">jobArgsType</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">jobArgsType</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 判断参数类型上面是否标注了特性，并且特性实现了 IBackgroundJobNameProvider 接口。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">jobArgsType</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">GetCustomAttributes</span><span class="p">(</span><span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">OfType</span><span class="p">&lt;</span><span class="n">IBackgroundJobNameProvider</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">FirstOrDefault</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">                <span class="p">?.</span><span class="n">Name</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 拿不到名字，则使用类型的 FullName。</span>
+</span></span><span class="line"><span class="cl">            <span class="p">??</span> <span class="n">jobArgsType</span><span class="p">.</span><span class="n">FullName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="234-后台作业的存储">2.3.4 后台作业的存储</h4>
+<p>后台作业的存储默认是放在内存的，这点可以从 <code>InMemoryBackgroundJobStore</code> 类型实现看出来。在它的内部使用了一个并行字典，通过作业的 Guid 与作业进行关联绑定。</p>
+<p>除了内存实现，在 <strong>Volo.Abp.BackgroundJobs.Domain</strong> 模块还有一个 <code>BackgroundJobStore</code> 实现，基本套路与 <code>SettingStore</code> 一样，都是存储到数据库里面。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">BackgroundJobStore</span> <span class="p">:</span> <span class="n">IBackgroundJobStore</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IBackgroundJobRepository</span> <span class="n">BackgroundJobRepository</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... </span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">BackgroundJobInfo</span> <span class="n">Find</span><span class="p">(</span><span class="n">Guid</span> <span class="n">jobId</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">ObjectMapper</span><span class="p">.</span><span class="n">Map</span><span class="p">&lt;</span><span class="n">BackgroundJobRecord</span><span class="p">,</span> <span class="n">BackgroundJobInfo</span><span class="p">&gt;(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">BackgroundJobRepository</span><span class="p">.</span><span class="n">Find</span><span class="p">(</span><span class="n">jobId</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">Insert</span><span class="p">(</span><span class="n">BackgroundJobInfo</span> <span class="n">jobInfo</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">BackgroundJobRepository</span><span class="p">.</span><span class="n">Insert</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">ObjectMapper</span><span class="p">.</span><span class="n">Map</span><span class="p">&lt;</span><span class="n">BackgroundJobInfo</span><span class="p">,</span> <span class="n">BackgroundJobRecord</span><span class="p">&gt;(</span><span class="n">jobInfo</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="235-后台作业的执行">2.3.5 后台作业的执行</h4>
+<p>默认的后台作业管理器是通过一个后台工作者来执行后台任务的，这个实现叫做 <code>BackgroundJobWorker</code>，这个后台工作者的生命周期也是单例的。后台作业的具体执行逻辑里面，涉及到了以下几个类型的交互。</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:left">类型</th>
+<th style="text-align:left">作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>AbpBackgroundJobOptions</code></td>
+<td style="text-align:left">提供每个后台任务的配置信息，包括任务的类型、参数类型、任务名称数据。</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>AbpBackgroundJobWorkerOptions</code></td>
+<td style="text-align:left">提供后台作业工作者的配置信息，例如每个周期 <strong>最大执行的作业数量</strong>、后台 工作者的 <strong>执行周期</strong>、作业执行 <strong>超时时间</strong> 等。</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>BackgroundJobConfiguration</code></td>
+<td style="text-align:left">后台任务的配置信息，作用是将持久化存储的作业信息与运行时类型进行绑定 和实例化，以便 ABP vNext 来执行具体的任务。</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>IBackgroundJobExecuter</code></td>
+<td style="text-align:left">后台作业的执行器，当我们从持久化存储获取到后台作业信息时，将会通过 这个执行器来执行具体的后台作业。</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>IBackgroundJobSerializer</code></td>
+<td style="text-align:left">后台作业序列化器，用于后台作业持久化时进行序列化的工具，默认采用的 是 JSON.NET 进行实现。</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>JobExecutionContext</code></td>
+<td style="text-align:left">执行器在执行后台作业时，是通过这个上下文参数进行执行的，在这个上下 文内部，包含了后台作业的具体类型、后台作业的参数值。</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>IBackgroundJobStore</code></td>
+<td style="text-align:left">前面已经讲过了，这个是用于后台作业的持久化存储，默认实现是存储在内存。</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>BackgroundJobPriority</code></td>
+<td style="text-align:left">后台作业的执行优先级定义，ABP vNext 在执行后台任务时，会根据任务的优 先级进行排序，以便在后面执行的时候优先级高的任务先执行。</td>
+</tr>
+</tbody>
+</table></div>
+<p>我们来按照逻辑顺序走一遍它的实现，首先后台作业的执行工作者会从持久化存储内，获取 <code>MaxJobFetchCount</code> 个任务用于执行。从持久化存储获取后台作业信息(<code>BackgroundJobInfo</code>)，是由 <code>IBackgroundJobStore</code> 提供的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">store</span> <span class="p">=</span> <span class="n">scope</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IBackgroundJobStore</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">waitingJobs</span> <span class="p">=</span> <span class="n">store</span><span class="p">.</span><span class="n">GetWaitingJobs</span><span class="p">(</span><span class="n">WorkerOptions</span><span class="p">.</span><span class="n">MaxJobFetchCount</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 不存在任何后台作业，则直接结束本次调用。</span>
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(!</span><span class="n">waitingJobs</span><span class="p">.</span><span class="n">Any</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong><code>InMemoryBackgroundJobStore</code> 的相关实现：</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">BackgroundJobInfo</span><span class="p">&gt;</span> <span class="n">GetWaitingJobs</span><span class="p">(</span><span class="kt">int</span> <span class="n">maxResultCount</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">_jobs</span><span class="p">.</span><span class="n">Values</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">Where</span><span class="p">(</span><span class="n">t</span> <span class="p">=&gt;</span> <span class="p">!</span><span class="n">t</span><span class="p">.</span><span class="n">IsAbandoned</span> <span class="p">&amp;&amp;</span> <span class="n">t</span><span class="p">.</span><span class="n">NextTryTime</span> <span class="p">&lt;=</span> <span class="n">Clock</span><span class="p">.</span><span class="n">Now</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">OrderByDescending</span><span class="p">(</span><span class="n">t</span> <span class="p">=&gt;</span> <span class="n">t</span><span class="p">.</span><span class="n">Priority</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">ThenBy</span><span class="p">(</span><span class="n">t</span> <span class="p">=&gt;</span> <span class="n">t</span><span class="p">.</span><span class="n">TryCount</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">ThenBy</span><span class="p">(</span><span class="n">t</span> <span class="p">=&gt;</span> <span class="n">t</span><span class="p">.</span><span class="n">NextTryTime</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">Take</span><span class="p">(</span><span class="n">maxResultCount</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">ToList</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>上面的代码可以看出来，首先排除 <strong>被放弃的任务</strong> ，包含达到执行时间的任务，，然后根据任务的优先级从高到低进行排序。重试次数少的优先执行，预计执行时间越早的越先执行。最后从这些数据中，筛选出 <code>maxResultCount</code> 结果并返回。</p>
+<p>说到这里，我们来看一下这个 <code>NextTryTime</code> 是如何被计算出来的？回想起最开始的后台作业管理器，我们在添加一个后台任务的时候，就会设置这个后台任务的 <strong>预计执行时间</strong>。第一个任务被添加到执行队列中时，它的值一般是 <code>Clock.Now</code> ，也就是它被添加到队列的时间。</p>
+<p>不过 ABP vNext 为了让那些经常执行失败的任务，有比较低的优先级再执行，就在每次任务执行失败之后，会将 <code>NextTryTime</code> 的值指数级进行增加。这块代码可以在 <code>CalculateNextTryTime</code> 里面看到，也就是说某个任务的执行 <strong>失败次数越高</strong>，那么它下一次的预期执行时间就会越远。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="n">DateTime</span><span class="p">?</span> <span class="n">CalculateNextTryTime</span><span class="p">(</span><span class="n">BackgroundJobInfo</span> <span class="n">jobInfo</span><span class="p">,</span> <span class="n">IClock</span> <span class="n">clock</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 一般来说，这个 DefaultWaitFactor 因子的值是 2.0 。</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">nextWaitDuration</span> <span class="p">=</span> <span class="n">WorkerOptions</span><span class="p">.</span><span class="n">DefaultFirstWaitDuration</span> <span class="p">*</span> <span class="p">(</span><span class="n">Math</span><span class="p">.</span><span class="n">Pow</span><span class="p">(</span><span class="n">WorkerOptions</span><span class="p">.</span><span class="n">DefaultWaitFactor</span><span class="p">,</span> <span class="n">jobInfo</span><span class="p">.</span><span class="n">TryCount</span> <span class="p">-</span> <span class="m">1</span><span class="p">));</span> <span class="c1">// 同执行失败的次数进行挂钩。</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">nextTryDate</span> <span class="p">=</span> <span class="n">jobInfo</span><span class="p">.</span><span class="n">LastTryTime</span><span class="p">?.</span><span class="n">AddSeconds</span><span class="p">(</span><span class="n">nextWaitDuration</span><span class="p">)</span> <span class="p">??</span>
+</span></span><span class="line"><span class="cl">                        <span class="n">clock</span><span class="p">.</span><span class="n">Now</span><span class="p">.</span><span class="n">AddSeconds</span><span class="p">(</span><span class="n">nextWaitDuration</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">nextTryDate</span><span class="p">.</span><span class="n">Subtract</span><span class="p">(</span><span class="n">jobInfo</span><span class="p">.</span><span class="n">CreationTime</span><span class="p">).</span><span class="n">TotalSeconds</span> <span class="p">&gt;</span> <span class="n">WorkerOptions</span><span class="p">.</span><span class="n">DefaultTimeout</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">nextTryDate</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>当预期的执行时间都超过 <code>DefaultTimeout</code> 的超时时间时(默认为 2 天)，说明这个任务确实没救了，就不要再执行了。</p>
+<p>我们之前说到，从 <code>IBackgroundJobStore</code> 拿到了需要执行的后台任务信息集合，接下来我们就要开始执行后台任务了。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">jobInfo</span> <span class="k">in</span> <span class="n">waitingJobs</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">jobInfo</span><span class="p">.</span><span class="n">TryCount</span><span class="p">++;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">jobInfo</span><span class="p">.</span><span class="n">LastTryTime</span> <span class="p">=</span> <span class="n">clock</span><span class="p">.</span><span class="n">Now</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">try</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 根据任务名称获取任务的配置参数。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">jobConfiguration</span> <span class="p">=</span> <span class="n">JobOptions</span><span class="p">.</span><span class="n">GetJob</span><span class="p">(</span><span class="n">jobInfo</span><span class="p">.</span><span class="n">JobName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 根据配置里面存储的任务类型，将参数值进行反序列化。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">jobArgs</span> <span class="p">=</span> <span class="n">serializer</span><span class="p">.</span><span class="n">Deserialize</span><span class="p">(</span><span class="n">jobInfo</span><span class="p">.</span><span class="n">JobArgs</span><span class="p">,</span> <span class="n">jobConfiguration</span><span class="p">.</span><span class="n">ArgsType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 构造一个新的执行上下文，让执行器执行任务。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">context</span> <span class="p">=</span> <span class="k">new</span> <span class="n">JobExecutionContext</span><span class="p">(</span><span class="n">scope</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">,</span> <span class="n">jobConfiguration</span><span class="p">.</span><span class="n">JobType</span><span class="p">,</span> <span class="n">jobArgs</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">try</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">jobExecuter</span><span class="p">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// 如果任务执行成功则删除该任务。            </span>
+</span></span><span class="line"><span class="cl">            <span class="n">store</span><span class="p">.</span><span class="n">Delete</span><span class="p">(</span><span class="n">jobInfo</span><span class="p">.</span><span class="n">Id</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">catch</span> <span class="p">(</span><span class="n">BackgroundJobExecutionException</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 发生任务执行失败异常时，根据指定的公式计算下一次的执行时间。</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">nextTryTime</span> <span class="p">=</span> <span class="n">CalculateNextTryTime</span><span class="p">(</span><span class="n">jobInfo</span><span class="p">,</span> <span class="n">clock</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">nextTryTime</span><span class="p">.</span><span class="n">HasValue</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">jobInfo</span><span class="p">.</span><span class="n">NextTryTime</span> <span class="p">=</span> <span class="n">nextTryTime</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="k">else</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 超过超时时间的时候，公式计算函数返回 null，该任务置为废弃任务。</span>
+</span></span><span class="line"><span class="cl">                <span class="n">jobInfo</span><span class="p">.</span><span class="n">IsAbandoned</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="n">TryUpdate</span><span class="p">(</span><span class="n">store</span><span class="p">,</span> <span class="n">jobInfo</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 执行过程中，产生了未知异常，设置为废弃任务，并打印日志。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Logger</span><span class="p">.</span><span class="n">LogException</span><span class="p">(</span><span class="n">ex</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">jobInfo</span><span class="p">.</span><span class="n">IsAbandoned</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">TryUpdate</span><span class="p">(</span><span class="n">store</span><span class="p">,</span> <span class="n">jobInfo</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>执行后台任务的时候基本分为 5 步，它们分别是：</p>
+<ol>
+<li>获得任务关联的配置参数，默认不用提供，因为在之前模块初始化的时候就已经配置了（你也可以显式指定）。</li>
+<li>通过之前存储的配置参数，将参数值反序列化出来，构造具体实例。</li>
+<li>构造一个执行上下文。</li>
+<li>后台任务执行器执行具体的后台任务。</li>
+<li>成功则删除任务，失败则更新任务下次的执行状态。</li>
+</ol>
+<p>至于执行器里面的真正执行操作，你都拿到了参数值和任务类型了。就可以通过类型用 IoC 获取后台任务对象的实例，然后通过反射匹配方法签名，在实例上调用这个方法传入参数即可。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">Execute</span><span class="p">(</span><span class="n">JobExecutionContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 构造具体的后台作业实例对象。</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">job</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetService</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">JobType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">job</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span> <span class="k">new</span> <span class="n">AbpException</span><span class="p">(</span><span class="s">&#34;The job type is not registered to DI: &#34;</span> <span class="p">+</span> <span class="n">context</span><span class="p">.</span><span class="n">JobType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得需要执行的方法签名。</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">jobExecuteMethod</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">JobType</span><span class="p">.</span><span class="n">GetMethod</span><span class="p">(</span><span class="n">nameof</span><span class="p">(</span><span class="n">IBackgroundJob</span><span class="p">&lt;</span><span class="kt">object</span><span class="p">&gt;.</span><span class="n">Execute</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">jobExecuteMethod</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span> <span class="k">new</span> <span class="n">AbpException</span><span class="p">(</span><span class="s">$&#34;Given job type does not implement {typeof(IBackgroundJob&lt;&gt;).Name}. The job type was: &#34;</span> <span class="p">+</span> <span class="n">context</span><span class="p">.</span><span class="n">JobType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">try</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 直接通过 MethodInfo 的 Invoke 方法调用，传入具体的实例对象和参数值即可。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">jobExecuteMethod</span><span class="p">.</span><span class="n">Invoke</span><span class="p">(</span><span class="n">job</span><span class="p">,</span> <span class="k">new</span><span class="p">[]</span> <span class="p">{</span> <span class="n">context</span><span class="p">.</span><span class="n">JobArgs</span> <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Logger</span><span class="p">.</span><span class="n">LogException</span><span class="p">(</span><span class="n">ex</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果是执行方法内的异常，则包装进行处理，然后抛出。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span> <span class="k">new</span> <span class="n">BackgroundJobExecutionException</span><span class="p">(</span><span class="s">&#34;A background job execution is failed. See inner exception for details.&#34;</span><span class="p">,</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">JobType</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">JobType</span><span class="p">.</span><span class="n">AssemblyQualifiedName</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">JobArgs</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">JobArgs</span>
+</span></span><span class="line"><span class="cl">        <span class="p">};</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="235-集成-hangfire">2.3.5 集成 Hangfire</h4>
+<p>ABP vNext 对于 Hangfire 的集成代码分布在 <strong>Volo.Abp.HangFire</strong> 和 <strong>Volo.Abp.BackgroundJobs.HangFire</strong> 模块内部，前者是在模块配置里面，调用 Hangfire 库的相关方法，注入组件到 IoC 容器当中。后者则是对后台作业进行了适配处理，替换了默认的 <code>IBackgroundJobManager</code> 实现。</p>
+<p>在 <code>AbpHangfireModule</code> 模块内部，通过工厂创建出来一个 <code>BackgroudJobServer</code> 实例，并将它的生命周期与应用程序的生命周期进行绑定，以便进行销毁处理。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpHangfireModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">BackgroundJobServer</span> <span class="n">_backgroundJobServer</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">ConfigureServices</span><span class="p">(</span><span class="n">ServiceConfigurationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">.</span><span class="n">AddHangfire</span><span class="p">(</span><span class="n">configuration</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">.</span><span class="n">ExecutePreConfiguredActions</span><span class="p">(</span><span class="n">configuration</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">OnApplicationInitialization</span><span class="p">(</span><span class="n">ApplicationInitializationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">options</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">IOptions</span><span class="p">&lt;</span><span class="n">AbpHangfireOptions</span><span class="p">&gt;&gt;().</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_backgroundJobServer</span> <span class="p">=</span> <span class="n">options</span><span class="p">.</span><span class="n">BackgroundJobServerFactory</span><span class="p">.</span><span class="n">Invoke</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">OnApplicationShutdown</span><span class="p">(</span><span class="n">ApplicationShutdownContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">//TODO: ABP may provide two methods for application shutdown: OnPreApplicationShutdown &amp; OnApplicationShutdown</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_backgroundJobServer</span><span class="p">.</span><span class="n">SendStop</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_backgroundJobServer</span><span class="p">.</span><span class="n">Dispose</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>我们直奔主题，看一下基于 Hangfire 的后台作业管理器是怎么实现的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">HangfireBackgroundJobManager</span> <span class="p">:</span> <span class="n">IBackgroundJobManager</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">EnqueueAsync</span><span class="p">&lt;</span><span class="n">TArgs</span><span class="p">&gt;(</span><span class="n">TArgs</span> <span class="n">args</span><span class="p">,</span> <span class="n">BackgroundJobPriority</span> <span class="n">priority</span> <span class="p">=</span> <span class="n">BackgroundJobPriority</span><span class="p">.</span><span class="n">Normal</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">TimeSpan</span><span class="p">?</span> <span class="n">delay</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果没有延迟参数，则直接通过 Enqueue() 方法扔进执行对了。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="n">delay</span><span class="p">.</span><span class="n">HasValue</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">Task</span><span class="p">.</span><span class="n">FromResult</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">BackgroundJob</span><span class="p">.</span><span class="n">Enqueue</span><span class="p">&lt;</span><span class="n">HangfireJobExecutionAdapter</span><span class="p">&lt;</span><span class="n">TArgs</span><span class="p">&gt;&gt;(</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">adapter</span> <span class="p">=&gt;</span> <span class="n">adapter</span><span class="p">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">else</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">Task</span><span class="p">.</span><span class="n">FromResult</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">BackgroundJob</span><span class="p">.</span><span class="n">Schedule</span><span class="p">&lt;</span><span class="n">HangfireJobExecutionAdapter</span><span class="p">&lt;</span><span class="n">TArgs</span><span class="p">&gt;&gt;(</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">adapter</span> <span class="p">=&gt;</span> <span class="n">adapter</span><span class="p">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">args</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">delay</span><span class="p">.</span><span class="n">Value</span>
+</span></span><span class="line"><span class="cl">                <span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>上述代码中使用 <code>HangfireJobExecutionAdapter</code> 进行了一个适配操作，因为 Hangfire 要将一个后台任务扔进队列执行，不是用 <code>TArgs</code> 就能解决的。</p>
+<p>转到这个适配器定义，提供了一个 <code>Execute(TArgs)</code> 方法，当被添加到 Hangfire 队列执行的时候。实际 Hangfire 会调用适配器的 <code>Excetue(TArgs)</code> 方法，然后内部还是使用的 <code>IBackgroundJobExecuter</code> 来执行具体定义的任务。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">HangfireJobExecutionAdapter</span><span class="p">&lt;</span><span class="n">TArgs</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">AbpBackgroundJobOptions</span> <span class="n">Options</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IServiceScopeFactory</span> <span class="n">ServiceScopeFactory</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IBackgroundJobExecuter</span> <span class="n">JobExecuter</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">HangfireJobExecutionAdapter</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IOptions</span><span class="p">&lt;</span><span class="n">AbpBackgroundJobOptions</span><span class="p">&gt;</span> <span class="n">options</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">IBackgroundJobExecuter</span> <span class="n">jobExecuter</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">IServiceScopeFactory</span> <span class="n">serviceScopeFactory</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">JobExecuter</span> <span class="p">=</span> <span class="n">jobExecuter</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ServiceScopeFactory</span> <span class="p">=</span> <span class="n">serviceScopeFactory</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Options</span> <span class="p">=</span> <span class="n">options</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">Execute</span><span class="p">(</span><span class="n">TArgs</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">scope</span> <span class="p">=</span> <span class="n">ServiceScopeFactory</span><span class="p">.</span><span class="n">CreateScope</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">jobType</span> <span class="p">=</span> <span class="n">Options</span><span class="p">.</span><span class="n">GetJob</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TArgs</span><span class="p">)).</span><span class="n">JobType</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">context</span> <span class="p">=</span> <span class="k">new</span> <span class="n">JobExecutionContext</span><span class="p">(</span><span class="n">scope</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">,</span> <span class="n">jobType</span><span class="p">,</span> <span class="n">args</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="n">JobExecuter</span><span class="p">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="236-集成-rabbitmq">2.3.6 集成 RabbitMQ</h4>
+<p>基于 RabbitMQ 的后台作业实现，我想放在分布式事件总线里面，对其一起进行讲解。</p>
+<h2 id="三总结">三、总结</h2>
+<p>ABP vNext 为我们提供了多种后台作业管理器的实现，你可以根据自己的需求选用不同的后台作业管理器，又或者是自己动手造轮子。</p>
+<p>需要看其他的 ABP vNext 相关文章？<strong><a class="link" href="https://www.cnblogs.com/myzony/p/10722506.html"  target="_blank" rel="noopener"
+    >点击我</a></strong> 即可跳转到总目录。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/abp-vnext/">ABP vNext</a>
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/asp.net-core/">ASP.NET Core</a>
+        
+            <a href="/tags/asp.net-core-mvc/">ASP.NET Core MVC</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-multi-tenancy/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 多租户</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一简要说明">一、简要说明</a></li>
+    <li><a href="#二源码分析">二、源码分析</a>
+      <ol>
+        <li><a href="#21-线程组件">2.1 线程组件</a>
+          <ol>
+            <li><a href="#211-健壮的计时器">2.1.1 健壮的计时器</a></li>
+            <li><a href="#221-irunnable-接口">2.2.1 <code>IRunnable</code> 接口</a></li>
+          </ol>
+        </li>
+        <li><a href="#22-后台工作者">2.2 后台工作者</a>
+          <ol>
+            <li><a href="#221-模块的构造">2.2.1 模块的构造</a></li>
+            <li><a href="#221-后台工作者的定义">2.2.1 后台工作者的定义</a></li>
+            <li><a href="#222-后台工作者管理器">2.2.2 后台工作者管理器</a></li>
+          </ol>
+        </li>
+        <li><a href="#23-后台作业">2.3 后台作业</a>
+          <ol>
+            <li><a href="#231-模块的构造">2.3.1 模块的构造</a></li>
+            <li><a href="#232-后台作业的定义">2.3.2 后台作业的定义</a></li>
+            <li><a href="#233-后台作业管理器">2.3.3 后台作业管理器</a></li>
+            <li><a href="#234-后台作业的存储">2.3.4 后台作业的存储</a></li>
+            <li><a href="#235-后台作业的执行">2.3.5 后台作业的执行</a></li>
+            <li><a href="#235-集成-hangfire">2.3.5 集成 Hangfire</a></li>
+            <li><a href="#236-集成-rabbitmq">2.3.6 集成 RabbitMQ</a></li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+    <li><a href="#三总结">三、总结</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

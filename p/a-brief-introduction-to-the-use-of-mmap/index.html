@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='mmap是Unix提供的一个有用的功能，这个功能允许程序共享内存，也被称为内存映射。这个函数的作用是建立一段可以被两个或者更多个程序读写的内存，一个程序对它的修改可以被其他程序所看见。
+这个功能经常被用于读写硬盘上的文件，mmap可以将文件映射到内存，这样你可以更加方便的对文件内容进行更新操作。
+mmap函数原型：
+1 2 3 #include &amp;lt;sys/mman.h&amp;gt; void *mmap(void *addr,size_t len,int prot,int flags,int fildes,off_t off); addr：映射区的开始地址，设置为0时表示由系统决定映射区的起始地址。
+len：映射区的长度。//长度单位是 以字节为单位，不足一内存页按一内存页处理
+prot：期望的内存保护标志，不能与文件的打开模式冲突。是以下的某个值，可以通过位或运算合理地组合在一起 PROT_EXEC //页内容可以被执行 PROT_READ //页内容可以被读取 PROT_WRITE //页可以被写入 PROT_NONE //页不可访问
+flags：指定映射对象的类型，映射选项和映射页是否可以共享。它的值可以是一个或者多个以下位的组合体 MAP_FIXED //使用指定的映射起始地址，如果由start和len参数指定的内存区重叠于现存的映射空间，重叠部分将会被丢弃。如果指定的起始地址不可用，操作将会失败。并且起始地址必须落在页的边界上。 MAP_SHARED //与其它所有映射这个对象的进程共享映射空间。对共享区的写入，相当于输出到文件。直到**msync()**或者**munmap()*被调用，文件实际上*不会被更新。 MAP_PRIVATE //建立一个写入时拷贝的私有映射。内存区域的写入不会影响到原文件。这个标志和以上标志是互斥的，只能使用其中一个。 MAP_DENYWRITE //这个标志被忽略。 MAP_EXECUTABLE //同上 MAP_NORESERVE //不要为这个映射保留交换空间。当交换空间被保留，对映射区修改的可能会得到保证。当交换空间不被保留，同时内存不足，对映射区的修改会引起段违例信号。 MAP_LOCKED //锁定映射区的页面，从而防止页面被交换出内存。 MAP_GROWSDOWN //用于堆栈，告诉内核VM系统，映射区可以向下扩展。 MAP_ANONYMOUS //匿名映射，映射区不与任何文件关联。 MAP_ANON //MAP_ANONYMOUS的别称，不再被使用。 MAP_FILE //兼容标志，被忽略。 MAP_32BIT //将映射区放在进程地址空间的低2GB，MAP_FIXED指定时会被忽略。当前这个标志只在x86-64平台上得到支持。 MAP_POPULATE //为文件映射通过预读的方式准备好页表。随后对映射区的访问不会被页违例阻塞。 MAP_NONBLOCK //仅和MAP_POPULATE一起使用时才有意义。不执行预读，只为已存在于内存中的页面建立页表入口。
+fildes：有效的文件描述词。一般是由open()函数返回，其值也可以设置为-1，此时需要指定flags参数中的MAP_ANON,表明进行的是匿名映射。
+off：被映射对象内容的起点。
+你可以对addr参数来请求使用某个特定的地址，如果他的取值为零将会自动进行分配，这是一种推荐的做法否则会降低程序的可移植性，因为在不同的系统上的可用地址范围是不一样的。
+下面我们介绍第二个函数，他的作用是把某个部分或整段中的修改写回被映射的文件中。(或者从映射文件中读出)
+1 2 #include &amp;lt;sys/mman.h&amp;gt; int msync(void *addr,size_t len,int flags); addr：文件映射到进程空间的地址；'><title>mmap 的使用浅解</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/a-brief-introduction-to-the-use-of-mmap/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='mmap 的使用浅解'>
+<meta property='og:description' content='mmap是Unix提供的一个有用的功能，这个功能允许程序共享内存，也被称为内存映射。这个函数的作用是建立一段可以被两个或者更多个程序读写的内存，一个程序对它的修改可以被其他程序所看见。
+这个功能经常被用于读写硬盘上的文件，mmap可以将文件映射到内存，这样你可以更加方便的对文件内容进行更新操作。
+mmap函数原型：
+1 2 3 #include &amp;lt;sys/mman.h&amp;gt; void *mmap(void *addr,size_t len,int prot,int flags,int fildes,off_t off); addr：映射区的开始地址，设置为0时表示由系统决定映射区的起始地址。
+len：映射区的长度。//长度单位是 以字节为单位，不足一内存页按一内存页处理
+prot：期望的内存保护标志，不能与文件的打开模式冲突。是以下的某个值，可以通过位或运算合理地组合在一起 PROT_EXEC //页内容可以被执行 PROT_READ //页内容可以被读取 PROT_WRITE //页可以被写入 PROT_NONE //页不可访问
+flags：指定映射对象的类型，映射选项和映射页是否可以共享。它的值可以是一个或者多个以下位的组合体 MAP_FIXED //使用指定的映射起始地址，如果由start和len参数指定的内存区重叠于现存的映射空间，重叠部分将会被丢弃。如果指定的起始地址不可用，操作将会失败。并且起始地址必须落在页的边界上。 MAP_SHARED //与其它所有映射这个对象的进程共享映射空间。对共享区的写入，相当于输出到文件。直到**msync()**或者**munmap()*被调用，文件实际上*不会被更新。 MAP_PRIVATE //建立一个写入时拷贝的私有映射。内存区域的写入不会影响到原文件。这个标志和以上标志是互斥的，只能使用其中一个。 MAP_DENYWRITE //这个标志被忽略。 MAP_EXECUTABLE //同上 MAP_NORESERVE //不要为这个映射保留交换空间。当交换空间被保留，对映射区修改的可能会得到保证。当交换空间不被保留，同时内存不足，对映射区的修改会引起段违例信号。 MAP_LOCKED //锁定映射区的页面，从而防止页面被交换出内存。 MAP_GROWSDOWN //用于堆栈，告诉内核VM系统，映射区可以向下扩展。 MAP_ANONYMOUS //匿名映射，映射区不与任何文件关联。 MAP_ANON //MAP_ANONYMOUS的别称，不再被使用。 MAP_FILE //兼容标志，被忽略。 MAP_32BIT //将映射区放在进程地址空间的低2GB，MAP_FIXED指定时会被忽略。当前这个标志只在x86-64平台上得到支持。 MAP_POPULATE //为文件映射通过预读的方式准备好页表。随后对映射区的访问不会被页违例阻塞。 MAP_NONBLOCK //仅和MAP_POPULATE一起使用时才有意义。不执行预读，只为已存在于内存中的页面建立页表入口。
+fildes：有效的文件描述词。一般是由open()函数返回，其值也可以设置为-1，此时需要指定flags参数中的MAP_ANON,表明进行的是匿名映射。
+off：被映射对象内容的起点。
+你可以对addr参数来请求使用某个特定的地址，如果他的取值为零将会自动进行分配，这是一种推荐的做法否则会降低程序的可移植性，因为在不同的系统上的可用地址范围是不一样的。
+下面我们介绍第二个函数，他的作用是把某个部分或整段中的修改写回被映射的文件中。(或者从映射文件中读出)
+1 2 #include &amp;lt;sys/mman.h&amp;gt; int msync(void *addr,size_t len,int flags); addr：文件映射到进程空间的地址；'>
+<meta property='og:url' content='https://real-zony.github.io/p/a-brief-introduction-to-the-use-of-mmap/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Linux' /><meta property='article:tag' content='mmap' /><meta property='article:published_time' content='2016-05-02T12:00:00&#43;00:00'/><meta property='article:modified_time' content='2016-05-02T12:00:00&#43;00:00'/>
+<meta name="twitter:title" content="mmap 的使用浅解">
+<meta name="twitter:description" content="mmap是Unix提供的一个有用的功能，这个功能允许程序共享内存，也被称为内存映射。这个函数的作用是建立一段可以被两个或者更多个程序读写的内存，一个程序对它的修改可以被其他程序所看见。
+这个功能经常被用于读写硬盘上的文件，mmap可以将文件映射到内存，这样你可以更加方便的对文件内容进行更新操作。
+mmap函数原型：
+1 2 3 #include &amp;lt;sys/mman.h&amp;gt; void *mmap(void *addr,size_t len,int prot,int flags,int fildes,off_t off); addr：映射区的开始地址，设置为0时表示由系统决定映射区的起始地址。
+len：映射区的长度。//长度单位是 以字节为单位，不足一内存页按一内存页处理
+prot：期望的内存保护标志，不能与文件的打开模式冲突。是以下的某个值，可以通过位或运算合理地组合在一起 PROT_EXEC //页内容可以被执行 PROT_READ //页内容可以被读取 PROT_WRITE //页可以被写入 PROT_NONE //页不可访问
+flags：指定映射对象的类型，映射选项和映射页是否可以共享。它的值可以是一个或者多个以下位的组合体 MAP_FIXED //使用指定的映射起始地址，如果由start和len参数指定的内存区重叠于现存的映射空间，重叠部分将会被丢弃。如果指定的起始地址不可用，操作将会失败。并且起始地址必须落在页的边界上。 MAP_SHARED //与其它所有映射这个对象的进程共享映射空间。对共享区的写入，相当于输出到文件。直到**msync()**或者**munmap()*被调用，文件实际上*不会被更新。 MAP_PRIVATE //建立一个写入时拷贝的私有映射。内存区域的写入不会影响到原文件。这个标志和以上标志是互斥的，只能使用其中一个。 MAP_DENYWRITE //这个标志被忽略。 MAP_EXECUTABLE //同上 MAP_NORESERVE //不要为这个映射保留交换空间。当交换空间被保留，对映射区修改的可能会得到保证。当交换空间不被保留，同时内存不足，对映射区的修改会引起段违例信号。 MAP_LOCKED //锁定映射区的页面，从而防止页面被交换出内存。 MAP_GROWSDOWN //用于堆栈，告诉内核VM系统，映射区可以向下扩展。 MAP_ANONYMOUS //匿名映射，映射区不与任何文件关联。 MAP_ANON //MAP_ANONYMOUS的别称，不再被使用。 MAP_FILE //兼容标志，被忽略。 MAP_32BIT //将映射区放在进程地址空间的低2GB，MAP_FIXED指定时会被忽略。当前这个标志只在x86-64平台上得到支持。 MAP_POPULATE //为文件映射通过预读的方式准备好页表。随后对映射区的访问不会被页违例阻塞。 MAP_NONBLOCK //仅和MAP_POPULATE一起使用时才有意义。不执行预读，只为已存在于内存中的页面建立页表入口。
+fildes：有效的文件描述词。一般是由open()函数返回，其值也可以设置为-1，此时需要指定flags参数中的MAP_ANON,表明进行的是匿名映射。
+off：被映射对象内容的起点。
+你可以对addr参数来请求使用某个特定的地址，如果他的取值为零将会自动进行分配，这是一种推荐的做法否则会降低程序的可移植性，因为在不同的系统上的可用地址范围是不一样的。
+下面我们介绍第二个函数，他的作用是把某个部分或整段中的修改写回被映射的文件中。(或者从映射文件中读出)
+1 2 #include &amp;lt;sys/mman.h&amp;gt; int msync(void *addr,size_t len,int flags); addr：文件映射到进程空间的地址；">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/a-brief-introduction-to-the-use-of-mmap/">mmap 的使用浅解</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">May 02, 2016</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 2 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>mmap是Unix提供的一个有用的功能，这个功能允许程序共享内存，也被称为内存映射。这个函数的作用是建立一段可以被两个或者更多个程序读写的内存，一个程序对它的修改可以被其他程序所看见。</p>
+<p>这个功能经常被用于读写硬盘上的文件，mmap可以将文件映射到内存，这样你可以更加方便的对文件内容进行更新操作。</p>
+<p>mmap函数原型：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;sys/mman.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="kt">void</span> <span class="o">*</span><span class="nf">mmap</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="n">addr</span><span class="p">,</span><span class="kt">size_t</span> <span class="n">len</span><span class="p">,</span><span class="kt">int</span> <span class="n">prot</span><span class="p">,</span><span class="kt">int</span> <span class="n">flags</span><span class="p">,</span><span class="kt">int</span> <span class="n">fildes</span><span class="p">,</span><span class="kt">off_t</span> <span class="n">off</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><blockquote>
+<p><strong>addr</strong>：映射区的开始地址，设置为0时表示由系统决定映射区的起始地址。</p>
+</blockquote>
+<blockquote>
+<p><strong>len</strong>：映射区的长度。//长度单位是 以字节为单位，不足一内存页按一内存页处理</p>
+</blockquote>
+<blockquote>
+<p><strong>prot</strong>：期望的内存保护标志，不能与文件的打开模式冲突。是以下的某个值，可以通过位或运算合理地组合在一起
+<em>PROT_EXEC</em> //页内容可以被执行
+<em>PROT_READ</em> //页内容可以被读取
+<em>PROT_WRITE</em> //页可以被写入
+<em>PROT_NONE</em> //页不可访问</p>
+</blockquote>
+<blockquote>
+<p><strong>flags</strong>：指定映射对象的类型，映射选项和映射页是否可以共享。它的值可以是一个或者多个以下位的组合体
+<em>MAP_FIXED</em> //使用指定的映射起始地址，如果由start和len参数指定的内存区重叠于现存的映射空间，重叠部分将会被丢弃。如果指定的起始地址不可用，操作将会失败。并且起始地址必须落在页的边界上。
+<em>MAP_SHARED</em> //与其它所有映射这个对象的进程共享映射空间。对共享区的写入，相当于输出到文件。直到**msync()**或者**munmap()*<em>被调用，文件实际上*<em>不会被更新</em></em>。
+<em>MAP_PRIVATE</em> //建立一个写入时拷贝的私有映射。内存区域的写入不会影响到原文件。这个标志和以上标志是互斥的，只能使用其中一个。
+<em>MAP_DENYWRITE</em> //这个标志被忽略。
+<em>MAP_EXECUTABLE</em> //同上
+<em>MAP_NORESERVE</em> //不要为这个映射保留交换空间。当交换空间被保留，对映射区修改的可能会得到保证。当交换空间不被保留，同时内存不足，对映射区的修改会引起段违例信号。
+<em>MAP_LOCKED</em> //锁定映射区的页面，从而防止页面被交换出内存。
+<em>MAP_GROWSDOWN</em> //用于堆栈，告诉内核VM系统，映射区可以向下扩展。
+<em>MAP_ANONYMOUS</em> //匿名映射，映射区不与任何文件关联。
+<em>MAP_ANON</em> //MAP_ANONYMOUS的别称，不再被使用。
+<em>MAP_FILE</em> //兼容标志，被忽略。
+<em>MAP_32BIT</em> //将映射区放在进程地址空间的低2GB，MAP_FIXED指定时会被忽略。当前这个标志只在x86-64平台上得到支持。
+<em>MAP_POPULATE</em> //为文件映射通过预读的方式准备好页表。随后对映射区的访问不会被页违例阻塞。
+<em>MAP_NONBLOCK</em> //仅和MAP_POPULATE一起使用时才有意义。不执行预读，只为已存在于内存中的页面建立页表入口。</p>
+</blockquote>
+<blockquote>
+<p>fildes：有效的文件描述词。一般是由open()函数返回，其值也可以设置为-1，此时需要指定flags参数中的MAP_ANON,表明进行的是匿名映射。</p>
+</blockquote>
+<blockquote>
+<p>off：被映射对象内容的起点。</p>
+</blockquote>
+<p>你可以对addr参数来请求使用某个特定的地址，如果他的取值为零将会自动进行分配，这是一种推荐的做法否则会降低程序的可移植性，因为在不同的系统上的可用地址范围是不一样的。</p>
+<p>下面我们介绍第二个函数，他的作用是把某个部分或整段中的修改写回被映射的文件中。(或者从映射文件中读出)</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;sys/mman.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="kt">int</span> <span class="nf">msync</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="n">addr</span><span class="p">,</span><span class="kt">size_t</span> <span class="n">len</span><span class="p">,</span><span class="kt">int</span> <span class="n">flags</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><blockquote>
+<p><strong>addr</strong>：文件映射到进程空间的地址；</p>
+</blockquote>
+<blockquote>
+<p><strong>len</strong>：映射空间的大小；</p>
+</blockquote>
+<blockquote>
+<p><strong>flags</strong>：刷新的参数设置，可以取值MS_ASYNC/ MS_SYNC/ MS_INVALIDATE
+取值为MS_ASYNC（异步）时，调用会立即返回，不等到更新的完成；
+取值为MS_SYNC（同步）时，调用会等到更新完成之后返回；
+取MS_INVALIDATE（通知使用该共享区域的进程，数据已经改变）时，在共享内容更改之后，使得文件的其他映射失效，从而使得共享该文件的其他进程去重新获取最新值；</p>
+</blockquote>
+<p>还有munmap函数，他的作用是释放内存段。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;sys/mman.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="kt">int</span> <span class="nf">munmap</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="n">addr</span><span class="p">,</span><span class="kt">size_t</span> <span class="n">len</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>下面我们通过一个实例来使用mmap。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;unistd.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;sys/mman.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;fcntl.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stdlib.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="cp">#define NRECORDS (100)
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">integer</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">char</span> <span class="n">chars</span><span class="p">[</span><span class="mi">24</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="n">RECORD</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">main</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">RECORD</span> <span class="n">record</span><span class="p">,</span> <span class="o">*</span><span class="n">mapped</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">FILE</span> <span class="o">*</span><span class="n">fp</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">fp</span> <span class="o">=</span> <span class="nf">fopen</span><span class="p">(</span><span class="s">&#34;records.dat&#34;</span><span class="p">,</span> <span class="s">&#34;w+&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">NRECORDS</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">record</span><span class="p">.</span><span class="n">integer</span> <span class="o">=</span> <span class="n">i</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="nf">sprintf</span><span class="p">(</span><span class="n">record</span><span class="p">.</span><span class="n">chars</span><span class="p">,</span> <span class="s">&#34;RECORD-%d&#34;</span><span class="p">,</span> <span class="n">i</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="nf">fwrite</span><span class="p">(</span><span class="o">&amp;</span><span class="n">record</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">record</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="n">fp</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">fclose</span><span class="p">(</span><span class="n">fp</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"> 	<span class="n">fp</span> <span class="o">=</span> <span class="nf">fopen</span><span class="p">(</span><span class="s">&#34;records.dat&#34;</span><span class="p">,</span> <span class="s">&#34;r+&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"> 	<span class="nf">fseek</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="mi">43</span> <span class="o">*</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">record</span><span class="p">),</span> <span class="n">SEEK_SET</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"> 	<span class="nf">fread</span><span class="p">(</span><span class="o">&amp;</span><span class="n">record</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">record</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="n">fp</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"> 	<span class="nf">printf</span><span class="p">(</span><span class="s">&#34;%d</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span><span class="n">record</span><span class="p">.</span><span class="n">integer</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">record</span><span class="p">.</span><span class="n">integer</span> <span class="o">=</span> <span class="mi">413</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">sprintf</span><span class="p">(</span><span class="n">record</span><span class="p">.</span><span class="n">chars</span><span class="p">,</span> <span class="s">&#34;RECORD-%d&#34;</span><span class="p">,</span> <span class="n">record</span><span class="p">.</span><span class="n">integer</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="nf">fseek</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="mi">43</span> <span class="o">*</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">record</span><span class="p">),</span> <span class="n">SEEK_SET</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">fwrite</span><span class="p">(</span><span class="o">&amp;</span><span class="n">record</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">record</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="n">fp</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">fclose</span><span class="p">(</span><span class="n">fp</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">fd</span> <span class="o">=</span> <span class="nf">open</span><span class="p">(</span><span class="s">&#34;records.dat&#34;</span><span class="p">,</span> <span class="n">O_RDWR</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="n">mapped</span> <span class="o">=</span> <span class="p">(</span><span class="n">RECORD</span><span class="o">*</span><span class="p">)</span><span class="nf">mmap</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">NRECORDS</span> <span class="o">*</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">record</span><span class="p">),</span> <span class="n">PROT_READ</span> <span class="o">|</span> <span class="n">PROT_WRITE</span><span class="p">,</span> <span class="n">MAP_SHARED</span><span class="p">,</span> <span class="n">fd</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="n">mapped</span><span class="p">[</span><span class="mi">43</span><span class="p">].</span><span class="n">integer</span> <span class="o">=</span> <span class="mi">243</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">printf</span><span class="p">(</span><span class="s">&#34;%d</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">mapped</span><span class="p">[</span><span class="mi">43</span><span class="p">].</span><span class="n">integer</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">sprintf</span><span class="p">(</span><span class="n">mapped</span><span class="p">[</span><span class="mi">43</span><span class="p">].</span><span class="n">chars</span><span class="p">,</span> <span class="s">&#34;RECORD-%d&#34;</span><span class="p">,</span> <span class="n">mapped</span><span class="p">[</span><span class="mi">43</span><span class="p">].</span><span class="n">integer</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nf">msync</span><span class="p">((</span><span class="kt">void</span><span class="o">*</span><span class="p">)</span><span class="n">mapped</span><span class="p">,</span> <span class="n">NRECORDS</span><span class="o">*</span><span class="k">sizeof</span><span class="p">(</span><span class="n">record</span><span class="p">),</span> <span class="n">MS_SYNC</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">munmap</span><span class="p">((</span><span class="kt">void</span><span class="o">*</span><span class="p">)</span><span class="n">mapped</span><span class="p">,</span> <span class="n">NRECORDS</span><span class="o">*</span><span class="k">sizeof</span><span class="p">(</span><span class="n">record</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">close</span><span class="p">(</span><span class="n">fd</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nf">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/linux/">Linux</a>
+        
+            <a href="/tags/mmap/">mmap</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

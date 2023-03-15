@@ -1,0 +1,1659 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='0.简介 如果你所开发的需要走向世界的话，那么肯定需要针对每一个用户进行不同的本地化处理，有可能你的客户在日本，需要使用日语作为显示文本，也有可能你的客户在美国，需要使用英语作为显示文本。如果你还是一样的写死错误信息，或者描述信息，那么就无法做到多语言适配。
+Abp 框架本身提供了一套多语言机制来帮助我们实现本地化，基本思路是 Abp 本身维护一个键值对集合。只需要将展示给客户的文字信息处都使用一个语言 Key 来进行填充，当用户登录系统之后，会取得当前用户的区域文化信息进行文本渲染。
+'><title>Abp 源码分析：十三、多语言(本地化)处理</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp 源码分析：十三、多语言(本地化)处理'>
+<meta property='og:description' content='0.简介 如果你所开发的需要走向世界的话，那么肯定需要针对每一个用户进行不同的本地化处理，有可能你的客户在日本，需要使用日语作为显示文本，也有可能你的客户在美国，需要使用英语作为显示文本。如果你还是一样的写死错误信息，或者描述信息，那么就无法做到多语言适配。
+Abp 框架本身提供了一套多语言机制来帮助我们实现本地化，基本思路是 Abp 本身维护一个键值对集合。只需要将展示给客户的文字信息处都使用一个语言 Key 来进行填充，当用户登录系统之后，会取得当前用户的区域文化信息进行文本渲染。
+'>
+<meta property='og:url' content='https://real-zony.github.io/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='AspNetBoilerplate' /><meta property='article:tag' content='本地化' /><meta property='article:published_time' content='2018-08-18T03:22:41&#43;00:00'/><meta property='article:modified_time' content='2018-08-18T03:22:41&#43;00:00'/>
+<meta name="twitter:title" content="Abp 源码分析：十三、多语言(本地化)处理">
+<meta name="twitter:description" content="0.简介 如果你所开发的需要走向世界的话，那么肯定需要针对每一个用户进行不同的本地化处理，有可能你的客户在日本，需要使用日语作为显示文本，也有可能你的客户在美国，需要使用英语作为显示文本。如果你还是一样的写死错误信息，或者描述信息，那么就无法做到多语言适配。
+Abp 框架本身提供了一套多语言机制来帮助我们实现本地化，基本思路是 Abp 本身维护一个键值对集合。只需要将展示给客户的文字信息处都使用一个语言 Key 来进行填充，当用户登录系统之后，会取得当前用户的区域文化信息进行文本渲染。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/">Abp 源码分析：十三、多语言(本地化)处理</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Aug 18, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 8 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="0简介">0.简介</h2>
+<p>如果你所开发的需要走向世界的话，那么肯定需要针对每一个用户进行不同的本地化处理，有可能你的客户在日本，需要使用日语作为显示文本，也有可能你的客户在美国，需要使用英语作为显示文本。如果你还是一样的写死错误信息，或者描述信息，那么就无法做到多语言适配。</p>
+<p>Abp 框架本身提供了一套多语言机制来帮助我们实现本地化，基本思路是 Abp 本身维护一个键值对集合。只需要将展示给客户的文字信息处都使用一个语言 Key 来进行填充，当用户登录系统之后，会取得当前用户的区域文化信息进行文本渲染。</p>
+<p><img src="/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/TIM--20180817191430.png"
+	width="937"
+	height="480"
+	srcset="/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/TIM--20180817191430_hu61d6be49611f38385d723fe6fcfa99a8_27254_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-thirteen-multi-language-localization-processing/TIM--20180817191430_hu61d6be49611f38385d723fe6fcfa99a8_27254_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="TIM&ndash;20180817191430"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="195"
+		data-flex-basis="468px"
+	
+></p>
+<h3 id="01-如何使用">0.1 如何使用</h3>
+<p>我们首先来看一下如何定义一个多语言资源并使用。首先 Abp 自身支持三种类型的本地化资源来源，第一种是 XML 文件，第二种则是 JSON 文件，第三种则是内嵌资源文件，如果这三种都不能满足你的需求，你可以自行实现 <code>ILocalizationSource </code>接口来返回多语言资源。</p>
+<blockquote>
+<p>小提示：</p>
+<p>Abp Zero 模块就提供了数据库持久化存储多语言资源的功能。</p>
+</blockquote>
+<h4 id="011-定义应用程序支持的语言">0.1.1 定义应用程序支持的语言</h4>
+<p>如果你需要为你的应用程序添加不同语言的支持，就必须在你任意模块的预加载方法当中添加语言来进行配置：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">Configuration</span><span class="p">.</span><span class="n">Localization</span><span class="p">.</span><span class="n">Languages</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="k">new</span> <span class="n">LanguageInfo</span><span class="p">(</span><span class="s">&#34;en&#34;</span><span class="p">,</span> <span class="s">&#34;English&#34;</span><span class="p">,</span> <span class="s">&#34;famfamfam-flag-england&#34;</span><span class="p">,</span> <span class="k">true</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="n">Configuration</span><span class="p">.</span><span class="n">Localization</span><span class="p">.</span><span class="n">Languages</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="k">new</span> <span class="n">LanguageInfo</span><span class="p">(</span><span class="s">&#34;tr&#34;</span><span class="p">,</span> <span class="s">&#34;Türkçe&#34;</span><span class="p">,</span> <span class="s">&#34;famfamfam-flag-tr&#34;</span><span class="p">));</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>例如以上代码，就能够让我们的程序拥有针对英语与土耳其语的多语言处理能力。</p>
+<p>这里的 <code>famfamfam-flag-england</code> 与 <code>famfamfam-flag-tr</code> 是一个 CSS 类型，是 Abp 为前端展示所封装的小国旗图标。</p>
+<h4 id="012-建立多语言资源文件">0.1.2 建立多语言资源文件</h4>
+<p>有了语言之后，Abp 还需要你提供标准的多语言资源文件，这里我们以 自带的 XML 资源文件为例，其文件名称为 <strong>Abp-zh-Hans.xml</strong> ，路径为 <code>Abp\Localization\Sources\AbpXmlSource</code>。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-xml" data-lang="xml"><span class="line"><span class="cl"><span class="cp">&lt;?xml version=&#34;1.0&#34; encoding=&#34;utf-8&#34; ?&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="nt">&lt;localizationDictionary</span> <span class="na">culture=</span><span class="s">&#34;zh-Hans&#34;</span><span class="nt">&gt;</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&lt;texts&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;SmtpHost&#34;</span><span class="nt">&gt;</span>SMTP主机<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;SmtpPort&#34;</span><span class="nt">&gt;</span>SMTP端口<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;Username&#34;</span><span class="nt">&gt;</span>用户名<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;Password&#34;</span><span class="nt">&gt;</span>密码<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;DomainName&#34;</span><span class="nt">&gt;</span>域名<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;UseSSL&#34;</span><span class="nt">&gt;</span>使用SSL<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;UseDefaultCredentials&#34;</span><span class="nt">&gt;</span>使用默认验证<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;DefaultFromSenderEmailAddress&#34;</span><span class="nt">&gt;</span>默认发件人邮箱地址<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;DefaultFromSenderDisplayName&#34;</span><span class="nt">&gt;</span>默认发件人名字<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;DefaultLanguage&#34;</span><span class="nt">&gt;</span>预设语言<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;ReceiveNotifications&#34;</span><span class="nt">&gt;</span>接收通知<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;CurrentUserDidNotLoginToTheApplication&#34;</span><span class="nt">&gt;</span>当前用户没有登录到系统！<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;TimeZone&#34;</span><span class="nt">&gt;</span>时区<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;AllOfThesePermissionsMustBeGranted&#34;</span><span class="nt">&gt;</span>您没有权限进行此操作,您需要以下权限: {0}<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;AtLeastOneOfThesePermissionsMustBeGranted&#34;</span><span class="nt">&gt;</span>您没有权限进行此操作,您至少需要下列权限的其中一项: {0}<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;MainMenu&#34;</span><span class="nt">&gt;</span>主菜单<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&lt;/texts&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="nt">&lt;/localizationDictionary&gt;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>每个文件内部，会有一个 <code>&lt;localizationDictionary culture=&quot;zh-Hans&quot;&gt;</code> 节点用于说明当前文件是针对于哪个区域适用的，而在其 <code>&lt;texts&gt;</code> 内部则就是结合键值对的形式，name 里面的内容就是多语言文本项的键，在标签内部的就是其真正的值。</p>
+<p>打开一个针对俄语国家的 XML 资源文件，文件名称叫做 <strong>Abp-ru.xml</strong>。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-xml" data-lang="xml"><span class="line"><span class="cl"><span class="cp">&lt;?xml version=&#34;1.0&#34; encoding=&#34;utf-8&#34; ?&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="nt">&lt;localizationDictionary</span> <span class="na">culture=</span><span class="s">&#34;ru&#34;</span><span class="nt">&gt;</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&lt;texts&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;SmtpHost&#34;</span><span class="nt">&gt;</span>SMTP сервер<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;SmtpPort&#34;</span><span class="nt">&gt;</span>SMTP порт<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;Username&#34;</span><span class="nt">&gt;</span>Имя пользователя<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;Password&#34;</span><span class="nt">&gt;</span>Пароль<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;DomainName&#34;</span><span class="nt">&gt;</span>Домен<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;UseSSL&#34;</span><span class="nt">&gt;</span>Использовать SSL<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;UseDefaultCredentials&#34;</span><span class="nt">&gt;</span>Использовать учетные данные по умолчанию<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;DefaultFromSenderEmailAddress&#34;</span><span class="nt">&gt;</span>Электронный адрес отправителя по умолчанию<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;DefaultFromSenderDisplayName&#34;</span><span class="nt">&gt;</span>Имя отправителя по умолчанию<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;DefaultLanguage&#34;</span><span class="nt">&gt;</span>Язык по умолчанию<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;ReceiveNotifications&#34;</span><span class="nt">&gt;</span>Получать уведомления<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&lt;text</span> <span class="na">name=</span><span class="s">&#34;CurrentUserDidNotLoginToTheApplication&#34;</span><span class="nt">&gt;</span>Текущий пользователь не вошёл в приложение!<span class="nt">&lt;/text&gt;</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&lt;/texts&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="nt">&lt;/localizationDictionary&gt;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到 Key 值都是一样的，只是其 <code>&lt;text&gt;</code> 内部的值根据区域国家的不同值不一样而已。</p>
+<p>其次从文件名我们就可以看到需要使用 XML 资源文件对于文件的命名格式会有一定要求，还是以 Abp 自带的资源文件为例，可以看一下他们基本上都是由 <strong>{SourceName}</strong>-<strong>{CultureInfo}</strong>.xml 这样构成的。</p>
+<p><img src="/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/1534409976297.png"
+	width="248"
+	height="293"
+	srcset="/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/1534409976297_hu315909fbb7a7ce0c8cd7b1956da8bd7c_6060_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-thirteen-multi-language-localization-processing/1534409976297_hu315909fbb7a7ce0c8cd7b1956da8bd7c_6060_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1534409976297"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="84"
+		data-flex-basis="203px"
+	
+></p>
+<h4 id="013-注册本地化的-xml-资源">0.1.3 注册本地化的 XML 资源</h4>
+<p>那么如果我们需要注册之前的两个 XML 资源到 Abp 框架当中的话，则需要在预加载模块处通过如下代码来执行注册，并且需要右键 XML 文件，更改其构建操作为 <strong>内嵌资源</strong>。</p>
+<p><img src="/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/1534410609603.png"
+	width="341"
+	height="183"
+	srcset="/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/1534410609603_hu33a0e3f82cb4ad70d4fbb7d62c462068_8348_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-thirteen-multi-language-localization-processing/1534410609603_hu33a0e3f82cb4ad70d4fbb7d62c462068_8348_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1534410609603"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="186"
+		data-flex-basis="447px"
+	
+></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">Configuration</span><span class="p">.</span><span class="n">Localization</span><span class="p">.</span><span class="n">Sources</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="k">new</span> <span class="n">DictionaryBasedLocalizationSource</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 本地化资源名称</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AbpConsts</span><span class="p">.</span><span class="n">LocalizationSourceName</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 数据源提供者，这里使用的是 XML ，除了 XML 提供者，还有 JSON 等</span>
+</span></span><span class="line"><span class="cl">        <span class="k">new</span> <span class="n">XmlEmbeddedFileLocalizationDictionaryProvider</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="k">typeof</span><span class="p">(</span><span class="n">AbpKernelModule</span><span class="p">).</span><span class="n">GetAssembly</span><span class="p">(),</span> <span class="s">&#34;Abp.Localization.Sources.AbpXmlSource&#34;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">)));</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="014-获取多语言文本">0.1.4 获取多语言文本</h4>
+<p>如果你需要在某处获取指定 Key 所对应的具体显示文本，只需要注入 <code>ILocalizationManager</code> ，通过其 <code>GetString()</code> 方法就可以获得具体的值。如果你需要获取本地化资源的地方不能够使用依赖注入，你可以使用 <code>LocalizationHelper</code> 静态类来进行操作。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">@string</span> <span class="p">=</span> <span class="n">_localizationManager</span><span class="p">.</span><span class="n">GetString</span><span class="p">(</span><span class="s">&#34;Abp&#34;</span><span class="p">,</span> <span class="s">&#34;MainMenu&#34;</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>它默认是从 <code>Thread.CurrentThread.CurrentUICulture</code> 获取到的当前区域信息，从而来取得某个 Key 所对应的显示值，而当前区域信息是由 Abp 注入的一系列 <code>RequestCultureProviders</code> 所提供的，他按照以下顺序来进行设置。</p>
+<ol>
+<li><strong>QueryStringRequestCultureProvider</strong>(ASP .NET Core 默认提供)：该默认提供器使用的是 <strong>QueryString</strong> 的 <code>culture&amp;ui-culture</code> 所提供的区域文化信息来初始化该值，例如：<code>culture=es-MX&amp;ui-culture=es-MX</code>。</li>
+<li><strong>AbpUserRequestCultureProvider</strong> (Abp 提供)：该提供器会读取当前用户的 <code>IAbpSession</code> 信息，并且从 <code>ISettingManager</code> 中获取用户所配置的 <code>&quot;Abp.Localization.DefaultLanguageName&quot;</code> 属性，将其作为默认的区域文化信息。</li>
+<li>**AbpLocalizationHeaderRequestCultureProvider ** (Abp 提供)：使用每次请求头当中的 <strong>.AspNetCore.Culture</strong> 值作为当前的区域文化信息，例如 <code>c=en|uic=en-US</code>。</li>
+<li><strong>CookieRequestCultureProvider</strong> (ASP .NET Core 提供)：使用每次请求的 Cookie 当中 Key 为 <strong>.AspNetCore.Culture</strong> 值作为当前区域文化信息。</li>
+<li><strong>AbpDefaultRequestCultureProvider</strong> (Abp 提供)：如果之前这些提供器都没有为当前区域文化赋值，则从 <code>ISettingMananger</code> 当中取得 <code>Abp.Localization.DefaultLanguageName</code> 的默认值。</li>
+<li><strong>AcceptLanguageHeaderRequestCultureProvider</strong> (ASP .NET Core 默认提供)：该提供器最终会使用用户每次请求时传递的 <strong>Accept-Language</strong> 头部作为当前区域文化信息。</li>
+</ol>
+<blockquote>
+<p>小提示：</p>
+<p>这里 Abp 注入的提供器是有顺序的，注入这么多提供器就是为了最后确定当前用户的区域文化信息以便展示相应的语言文本。</p>
+</blockquote>
+<h2 id="1启动流程">1.启动流程</h2>
+<h3 id="11-启动流程图">1.1 启动流程图</h3>
+<p><img src="/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/TIM--20180817191451.png"
+	width="854"
+	height="686"
+	srcset="/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/TIM--20180817191451_hu7abfad9a1253d5a5270fc5463d8af5e0_24120_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-thirteen-multi-language-localization-processing/TIM--20180817191451_hu7abfad9a1253d5a5270fc5463d8af5e0_24120_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="TIM&ndash;20180817191451"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="124"
+		data-flex-basis="298px"
+	
+></p>
+<h3 id="12-代码流程">1.2 代码流程</h3>
+<p>根据使用方法我们可以得知，要配置 Abp 的多语言，必须得等 <code>IAbpStartupConfiguration</code> 初始化完毕才可以。即在 <code>AbpBootstrapper</code> 的 <code>Initialize()</code> 方法之中：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">Initialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 注入 IAbpStartupConfiguration 配置与本地化资源配置</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IocManager</span><span class="p">.</span><span class="n">IocContainer</span><span class="p">.</span><span class="n">Install</span><span class="p">(</span><span class="k">new</span> <span class="n">AbpCoreInstaller</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 初始化 AbpStartupConfiguration 类型</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">AbpStartupConfiguration</span><span class="p">&gt;().</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>配置类里面包含了用户所配置的所有语言与多语言资源信息，在被成功注入到 Ioc 容器之后，Abp 就开始使用本地化资源管理器来初始化这些多语言数据了。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">PostInitialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 注册缺少的组件，防止遗漏注册组件</span>
+</span></span><span class="line"><span class="cl">    <span class="n">RegisterMissingComponents</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">SettingDefinitionManager</span><span class="p">&gt;().</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">FeatureManager</span><span class="p">&gt;().</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">PermissionManager</span><span class="p">&gt;().</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// 重点在这里，这个 PostInitialize 方法是存放在核心模块当中的，在这里调用了本地化资源管理器的初始化方法</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">LocalizationManager</span><span class="p">&gt;().</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">NotificationDefinitionManager</span><span class="p">&gt;().</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">NavigationManager</span><span class="p">&gt;().</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">Configuration</span><span class="p">.</span><span class="n">BackgroundJobs</span><span class="p">.</span><span class="n">IsJobExecutionEnabled</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">workerManager</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IBackgroundWorkerManager</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">workerManager</span><span class="p">.</span><span class="n">Start</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">workerManager</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IBackgroundJobManager</span><span class="p">&gt;());</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>具体 <code>LocalizationManager</code> 及其内部的实现我们在下一节代码分析中详细进行讲述。</p>
+<p>这些动作仅仅是在注入 Abp 框架的时候所需要执行的一些步骤，如果你要启用多语言，需要在 ASP .NET Core 程序的 <code>Startup</code> 类中的 <code>Configure()</code> 处通过更改 <code>UseAbpRequestLocalization</code> 状态为 True，才会将区域文化识别中间件注入到程序当中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">Configure</span><span class="p">(</span><span class="n">IApplicationBuilder</span> <span class="n">app</span><span class="p">,</span> <span class="n">IHostingEnvironment</span> <span class="n">env</span><span class="p">,</span> <span class="n">ILoggerFactory</span> <span class="n">loggerFactory</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">app</span><span class="p">.</span><span class="n">UseAbp</span><span class="p">(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">options</span><span class="p">.</span><span class="n">UseAbpRequestLocalization</span> <span class="p">=</span> <span class="k">false</span><span class="p">;</span> <span class="c1">//disable automatic adding of request localization</span>
+</span></span><span class="line"><span class="cl">    <span class="p">});</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">//...authentication middleware(s)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">app</span><span class="p">.</span><span class="n">UseAbpRequestLocalization</span><span class="p">();</span> <span class="c1">//manually add request localization</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">//...other middlewares</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">app</span><span class="p">.</span><span class="n">UseMvc</span><span class="p">(</span><span class="n">routes</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">//...</span>
+</span></span><span class="line"><span class="cl">    <span class="p">});</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>其实这里的 <code>UseAbpRequestLocalization()</code> 就已经将上文说的那些 RequestProvider 按照顺序依次注入到 MVC 之中了。</p>
+<h2 id="2代码分析">2.代码分析</h2>
+<p>Abp 框架针对本地化处理相关的类型与方法定义都存放在 Abp 库的 <strong>Localization</strong> 文件夹下。关系还是相对复杂的，这里我们先从其核心的 Abp 库针对于多语言的处理开始讲起。</p>
+<h3 id="21-多语言模块配置">2.1 多语言模块配置</h3>
+<p>Abp 需要使用的所有信息都是由用户在自己启动模块的 <code>PreInitialize()</code> 当中，通过 <code>ILocalizationConfiguration</code> 进行注入配置。也就是说在 <code>ILocalizationConfiguration</code> 内部，主要是包含了语言，与多语言资源提供者两种重点信息。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">ILocalizationConfiguration</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 当前应用程序可配置的语言列表</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IList</span><span class="p">&lt;</span><span class="n">LanguageInfo</span><span class="p">&gt;</span> <span class="n">Languages</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 本地化资源列表</span>
+</span></span><span class="line"><span class="cl">    <span class="n">ILocalizationSourceList</span> <span class="n">Sources</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 是否启用多语言(本地化) 系统</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">bool</span> <span class="n">IsEnabled</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 以下四个布尔类型的参数主要用于确定当没有找到多语言文本时的处理逻辑，默认都为 True</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">bool</span> <span class="n">ReturnGivenTextIfNotFound</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">bool</span> <span class="n">WrapGivenTextIfNotFound</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">bool</span> <span class="n">HumanizeTextIfNotFound</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">bool</span> <span class="n">LogWarnMessageIfNotFound</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-语言信息">2.2 语言信息</h3>
+<p>当前应用程序能够支持哪一些语言，取决于用户在预加载的时候给多语言模块配置对象分配了哪些语言。通过第 <strong>0.1.1</strong> 节我们看到用户可以直接通过初始化一个新的 <code>LanguageInfo</code> 对象，将其添加到 Languages 属性之中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">LanguageInfo</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 区域文化代码名称</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 应该是一个有效的区域文化代码名称，更多的可以通过 CultureInfo 静态类获得所有文化代码。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 例如: &#34;en-US&#34; 是北美适用的, &#34;tr-TR&#34; 适用于土耳其。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 该语言默认应该展示的语言名称。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 例如: 英语应该展示为 &#34;English&#34;, &#34;zh-Hans&#34; 应该展示为 &#34;简体中文&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">DisplayName</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 用于展示的图标 CSS 类名，可选参数</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Icon</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 是否为默认语言</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">IsDefault</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 该语言是否被禁用</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">IsDisabled</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 语言的展示方式是自左向右还是自右向左</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">IsRightToLeft</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">get</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">try</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="n">CultureInfo</span><span class="p">.</span><span class="n">GetCultureInfo</span><span class="p">(</span><span class="n">Name</span><span class="p">).</span><span class="n">TextInfo</span><span class="p">?.</span><span class="n">IsRightToLeft</span> <span class="p">??</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="k">catch</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">LanguageInfo</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="kt">string</span> <span class="n">displayName</span><span class="p">,</span> <span class="kt">string</span> <span class="n">icon</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">isDefault</span> <span class="p">=</span> <span class="k">false</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">isDisabled</span> <span class="p">=</span> <span class="k">false</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Name</span> <span class="p">=</span> <span class="n">name</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">DisplayName</span> <span class="p">=</span> <span class="n">displayName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Icon</span> <span class="p">=</span> <span class="n">icon</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IsDefault</span> <span class="p">=</span> <span class="n">isDefault</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IsDisabled</span> <span class="p">=</span> <span class="n">isDisabled</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>关于语言的定义还是相当简单的，主要参数就是语言的 <strong>区域文化代码</strong> 与 <strong>展示的名称</strong>，其余的都可以是可选参数。</p>
+<blockquote>
+<p>小提示：</p>
+<p>关于当前系统所支持的区域文化代码，可以通过执行 <code>CultureInfo.GetCultures(CultureTypes.AllCultures);</code> 得到。</p>
+</blockquote>
+<h3 id="23-语言管理器">2.3 语言管理器</h3>
+<p>Abp 针对语言也提供了一个管理器，接口叫做 <code>ILanguageManager</code>，定义简单，两个方法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">ILanguageManager</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得当前语言</span>
+</span></span><span class="line"><span class="cl">    <span class="n">LanguageInfo</span> <span class="n">CurrentLanguage</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得所有语言</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">LanguageInfo</span><span class="p">&gt;</span> <span class="n">GetLanguages</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>实现也不复杂，它内部的实现就是从一个 <code>ILanguageProvider</code> 拿取有哪一些语言数据。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">readonly</span> <span class="n">ILanguageProvider</span> <span class="n">_languageProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">LanguageInfo</span><span class="p">&gt;</span> <span class="n">GetLanguages</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">_languageProvider</span><span class="p">.</span><span class="n">GetLanguages</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 获取当前语言，其实就是获取的 CultureInfo.CurrentUICulture.Name 的信息，然后去查询语言集合。</span>
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="n">LanguageInfo</span> <span class="n">GetCurrentLanguage</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">languages</span> <span class="p">=</span> <span class="n">_languageProvider</span><span class="p">.</span><span class="n">GetLanguages</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 省略了的代码</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">currentCultureName</span> <span class="p">=</span> <span class="n">CultureInfo</span><span class="p">.</span><span class="n">CurrentUICulture</span><span class="p">.</span><span class="n">Name</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">currentLanguage</span> <span class="p">=</span> <span class="n">languages</span><span class="p">.</span><span class="n">FirstOrDefault</span><span class="p">(</span><span class="n">l</span> <span class="p">=&gt;</span> <span class="n">l</span><span class="p">.</span><span class="n">Name</span> <span class="p">==</span> <span class="n">currentCultureName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">currentLanguage</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">currentLanguage</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 省略了的代码</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">languages</span><span class="p">[</span><span class="m">0</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>默认实现就是直接读取之前通过 Configuration 的 <strong>Languages</strong> 里面的数据。</p>
+<p>在 Abp.Zero 模块还有两外一个实现，叫做 <code>ApplicationLanguageProvider</code> ，这个提供者则是从数据库表 <code>ApplicationLanguage</code> 获取的这些语言列表数据，并且这些语言信息还与租户有关，不同的租户他所能够获得到的语言数据也不一样。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">LanguageInfo</span><span class="p">&gt;</span> <span class="n">GetLanguages</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 可以看到这里传入的当前登录用户的租户 Id，通过这个参数去查询的语言表数据</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">languageInfos</span> <span class="p">=</span> <span class="n">AsyncHelper</span><span class="p">.</span><span class="n">RunSync</span><span class="p">(()</span> <span class="p">=&gt;</span> <span class="n">_applicationLanguageManager</span><span class="p">.</span><span class="n">GetLanguagesAsync</span><span class="p">(</span><span class="n">AbpSession</span><span class="p">.</span><span class="n">TenantId</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">OrderBy</span><span class="p">(</span><span class="n">l</span> <span class="p">=&gt;</span> <span class="n">l</span><span class="p">.</span><span class="n">DisplayName</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">Select</span><span class="p">(</span><span class="n">l</span> <span class="p">=&gt;</span> <span class="n">l</span><span class="p">.</span><span class="n">ToLanguageInfo</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">ToList</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">SetDefaultLanguage</span><span class="p">(</span><span class="n">languageInfos</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">languageInfos</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="24-本地化资源">2.4 本地化资源</h3>
+<h4 id="241-本地化资源列表">2.4.1 本地化资源列表</h4>
+<p>在多语言模块配置内部使用的是 <code>ILocalizationSourceList</code> 类型的一个 Sources 属性，该类型其实就是继承自 <code>IList&lt;ILocalizationSource&gt;</code> 的一个具体实现而已，一个类型为 <code>ILocalizationSource</code> 的集合，不过其扩展了一个</p>
+<p>Extensions 属性用于存放扩展的多语言数据字段。</p>
+<h4 id="242-本地化资源">2.4.2 本地化资源</h4>
+<p>其接口定义为 <code>ILocalizationSource</code> ，Abp 默认为我们实现了四种本地化资源的实现。</p>
+<p><img src="/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/1534479785680.png"
+	width="482"
+	height="98"
+	srcset="/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/1534479785680_hu21f49473aefdbb1239e871ba15671ced_13117_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-thirteen-multi-language-localization-processing/1534479785680_hu21f49473aefdbb1239e871ba15671ced_13117_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1534479785680"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="491"
+		data-flex-basis="1180px"
+	
+></p>
+<p>第一个是空实现，可以跳过，第二个则是针对资源文件进行读取的的本地化资源，第三个是基于字典的的本地化资源定义，最后一个是由 Abp Zero 模块所提供的数据库版本的多语言资源定义。</p>
+<p>首先看一下该接口的定义：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">ILocalizationSource</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 本地化资源唯一的名称</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">string</span> <span class="n">Name</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 用于初始化本地化资源,在 Abp 框架初始化的时候被调用</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">Initialize</span><span class="p">(</span><span class="n">ILocalizationConfiguration</span> <span class="n">configuration</span><span class="p">,</span> <span class="n">IIocResolver</span> <span class="n">iocResolver</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 从当前本地化资源中获取给定关键字的多语言文本项，为用户当前语言</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">string</span> <span class="n">GetString</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 从当前本地化资源中获取给定关键字与区域文化的多语言文本项</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">string</span> <span class="n">GetString</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="n">CultureInfo</span> <span class="n">culture</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 作用同上，只不过不存在会返回 NULL</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">string</span> <span class="n">GetStringOrNull</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">tryDefaults</span> <span class="p">=</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 作用同上，只不过不存在会返回 NULL</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">string</span> <span class="n">GetStringOrNull</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="n">CultureInfo</span> <span class="n">culture</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">tryDefaults</span> <span class="p">=</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得当前语言所有的多语言文本项集合</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">LocalizedString</span><span class="p">&gt;</span> <span class="n">GetAllStrings</span><span class="p">(</span><span class="kt">bool</span> <span class="n">includeDefaults</span> <span class="p">=</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得给定区域文化的所有多语言文本项集合</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">LocalizedString</span><span class="p">&gt;</span> <span class="n">GetAllStrings</span><span class="p">(</span><span class="n">CultureInfo</span> <span class="n">culture</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">includeDefaults</span> <span class="p">=</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>也就可以这么来看，我们有几套本地化资源，他们通过 Name 来进行标识，如果你需要在本地化管理器获取某一套本地化资源，那么你可以直接通过 Name 来进行定位。而每一套本地化资源，自身都拥有具体的多语言数据，这些多语言数据有可能来自文件也有可能来自数据库，这取决于你具体的实现。</p>
+<h4 id="243-基于字典的本地化资源">2.4.3 基于字典的本地化资源</h4>
+<p>最开始我们在使用范例当中，通过 <code>DictionaryBasedLocalizationSource</code> 来建立我们的本地化资源对象。该对象实现了 <code>ILocalizationSource</code> 与 <code>IDictionaryBasedLocalizationSource</code> 接口，内部定义了一个本地化资源字典提供器。</p>
+<p>当调用本地化资源的 <code>Initialize()</code> 方法的时候，会使用具体的本地化资源字典提供器来获取数据，而这个字典提供器可以为 <code>XmlFileLocalizationDictionaryProvider</code>、<code>JsonEmbeddedFileLocalizationDictionaryProvider</code> 等。</p>
+<p>这些内部字典提供器在初始化的时候，会将自身的数据按照 <strong>语言/多语言项</strong> 的形式将多语言信息存放在一个字典之中，而这个字典又可以分为 XML、JSON 等等等等&hellip;</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="c1">// 内部字典提供器</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">ILocalizationDictionaryProvider</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 语言/多语言项字典</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">ILocalizationDictionary</span><span class="p">&gt;</span> <span class="n">Dictionaries</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 本地化资源初始化时被调用</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">Initialize</span><span class="p">(</span><span class="kt">string</span> <span class="n">sourceName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>而这里的 <code>ILocalizationDictionary</code> 其实就是一个键值对，键关联的是多语言项的标识 KEY，例如 &ldquo;Home&rdquo;，而 Value 就是具体的展示文本信息了。</p>
+<p>而是用字典本地化资源对象获取数据的时候，其实也就是从其内部的字典提供器来获取数据。</p>
+<p><img src="/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/TIM--20180817191504.png"
+	width="922"
+	height="295"
+	srcset="/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/TIM--20180817191504_hu04b29921f8d75fb060145956a52b92a5_32811_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-thirteen-multi-language-localization-processing/TIM--20180817191504_hu04b29921f8d75fb060145956a52b92a5_32811_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="TIM&ndash;20180817191504"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="312"
+		data-flex-basis="750px"
+	
+></p>
+<p>例如本地化资源有一个 <code>GetString()</code> 方法，它内部拥有一个字典提供器 <strong>DictionaryProvider</strong>，我要获取某个 KEY 为 &ldquo;Home&rdquo; 所需要经过的步骤如下。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">ILocalizationDictionaryProvider</span> <span class="n">DictionaryProvider</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="kt">string</span> <span class="n">GetString</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获取当前用户区域文化，标识为 &#34;Home&#34; 的展示文本</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">GetString</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">CultureInfo</span><span class="p">.</span><span class="n">CurrentUICulture</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="kt">string</span> <span class="n">GetString</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="n">CultureInfo</span> <span class="n">culture</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获取值</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="k">value</span> <span class="p">=</span> <span class="n">GetStringOrNull</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">culture</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 判断值为空的话，根据配置的要求是否抛出异常</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="k">value</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">ReturnGivenNameOrThrowException</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">culture</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 获得 KEY 关联的文本</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="kt">string</span> <span class="n">GetStringOrNull</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="n">CultureInfo</span> <span class="n">culture</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">tryDefaults</span> <span class="p">=</span> <span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">cultureName</span> <span class="p">=</span> <span class="n">culture</span><span class="p">.</span><span class="n">Name</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">dictionaries</span> <span class="p">=</span> <span class="n">DictionaryProvider</span><span class="p">.</span><span class="n">Dictionaries</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 在这里就开始从初始化所加载完成的语言字典里面，获取具体的多语言项字典</span>
+</span></span><span class="line"><span class="cl">    <span class="n">ILocalizationDictionary</span> <span class="n">originalDictionary</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">dictionaries</span><span class="p">.</span><span class="n">TryGetValue</span><span class="p">(</span><span class="n">cultureName</span><span class="p">,</span> <span class="k">out</span> <span class="n">originalDictionary</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 多语言项字典拿取具体的多语言文本值</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">strOriginal</span> <span class="p">=</span> <span class="n">originalDictionary</span><span class="p">.</span><span class="n">GetOrNull</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">strOriginal</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">strOriginal</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">tryDefaults</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">//Try to get from same language dictionary (without country code)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">cultureName</span><span class="p">.</span><span class="n">Contains</span><span class="p">(</span><span class="s">&#34;-&#34;</span><span class="p">))</span> <span class="c1">//Example: &#34;tr-TR&#34; (length=5)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ILocalizationDictionary</span> <span class="n">langDictionary</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">dictionaries</span><span class="p">.</span><span class="n">TryGetValue</span><span class="p">(</span><span class="n">GetBaseCultureName</span><span class="p">(</span><span class="n">cultureName</span><span class="p">),</span> <span class="k">out</span> <span class="n">langDictionary</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">strLang</span> <span class="p">=</span> <span class="n">langDictionary</span><span class="p">.</span><span class="n">GetOrNull</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">strLang</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="n">strLang</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">//Try to get from default language</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">defaultDictionary</span> <span class="p">=</span> <span class="n">DictionaryProvider</span><span class="p">.</span><span class="n">DefaultDictionary</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">defaultDictionary</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">strDefault</span> <span class="p">=</span> <span class="n">defaultDictionary</span><span class="p">.</span><span class="n">GetOrNull</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">strDefault</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">strDefault</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="234-基于数据库的本地化资源">2.3.4 基于数据库的本地化资源</h4>
+<p>如果你有集成 Abp.Zero 模块的话，可以通过在启动模块的预加载方法编写以下代码启用 Zero 的多语言机制。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">Configuration</span><span class="p">.</span><span class="n">Modules</span><span class="p">.</span><span class="n">Zero</span><span class="p">().</span><span class="n">LanguageManagement</span><span class="p">.</span><span class="n">EnableDbLocalization</span><span class="p">();</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>Abp.Zero 针对原有的本地化资源进行了扩展，新增的本地化资源类叫做 <code>MultiTenantLocalizationSource</code>，该类同语言管理器一样，是一个基于多租户实现的本地化资源，内部字典的值是从数据库当中获取的，其大体逻辑与字典本地化资源一样，都是内部维护有一个字典提供器。</p>
+<p>在通过 <code>EnableDbLocalization()</code> 方法的时候就直接替换掉了 <code>ILanguageProvider</code> 的默认实现，并且在配置的 Sources 源里面也增加了 <code>MultiTenantLocalizationSource</code> 作为一个本地化资源。</p>
+<h3 id="25-本地化资源管理器">2.5 本地化资源管理器</h3>
+<p>扯了这么多，让我们来看一下最为核心的 <code>ILocalizationManager</code> 接口，如果我们需要获取某个数据源的某个 Key 所对应的多语言值肯定是要注入这个本地化资源管理器来进行操作的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">ILocalizationManager</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 根据名称获得本地化数据源</span>
+</span></span><span class="line"><span class="cl">    <span class="n">ILocalizationSource</span> <span class="n">GetSource</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获取所有的本地化数据源</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">ILocalizationSource</span><span class="p">&gt;</span> <span class="n">GetAllSources</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里的数据源标识的就是一个命名空间的作用，比如我在 A 模块当中有一个 Key 为 <code>&quot;Home&quot;</code> 的多语言项，在 B 模块也有一个 Key 为 <code>&quot;Home&quot;</code> 的多语言项，这个时候就可以用数据源标识来区分这两个 <code>&quot;Home&quot;</code> 。</p>
+<p>本地化资源管理器通过在初始化的时候调用其 <code>Initialize()</code> 来初始化所有被注入的本地化资源，最后并将其放在一个字典之中，以便后续使用。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">readonly</span> <span class="n">IDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">ILocalizationSource</span><span class="p">&gt;</span> <span class="n">_sources</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">source</span> <span class="k">in</span> <span class="n">_configuration</span><span class="p">.</span><span class="n">Sources</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">    <span class="n">_sources</span><span class="p">[</span><span class="n">source</span><span class="p">.</span><span class="n">Name</span><span class="p">]</span> <span class="p">=</span> <span class="n">source</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">source</span><span class="p">.</span><span class="n">Initialize</span><span class="p">(</span><span class="n">_configuration</span><span class="p">,</span> <span class="n">_iocResolver</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/TIM--20180817191511.png"
+	width="881"
+	height="436"
+	srcset="/p/abp-source-code-analysis-thirteen-multi-language-localization-processing/TIM--20180817191511_hu9f0a53ce71cbb6dafe945aa7c1d13488_33712_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-thirteen-multi-language-localization-processing/TIM--20180817191511_hu9f0a53ce71cbb6dafe945aa7c1d13488_33712_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="TIM&ndash;20180817191511"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="202"
+		data-flex-basis="484px"
+	
+></p>
+<h2 id="3结语">3.结语</h2>
+<p>针对 Abp 的多语言处理本篇文章不太适合作为入门了解，其中大部分知识需要结合 Abp 源码进行阅读才能够加深理解，此文仅作抛砖引玉之用，如有任何意见或建议欢迎大家在评论当中指出。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/aspnetboilerplate/">AspNetBoilerplate</a>
+        
+            <a href="/tags/%E6%9C%AC%E5%9C%B0%E5%8C%96/">本地化</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/why-not-use-async-void/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">为什么不要使用 async void ？</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-mongodb-retrofits-the-default-audit-log-storage-location/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp &#43; MongoDb 改造默认的审计日志存储位置</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-source-code-analysis-seventeen-aspnet-core-integration/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp 源码分析：十七、ASP.NET Core 集成</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/replace-abps-di-framework-with-dryioc/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">使用 DryIoc 替换 Abp 的 DI 框架</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#0简介">0.简介</a>
+      <ol>
+        <li><a href="#01-如何使用">0.1 如何使用</a>
+          <ol>
+            <li><a href="#011-定义应用程序支持的语言">0.1.1 定义应用程序支持的语言</a></li>
+            <li><a href="#012-建立多语言资源文件">0.1.2 建立多语言资源文件</a></li>
+            <li><a href="#013-注册本地化的-xml-资源">0.1.3 注册本地化的 XML 资源</a></li>
+            <li><a href="#014-获取多语言文本">0.1.4 获取多语言文本</a></li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+    <li><a href="#1启动流程">1.启动流程</a>
+      <ol>
+        <li><a href="#11-启动流程图">1.1 启动流程图</a></li>
+        <li><a href="#12-代码流程">1.2 代码流程</a></li>
+      </ol>
+    </li>
+    <li><a href="#2代码分析">2.代码分析</a>
+      <ol>
+        <li><a href="#21-多语言模块配置">2.1 多语言模块配置</a></li>
+        <li><a href="#22-语言信息">2.2 语言信息</a></li>
+        <li><a href="#23-语言管理器">2.3 语言管理器</a></li>
+        <li><a href="#24-本地化资源">2.4 本地化资源</a>
+          <ol>
+            <li><a href="#241-本地化资源列表">2.4.1 本地化资源列表</a></li>
+            <li><a href="#242-本地化资源">2.4.2 本地化资源</a></li>
+            <li><a href="#243-基于字典的本地化资源">2.4.3 基于字典的本地化资源</a></li>
+            <li><a href="#234-基于数据库的本地化资源">2.3.4 基于数据库的本地化资源</a></li>
+          </ol>
+        </li>
+        <li><a href="#25-本地化资源管理器">2.5 本地化资源管理器</a></li>
+      </ol>
+    </li>
+    <li><a href="#3结语">3.结语</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='用途 一致性哈希算法是为了解决普通哈希算法的热点问题，当使用普通哈希算法来切割数据到不同的缓存服务器时。 一旦缓存服务器的数量产生变化，客户端向缓存服务器请求相应的数据就不会命中，转而请求具体的数据库服务器，从而造成 缓存击穿。
+下面我们来看一下使用普通哈希算法时所带来的问题，假如我们拥有 10 台缓存服务器，那么我们在存放数据的时候可以对缓存数据项的 Key 进行哈希操作，取得其散列值，并将其与服务器数量进行取模运算，就可以得到一个服务器下标的数字。
+服务器信息 = Hash(Key) % 10
+例如我针对字符串 &amp;ldquo;140&amp;rdquo; 进行 SHA256 散列操作，得到 762818267，对 10 取模运算结果是 7 号服务器。但如果增加了一台服务器，那么就会变成对 11 取模,，其结果就是 2 号服务器，得到的位置完全不正确，造成取缓存的时候肯定不会命中。
+'><title>了解一致性哈希算法</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/understanding-consistent-hash-algorithms/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='了解一致性哈希算法'>
+<meta property='og:description' content='用途 一致性哈希算法是为了解决普通哈希算法的热点问题，当使用普通哈希算法来切割数据到不同的缓存服务器时。 一旦缓存服务器的数量产生变化，客户端向缓存服务器请求相应的数据就不会命中，转而请求具体的数据库服务器，从而造成 缓存击穿。
+下面我们来看一下使用普通哈希算法时所带来的问题，假如我们拥有 10 台缓存服务器，那么我们在存放数据的时候可以对缓存数据项的 Key 进行哈希操作，取得其散列值，并将其与服务器数量进行取模运算，就可以得到一个服务器下标的数字。
+服务器信息 = Hash(Key) % 10
+例如我针对字符串 &amp;ldquo;140&amp;rdquo; 进行 SHA256 散列操作，得到 762818267，对 10 取模运算结果是 7 号服务器。但如果增加了一台服务器，那么就会变成对 11 取模,，其结果就是 2 号服务器，得到的位置完全不正确，造成取缓存的时候肯定不会命中。
+'>
+<meta property='og:url' content='https://real-zony.github.io/p/understanding-consistent-hash-algorithms/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='算法' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='一致性哈希' /><meta property='article:tag' content='缓存' /><meta property='article:published_time' content='2019-03-26T09:37:36&#43;00:00'/><meta property='article:modified_time' content='2019-03-26T09:37:36&#43;00:00'/>
+<meta name="twitter:title" content="了解一致性哈希算法">
+<meta name="twitter:description" content="用途 一致性哈希算法是为了解决普通哈希算法的热点问题，当使用普通哈希算法来切割数据到不同的缓存服务器时。 一旦缓存服务器的数量产生变化，客户端向缓存服务器请求相应的数据就不会命中，转而请求具体的数据库服务器，从而造成 缓存击穿。
+下面我们来看一下使用普通哈希算法时所带来的问题，假如我们拥有 10 台缓存服务器，那么我们在存放数据的时候可以对缓存数据项的 Key 进行哈希操作，取得其散列值，并将其与服务器数量进行取模运算，就可以得到一个服务器下标的数字。
+服务器信息 = Hash(Key) % 10
+例如我针对字符串 &amp;ldquo;140&amp;rdquo; 进行 SHA256 散列操作，得到 762818267，对 10 取模运算结果是 7 号服务器。但如果增加了一台服务器，那么就会变成对 11 取模,，其结果就是 2 号服务器，得到的位置完全不正确，造成取缓存的时候肯定不会命中。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/understanding-consistent-hash-algorithms/">了解一致性哈希算法</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Mar 26, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 3 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="用途">用途</h2>
+<p>一致性哈希算法是为了解决普通哈希算法的热点问题，当使用普通哈希算法来切割数据到不同的缓存服务器时。
+一旦缓存服务器的数量产生变化，客户端向缓存服务器请求相应的数据就不会命中，转而请求具体的数据库服务器，从而造成 <strong>缓存击穿</strong>。</p>
+<p>下面我们来看一下使用普通哈希算法时所带来的问题，假如我们拥有 10 台缓存服务器，那么我们在存放数据的时候可以对缓存数据项的 Key 进行哈希操作，取得其散列值，并将其与服务器数量进行取模运算，就可以得到一个服务器下标的数字。</p>
+<p>服务器信息 = Hash(Key) % 10</p>
+<p>例如我针对字符串 &ldquo;140&rdquo; 进行 SHA256 散列操作，得到 762818267，对 10 取模运算结果是 7 号服务器。但如果增加了一台服务器，那么就会变成对 11 取模,，其结果就是 2 号服务器，得到的位置完全不正确，造成取缓存的时候肯定不会命中。</p>
+<h2 id="原理">原理</h2>
+<blockquote>
+<p><strong>注意：</strong></p>
+<p>由于画图的时候粗心将服务器 C 的 IP 地址写成了 <code>192.168.100.102</code>，其真实 IP 应该是 <code>192.168.100.103</code>，阅读文章的时候请注意这个区别。</p>
+</blockquote>
+<p>1.创建一个环，这个哈希环有 2^32 个节点。</p>
+<p><img src="/p/understanding-consistent-hash-algorithms/image-20190326121534703.png"
+	width="430"
+	height="499"
+	srcset="/p/understanding-consistent-hash-algorithms/image-20190326121534703_hudc996b3bfdd715da305f7e167d9297c0_22329_480x0_resize_box_3.png 480w, /p/understanding-consistent-hash-algorithms/image-20190326121534703_hudc996b3bfdd715da305f7e167d9297c0_22329_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="image-20190326121534703"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="86"
+		data-flex-basis="206px"
+	
+></p>
+<p>2.求出服务器的哈希值，并将其与哈希环节点的数量取模，得到的值即是服务器节点在哈希环上的位置。</p>
+<p><img src="/p/understanding-consistent-hash-algorithms/image-20190326122549456.png"
+	width="723"
+	height="609"
+	srcset="/p/understanding-consistent-hash-algorithms/image-20190326122549456_hue521bc8d6180072f4b99b04676291a1f_43912_480x0_resize_box_3.png 480w, /p/understanding-consistent-hash-algorithms/image-20190326122549456_hue521bc8d6180072f4b99b04676291a1f_43912_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="image-20190326122549456"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="118"
+		data-flex-basis="284px"
+	
+></p>
+<p>3.根据要存储的数据项键值，求出其哈希值，与哈希环节点数量取模，得到在哈希环的位置。</p>
+<p><img src="/p/understanding-consistent-hash-algorithms/image-20190326130204253.png"
+	width="843"
+	height="609"
+	srcset="/p/understanding-consistent-hash-algorithms/image-20190326130204253_hu5688c15efd246f8491043dfa0ef4a109_68053_480x0_resize_box_3.png 480w, /p/understanding-consistent-hash-algorithms/image-20190326130204253_hu5688c15efd246f8491043dfa0ef4a109_68053_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="image-20190326130204253"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="138"
+		data-flex-basis="332px"
+	
+></p>
+<p>4.根据数据项在哈希环的位置，顺时针查找遇到的第一个服务器节点，将数据项存放到该服务器。</p>
+<p><img src="/p/understanding-consistent-hash-algorithms/image-20190326140049779.png"
+	width="843"
+	height="650"
+	srcset="/p/understanding-consistent-hash-algorithms/image-20190326140049779_hub32722d818bc2538f215d0429062c45b_82067_480x0_resize_box_3.png 480w, /p/understanding-consistent-hash-algorithms/image-20190326140049779_hub32722d818bc2538f215d0429062c45b_82067_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="image-20190326140049779"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="129"
+		data-flex-basis="311px"
+	
+></p>
+<p>5.如果增加了一台服务器 D，只会影响 D 之前区间的数据。</p>
+<p><img src="/p/understanding-consistent-hash-algorithms/image-20190326141821117.png"
+	width="860"
+	height="650"
+	srcset="/p/understanding-consistent-hash-algorithms/image-20190326141821117_hu6c8eccb40c97b6cdc50b6b3e8734378a_89282_480x0_resize_box_3.png 480w, /p/understanding-consistent-hash-algorithms/image-20190326141821117_hu6c8eccb40c97b6cdc50b6b3e8734378a_89282_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="image-20190326141821117"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="132"
+		data-flex-basis="317px"
+	
+></p>
+<p>上述情况仅适用于服务节点在哈希环上分布均匀的情况，如果哈希环上服务器节点的 <strong>分布位置不均匀</strong>，则会导致某个区间内的数据项的大量数据存放在一个服务器节点中。如下图，A 缓存服务器就会接收大量请求，当该服务器崩溃掉之后，B 服务器，C 服务器会依次崩溃，这样就会造成 <strong>服务器雪崩效应</strong>，整个缓存服务器集群都会瘫痪。</p>
+<p><img src="/p/understanding-consistent-hash-algorithms/image-20190326143407844.png"
+	width="638"
+	height="509"
+	srcset="/p/understanding-consistent-hash-algorithms/image-20190326143407844_hu7c55f046d1a4c94098b1128ccc7e5eeb_45101_480x0_resize_box_3.png 480w, /p/understanding-consistent-hash-algorithms/image-20190326143407844_hu7c55f046d1a4c94098b1128ccc7e5eeb_45101_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="image-20190326143407844"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="125"
+		data-flex-basis="300px"
+	
+></p>
+<p>这种时候，我们可以引入虚拟节点来解决该问题。例如我们拥有 A、B、C 三台服务器，我们在哈希环上创建哈希服务器的时候，可以为其创建 N 个虚拟节点，这些虚拟节点都是指向真实服务器的 IP，这样我们在哈希环上的服务器节点分布就会很均匀。</p>
+<p><img src="/p/understanding-consistent-hash-algorithms/image-20190326143734935.png"
+	width="647"
+	height="515"
+	srcset="/p/understanding-consistent-hash-algorithms/image-20190326143734935_hu7307c92dd388bd1eea59499e64d9fdf2_47682_480x0_resize_box_3.png 480w, /p/understanding-consistent-hash-algorithms/image-20190326143734935_hu7307c92dd388bd1eea59499e64d9fdf2_47682_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="image-20190326143734935"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="125"
+		data-flex-basis="301px"
+	
+></p>
+<h2 id="实现">实现</h2>
+<p>在这里我们基于 C# 与 .NET Core 编写一个 DEMO 代码，用来演示上述情况，这里的代码仅作演示使用，如果要应用到生产环境，请注意线程同步问题。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">  1
+</span><span class="lnt">  2
+</span><span class="lnt">  3
+</span><span class="lnt">  4
+</span><span class="lnt">  5
+</span><span class="lnt">  6
+</span><span class="lnt">  7
+</span><span class="lnt">  8
+</span><span class="lnt">  9
+</span><span class="lnt"> 10
+</span><span class="lnt"> 11
+</span><span class="lnt"> 12
+</span><span class="lnt"> 13
+</span><span class="lnt"> 14
+</span><span class="lnt"> 15
+</span><span class="lnt"> 16
+</span><span class="lnt"> 17
+</span><span class="lnt"> 18
+</span><span class="lnt"> 19
+</span><span class="lnt"> 20
+</span><span class="lnt"> 21
+</span><span class="lnt"> 22
+</span><span class="lnt"> 23
+</span><span class="lnt"> 24
+</span><span class="lnt"> 25
+</span><span class="lnt"> 26
+</span><span class="lnt"> 27
+</span><span class="lnt"> 28
+</span><span class="lnt"> 29
+</span><span class="lnt"> 30
+</span><span class="lnt"> 31
+</span><span class="lnt"> 32
+</span><span class="lnt"> 33
+</span><span class="lnt"> 34
+</span><span class="lnt"> 35
+</span><span class="lnt"> 36
+</span><span class="lnt"> 37
+</span><span class="lnt"> 38
+</span><span class="lnt"> 39
+</span><span class="lnt"> 40
+</span><span class="lnt"> 41
+</span><span class="lnt"> 42
+</span><span class="lnt"> 43
+</span><span class="lnt"> 44
+</span><span class="lnt"> 45
+</span><span class="lnt"> 46
+</span><span class="lnt"> 47
+</span><span class="lnt"> 48
+</span><span class="lnt"> 49
+</span><span class="lnt"> 50
+</span><span class="lnt"> 51
+</span><span class="lnt"> 52
+</span><span class="lnt"> 53
+</span><span class="lnt"> 54
+</span><span class="lnt"> 55
+</span><span class="lnt"> 56
+</span><span class="lnt"> 57
+</span><span class="lnt"> 58
+</span><span class="lnt"> 59
+</span><span class="lnt"> 60
+</span><span class="lnt"> 61
+</span><span class="lnt"> 62
+</span><span class="lnt"> 63
+</span><span class="lnt"> 64
+</span><span class="lnt"> 65
+</span><span class="lnt"> 66
+</span><span class="lnt"> 67
+</span><span class="lnt"> 68
+</span><span class="lnt"> 69
+</span><span class="lnt"> 70
+</span><span class="lnt"> 71
+</span><span class="lnt"> 72
+</span><span class="lnt"> 73
+</span><span class="lnt"> 74
+</span><span class="lnt"> 75
+</span><span class="lnt"> 76
+</span><span class="lnt"> 77
+</span><span class="lnt"> 78
+</span><span class="lnt"> 79
+</span><span class="lnt"> 80
+</span><span class="lnt"> 81
+</span><span class="lnt"> 82
+</span><span class="lnt"> 83
+</span><span class="lnt"> 84
+</span><span class="lnt"> 85
+</span><span class="lnt"> 86
+</span><span class="lnt"> 87
+</span><span class="lnt"> 88
+</span><span class="lnt"> 89
+</span><span class="lnt"> 90
+</span><span class="lnt"> 91
+</span><span class="lnt"> 92
+</span><span class="lnt"> 93
+</span><span class="lnt"> 94
+</span><span class="lnt"> 95
+</span><span class="lnt"> 96
+</span><span class="lnt"> 97
+</span><span class="lnt"> 98
+</span><span class="lnt"> 99
+</span><span class="lnt">100
+</span><span class="lnt">101
+</span><span class="lnt">102
+</span><span class="lnt">103
+</span><span class="lnt">104
+</span><span class="lnt">105
+</span><span class="lnt">106
+</span><span class="lnt">107
+</span><span class="lnt">108
+</span><span class="lnt">109
+</span><span class="lnt">110
+</span><span class="lnt">111
+</span><span class="lnt">112
+</span><span class="lnt">113
+</span><span class="lnt">114
+</span><span class="lnt">115
+</span><span class="lnt">116
+</span><span class="lnt">117
+</span><span class="lnt">118
+</span><span class="lnt">119
+</span><span class="lnt">120
+</span><span class="lnt">121
+</span><span class="lnt">122
+</span><span class="lnt">123
+</span><span class="lnt">124
+</span><span class="lnt">125
+</span><span class="lnt">126
+</span><span class="lnt">127
+</span><span class="lnt">128
+</span><span class="lnt">129
+</span><span class="lnt">130
+</span><span class="lnt">131
+</span><span class="lnt">132
+</span><span class="lnt">133
+</span><span class="lnt">134
+</span><span class="lnt">135
+</span><span class="lnt">136
+</span><span class="lnt">137
+</span><span class="lnt">138
+</span><span class="lnt">139
+</span><span class="lnt">140
+</span><span class="lnt">141
+</span><span class="lnt">142
+</span><span class="lnt">143
+</span><span class="lnt">144
+</span><span class="lnt">145
+</span><span class="lnt">146
+</span><span class="lnt">147
+</span><span class="lnt">148
+</span><span class="lnt">149
+</span><span class="lnt">150
+</span><span class="lnt">151
+</span><span class="lnt">152
+</span><span class="lnt">153
+</span><span class="lnt">154
+</span><span class="lnt">155
+</span><span class="lnt">156
+</span><span class="lnt">157
+</span><span class="lnt">158
+</span><span class="lnt">159
+</span><span class="lnt">160
+</span><span class="lnt">161
+</span><span class="lnt">162
+</span><span class="lnt">163
+</span><span class="lnt">164
+</span><span class="lnt">165
+</span><span class="lnt">166
+</span><span class="lnt">167
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">System</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">System.Collections.Generic</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">System.Security.Cryptography</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">System.Text</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * 一致性哈希算法的 DEMO，主要用于演示一致性哈希算法的实现与实际应用。
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">ConsistentHashing.Startup</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">NodeInfo</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="kt">string</span> <span class="n">IPAddress</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">VirtualNodeInfo</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="kt">string</span> <span class="n">NodeName</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="n">NodeInfo</span> <span class="n">RealNodeInfo</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">ConsistentHashing</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 哈希环的大小</span>
+</span></span><span class="line"><span class="cl">        <span class="k">private</span> <span class="k">readonly</span> <span class="kt">int</span> <span class="n">_ringCount</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 每个物理节点对应的虚拟节点数量</span>
+</span></span><span class="line"><span class="cl">        <span class="k">private</span> <span class="k">readonly</span> <span class="kt">int</span> <span class="n">_virtualNodeCount</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 哈希环</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">readonly</span> <span class="n">VirtualNodeInfo</span><span class="p">[]</span> <span class="n">HashRing</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="n">ConsistentHashing</span><span class="p">(</span><span class="kt">int</span> <span class="n">ringCount</span> <span class="p">=</span> <span class="kt">int</span><span class="p">.</span><span class="n">MaxValue</span><span class="p">,</span> <span class="kt">int</span> <span class="n">virtualNodeCount</span> <span class="p">=</span> <span class="m">3</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">_ringCount</span> <span class="p">=</span> <span class="n">ringCount</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="n">_virtualNodeCount</span> <span class="p">=</span> <span class="n">virtualNodeCount</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="n">HashRing</span> <span class="p">=</span> <span class="k">new</span> <span class="n">VirtualNodeInfo</span><span class="p">[</span><span class="n">_ringCount</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="n">NodeInfo</span> <span class="n">GetNode</span><span class="p">(</span><span class="kt">string</span> <span class="n">key</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">pos</span> <span class="p">=</span> <span class="n">Math</span><span class="p">.</span><span class="n">Abs</span><span class="p">(</span><span class="n">GetStandardHashCode</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="p">%</span> <span class="n">_ringCount</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 顺时针查找最近的节点</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">GetFirstNodeInfo</span><span class="p">(</span><span class="n">pos</span><span class="p">).</span><span class="n">RealNodeInfo</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="cs">/// 向哈希环上添加虚拟节点。</span>
+</span></span><span class="line"><span class="cl">        <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">void</span> <span class="n">AddNode</span><span class="p">(</span><span class="n">NodeInfo</span> <span class="n">info</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">index</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span> <span class="n">index</span> <span class="p">&lt;</span> <span class="n">_virtualNodeCount</span><span class="p">;</span> <span class="n">index</span><span class="p">++)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 哈希环上没有物理节点，只有虚拟节点</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">var</span> <span class="n">virtualNodeName</span> <span class="p">=</span> <span class="s">$&#34;{info.IPAddress}#{index}&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">var</span> <span class="n">hashIndex</span> <span class="p">=</span> <span class="n">Math</span><span class="p">.</span><span class="n">Abs</span><span class="p">(</span><span class="n">GetStandardHashCode</span><span class="p">(</span><span class="n">virtualNodeName</span><span class="p">)</span> <span class="p">%</span> <span class="n">_ringCount</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">                
+</span></span><span class="line"><span class="cl">                <span class="c1">// 搜索空的哈希环位置</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">var</span> <span class="n">emptyIndex</span> <span class="p">=</span> <span class="n">GetEmptyNodeIndex</span><span class="p">(</span><span class="n">hashIndex</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="k">if</span> <span class="p">(</span><span class="n">emptyIndex</span> <span class="p">==</span> <span class="p">-</span><span class="m">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                    <span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                <span class="p">}</span>
+</span></span><span class="line"><span class="cl">                
+</span></span><span class="line"><span class="cl">                <span class="n">HashRing</span><span class="p">[</span><span class="n">emptyIndex</span><span class="p">]</span> <span class="p">=</span> <span class="k">new</span> <span class="n">VirtualNodeInfo</span><span class="p">{</span><span class="n">NodeName</span> <span class="p">=</span> <span class="n">virtualNodeName</span><span class="p">,</span><span class="n">RealNodeInfo</span> <span class="p">=</span> <span class="n">info</span><span class="p">};</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">void</span> <span class="n">RemoveNode</span><span class="p">(</span><span class="n">NodeInfo</span> <span class="n">info</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 构建虚拟节点的 KEY</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">virtualNames</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">            <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span> <span class="n">i</span> <span class="p">&lt;</span> <span class="n">_virtualNodeCount</span><span class="p">;</span> <span class="n">i</span><span class="p">++)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">virtualNames</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="s">$&#34;{info.IPAddress}#{i}&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span> <span class="n">i</span> <span class="p">&lt;</span> <span class="n">HashRing</span><span class="p">.</span><span class="n">Length</span><span class="p">;</span> <span class="n">i</span><span class="p">++)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">if</span><span class="p">(</span><span class="n">HashRing</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span> <span class="k">continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                <span class="k">if</span> <span class="p">(</span><span class="n">virtualNames</span><span class="p">.</span><span class="n">Contains</span><span class="p">(</span><span class="n">HashRing</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">NodeName</span><span class="p">))</span> <span class="n">HashRing</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="cs">/// 计算指定 KEY 的 HASH 值</span>
+</span></span><span class="line"><span class="cl">        <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">private</span> <span class="kt">int</span> <span class="n">GetStandardHashCode</span><span class="p">(</span><span class="kt">string</span> <span class="n">key</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">sha1</span> <span class="p">=</span> <span class="n">SHA256</span><span class="p">.</span><span class="n">Create</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">hashValue</span> <span class="p">=</span> <span class="n">sha1</span><span class="p">.</span><span class="n">ComputeHash</span><span class="p">(</span><span class="n">Encoding</span><span class="p">.</span><span class="n">UTF8</span><span class="p">.</span><span class="n">GetBytes</span><span class="p">(</span><span class="n">key</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">BitConverter</span><span class="p">.</span><span class="n">ToInt32</span><span class="p">(</span><span class="n">hashValue</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="cs">/// 循环遍历哈希环，寻找空节点的索引，防止覆盖存在的节点信息。</span>
+</span></span><span class="line"><span class="cl">        <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">private</span> <span class="kt">int</span> <span class="n">GetEmptyNodeIndex</span><span class="p">(</span><span class="kt">int</span> <span class="n">startFindIndex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">while</span> <span class="p">(</span><span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">if</span> <span class="p">(</span><span class="n">HashRing</span><span class="p">[</span><span class="n">startFindIndex</span><span class="p">]</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                    <span class="k">return</span> <span class="n">startFindIndex</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="kt">var</span> <span class="n">nextIndex</span> <span class="p">=</span> <span class="n">GetNextNodeIndex</span><span class="p">(</span><span class="n">startFindIndex</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 说明已经遍历了整个哈希环，说明没有空的节点了。</span>
+</span></span><span class="line"><span class="cl">                <span class="k">if</span> <span class="p">(</span><span class="n">startFindIndex</span> <span class="p">==</span> <span class="n">nextIndex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                    <span class="k">return</span> <span class="p">-</span><span class="m">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="n">startFindIndex</span> <span class="p">=</span> <span class="n">nextIndex</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="cs">/// 根据指定的索引，获得哈希环的下一个索引。这里需要注意的是，因为哈希环是一个环形，当</span>
+</span></span><span class="line"><span class="cl">        <span class="cs">/// 当前位置为环的末尾时，应该从 0 开始查找。</span>
+</span></span><span class="line"><span class="cl">        <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">private</span> <span class="kt">int</span> <span class="n">GetNextNodeIndex</span><span class="p">(</span><span class="kt">int</span> <span class="n">preIndex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">preIndex</span> <span class="p">==</span> <span class="n">HashRing</span><span class="p">.</span><span class="n">Length</span> <span class="p">-</span> <span class="m">1</span><span class="p">)</span> <span class="k">return</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="p">++</span><span class="n">preIndex</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">private</span> <span class="n">VirtualNodeInfo</span> <span class="n">GetFirstNodeInfo</span><span class="p">(</span><span class="kt">int</span> <span class="n">currentIndex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">VirtualNodeInfo</span> <span class="n">nodeInfo</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">int</span> <span class="n">nextIndex</span> <span class="p">=</span> <span class="n">currentIndex</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="k">while</span> <span class="p">(</span><span class="n">nodeInfo</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">nodeInfo</span> <span class="p">=</span> <span class="n">HashRing</span><span class="p">[</span><span class="n">GetNextNodeIndex</span><span class="p">(</span><span class="n">nextIndex</span><span class="p">)];</span>
+</span></span><span class="line"><span class="cl">                <span class="n">nextIndex</span> <span class="p">+=</span> <span class="m">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">nodeInfo</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">internal</span> <span class="k">class</span> <span class="nc">Program</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">private</span> <span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">consistentHashing</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ConsistentHashing</span><span class="p">(</span><span class="m">400</span><span class="p">,</span><span class="m">10</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="n">consistentHashing</span><span class="p">.</span><span class="n">AddNode</span><span class="p">(</span><span class="k">new</span> <span class="n">NodeInfo</span> <span class="p">{</span><span class="n">IPAddress</span> <span class="p">=</span> <span class="s">&#34;192.168.1.101&#34;</span><span class="p">});</span>
+</span></span><span class="line"><span class="cl">            <span class="n">consistentHashing</span><span class="p">.</span><span class="n">AddNode</span><span class="p">(</span><span class="k">new</span> <span class="n">NodeInfo</span> <span class="p">{</span><span class="n">IPAddress</span> <span class="p">=</span> <span class="s">&#34;192.168.1.102&#34;</span><span class="p">});</span>
+</span></span><span class="line"><span class="cl">            <span class="n">consistentHashing</span><span class="p">.</span><span class="n">AddNode</span><span class="p">(</span><span class="k">new</span> <span class="n">NodeInfo</span> <span class="p">{</span><span class="n">IPAddress</span> <span class="p">=</span> <span class="s">&#34;192.168.1.103&#34;</span><span class="p">});</span>
+</span></span><span class="line"><span class="cl">            <span class="n">consistentHashing</span><span class="p">.</span><span class="n">AddNode</span><span class="p">(</span><span class="k">new</span> <span class="n">NodeInfo</span> <span class="p">{</span><span class="n">IPAddress</span> <span class="p">=</span> <span class="s">&#34;192.168.1.104&#34;</span><span class="p">});</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">node</span> <span class="k">in</span> <span class="n">consistentHashing</span><span class="p">.</span><span class="n">HashRing</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="n">node</span><span class="p">?.</span><span class="n">NodeName</span> <span class="p">??</span> <span class="s">&#34;NULL&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// 存放 Id 为 15 的缓存服务器</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">nodeInfo</span> <span class="p">=</span> <span class="n">consistentHashing</span><span class="p">.</span><span class="n">GetNode</span><span class="p">(</span><span class="s">&#34;15&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            
+</span></span><span class="line"><span class="cl">            <span class="c1">// 删除节点测试</span>
+</span></span><span class="line"><span class="cl">            <span class="n">consistentHashing</span><span class="p">.</span><span class="n">RemoveNode</span><span class="p">(</span><span class="k">new</span> <span class="n">NodeInfo</span> <span class="p">{</span><span class="n">IPAddress</span> <span class="p">=</span> <span class="s">&#34;192.168.1.103&#34;</span><span class="p">});</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E7%AE%97%E6%B3%95/">算法</a>
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C/">一致性哈希</a>
+        
+            <a href="/tags/%E7%BC%93%E5%AD%98/">缓存</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-source-code-analysis-8-cache-management/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp 源码分析：八、缓存管理</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/topological-sorting-using-csharp-code/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">使用 C# 代码实现拓扑排序</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/implementing-lru-cache-in-csharp/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">在 C# 当中实现 LRU Cache</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#用途">用途</a></li>
+    <li><a href="#原理">原理</a></li>
+    <li><a href="#实现">实现</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

@@ -1,0 +1,1902 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、简介 ABP vNext 原生支持多租户体系，可以让开发人员快速地基于框架开发 SaaS 系统。ABP vNext 实现多租户的思路也非常简单，通过一个 TenantId 来分割各个租户的数据，并且在查询的时候使用统一的全局过滤器(类似于软删除)来筛选数据。
+关于多租户体系的东西，基本定义与核心逻辑存放在 Volo.ABP.MultiTenancy 内部。针对 ASP.NET Core MVC 的集成则是由 Volo.ABP.AspNetCore.MultiTenancy 项目实现的，针对多租户的解析都在这个项目内部。租户数据的存储和管理都由 Volo.ABP.TenantManagement 模块提供，开发人员也可以直接使用该项目快速实现多租户功能。
+'><title>Abp vNext 源码分析 - 19. 多租户</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/abp-vnext-source-code-analysis---19-multi-tenancy/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp vNext 源码分析 - 19. 多租户'>
+<meta property='og:description' content='一、简介 ABP vNext 原生支持多租户体系，可以让开发人员快速地基于框架开发 SaaS 系统。ABP vNext 实现多租户的思路也非常简单，通过一个 TenantId 来分割各个租户的数据，并且在查询的时候使用统一的全局过滤器(类似于软删除)来筛选数据。
+关于多租户体系的东西，基本定义与核心逻辑存放在 Volo.ABP.MultiTenancy 内部。针对 ASP.NET Core MVC 的集成则是由 Volo.ABP.AspNetCore.MultiTenancy 项目实现的，针对多租户的解析都在这个项目内部。租户数据的存储和管理都由 Volo.ABP.TenantManagement 模块提供，开发人员也可以直接使用该项目快速实现多租户功能。
+'>
+<meta property='og:url' content='https://real-zony.github.io/p/abp-vnext-source-code-analysis---19-multi-tenancy/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='ABP vNext' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='ASP.NET Core' /><meta property='article:tag' content='ASP.NET Core MVC' /><meta property='article:tag' content='多租户' /><meta property='article:published_time' content='2020-03-03T04:03:15&#43;00:00'/><meta property='article:modified_time' content='2020-03-03T04:03:15&#43;00:00'/>
+<meta name="twitter:title" content="Abp vNext 源码分析 - 19. 多租户">
+<meta name="twitter:description" content="一、简介 ABP vNext 原生支持多租户体系，可以让开发人员快速地基于框架开发 SaaS 系统。ABP vNext 实现多租户的思路也非常简单，通过一个 TenantId 来分割各个租户的数据，并且在查询的时候使用统一的全局过滤器(类似于软删除)来筛选数据。
+关于多租户体系的东西，基本定义与核心逻辑存放在 Volo.ABP.MultiTenancy 内部。针对 ASP.NET Core MVC 的集成则是由 Volo.ABP.AspNetCore.MultiTenancy 项目实现的，针对多租户的解析都在这个项目内部。租户数据的存储和管理都由 Volo.ABP.TenantManagement 模块提供，开发人员也可以直接使用该项目快速实现多租户功能。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-vnext-source-code-analysis---19-multi-tenancy/">Abp vNext 源码分析 - 19. 多租户</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Mar 03, 2020</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 10 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一简介">一、简介</h2>
+<p>ABP vNext 原生支持多租户体系，可以让开发人员快速地基于框架开发 SaaS 系统。ABP vNext 实现多租户的思路也非常简单，通过一个 <code>TenantId</code> 来分割各个租户的数据，并且在查询的时候使用统一的全局过滤器(<strong>类似于软删除</strong>)来筛选数据。</p>
+<p>关于多租户体系的东西，基本定义与核心逻辑存放在 <strong>Volo.ABP.MultiTenancy</strong> 内部。针对 ASP.NET Core MVC 的集成则是由 <strong>Volo.ABP.AspNetCore.MultiTenancy</strong> 项目实现的，针对多租户的解析都在这个项目内部。租户数据的存储和管理都由 <strong>Volo.ABP.TenantManagement</strong> 模块提供，开发人员也可以直接使用该项目快速实现多租户功能。</p>
+<h2 id="二源码分析">二、源码分析</h2>
+<h3 id="21-启动模块">2.1 启动模块</h3>
+<p><code>AbpMultiTenancyModule</code> 模块是启用整个多租户功能的核心模块，内部只进行了一个动作，就是从配置类当中读取多租户的基本信息，以 JSON Provider 为例，就需要在 <code>appsettings.json</code> 里面有 <code>Tenants</code> 节。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="s2">&#34;Tenants&#34;</span><span class="err">:</span> <span class="p">[</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nt">&#34;Id&#34;</span><span class="p">:</span> <span class="s2">&#34;446a5211-3d72-4339-9adc-845151f8ada0&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">      <span class="nt">&#34;Name&#34;</span><span class="p">:</span> <span class="s2">&#34;tenant1&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">},</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nt">&#34;Id&#34;</span><span class="p">:</span> <span class="s2">&#34;25388015-ef1c-4355-9c18-f6b6ddbaf89d&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">      <span class="nt">&#34;Name&#34;</span><span class="p">:</span> <span class="s2">&#34;tenant2&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">      <span class="nt">&#34;ConnectionStrings&#34;</span><span class="p">:</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nt">&#34;Default&#34;</span><span class="p">:</span> <span class="s2">&#34;...write tenant2&#39;s db connection string here...&#34;</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">]</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="211-默认租户来源">2.1.1 默认租户来源</h4>
+<p>这里的数据将会作为默认租户来源，也就是说在确认当前租户的时候，会从这里面的数据与要登录的租户进行比较，如果不存在则不允许进行操作。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">ITenantStore</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span><span class="p">&lt;</span><span class="n">TenantConfiguration</span><span class="p">&gt;</span> <span class="n">FindAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span><span class="p">&lt;</span><span class="n">TenantConfiguration</span><span class="p">&gt;</span> <span class="n">FindAsync</span><span class="p">(</span><span class="n">Guid</span> <span class="n">id</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">TenantConfiguration</span> <span class="n">Find</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">TenantConfiguration</span> <span class="n">Find</span><span class="p">(</span><span class="n">Guid</span> <span class="n">id</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>默认的存储实现：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Dependency(TryRegister = true)]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">DefaultTenantStore</span> <span class="p">:</span> <span class="n">ITenantStore</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 直接从 Options 当中获取租户数据。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">AbpDefaultTenantStoreOptions</span> <span class="n">_options</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">DefaultTenantStore</span><span class="p">(</span><span class="n">IOptionsSnapshot</span><span class="p">&lt;</span><span class="n">AbpDefaultTenantStoreOptions</span><span class="p">&gt;</span> <span class="n">options</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_options</span> <span class="p">=</span> <span class="n">options</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">TenantConfiguration</span><span class="p">&gt;</span> <span class="n">FindAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">Task</span><span class="p">.</span><span class="n">FromResult</span><span class="p">(</span><span class="n">Find</span><span class="p">(</span><span class="n">name</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">TenantConfiguration</span><span class="p">&gt;</span> <span class="n">FindAsync</span><span class="p">(</span><span class="n">Guid</span> <span class="n">id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">Task</span><span class="p">.</span><span class="n">FromResult</span><span class="p">(</span><span class="n">Find</span><span class="p">(</span><span class="n">id</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TenantConfiguration</span> <span class="n">Find</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">_options</span><span class="p">.</span><span class="n">Tenants</span><span class="p">?.</span><span class="n">FirstOrDefault</span><span class="p">(</span><span class="n">t</span> <span class="p">=&gt;</span> <span class="n">t</span><span class="p">.</span><span class="n">Name</span> <span class="p">==</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TenantConfiguration</span> <span class="n">Find</span><span class="p">(</span><span class="n">Guid</span> <span class="n">id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">_options</span><span class="p">.</span><span class="n">Tenants</span><span class="p">?.</span><span class="n">FirstOrDefault</span><span class="p">(</span><span class="n">t</span> <span class="p">=&gt;</span> <span class="n">t</span><span class="p">.</span><span class="n">Id</span> <span class="p">==</span> <span class="n">id</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>除了从配置文件当中读取租户信息以外，开发人员也可以自己实现 <code>ITenantStore</code> 接口，比如说像 <strong>TenantManagement</strong> 一样，将租户信息存储到数据库当中。</p>
+<h4 id="212-基于数据库的租户存储">2.1.2 基于数据库的租户存储</h4>
+<p>话接上文，我们说过在 <strong>Volo.ABP.TenantManagement</strong> 模块内部有提供另一种 <code>ITenantStore</code> 接口的实现，这个类型叫做 <code>TenantStore</code>，内部逻辑也很简单，就是从仓储当中查找租户数据。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TenantStore</span> <span class="p">:</span> <span class="n">ITenantStore</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">ITenantRepository</span> <span class="n">_tenantRepository</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IObjectMapper</span><span class="p">&lt;</span><span class="n">AbpTenantManagementDomainModule</span><span class="p">&gt;</span> <span class="n">_objectMapper</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">ICurrentTenant</span> <span class="n">_currentTenant</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TenantStore</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ITenantRepository</span> <span class="n">tenantRepository</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">IObjectMapper</span><span class="p">&lt;</span><span class="n">AbpTenantManagementDomainModule</span><span class="p">&gt;</span> <span class="n">objectMapper</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ICurrentTenant</span> <span class="n">currentTenant</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_tenantRepository</span> <span class="p">=</span> <span class="n">tenantRepository</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_objectMapper</span> <span class="p">=</span> <span class="n">objectMapper</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_currentTenant</span> <span class="p">=</span> <span class="n">currentTenant</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">TenantConfiguration</span><span class="p">&gt;</span> <span class="n">FindAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 变更当前租户为租主。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">using</span> <span class="p">(</span><span class="n">_currentTenant</span><span class="p">.</span><span class="n">Change</span><span class="p">(</span><span class="k">null</span><span class="p">))</span> <span class="c1">//TODO: No need this if we can implement to define host side (or tenant-independent) entities!</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 通过仓储查询租户是否存在。</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">tenant</span> <span class="p">=</span> <span class="k">await</span> <span class="n">_tenantRepository</span><span class="p">.</span><span class="n">FindByNameAsync</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">tenant</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// 将查询到的信息转换为核心库定义的租户信息。</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">_objectMapper</span><span class="p">.</span><span class="n">Map</span><span class="p">&lt;</span><span class="n">Tenant</span><span class="p">,</span> <span class="n">TenantConfiguration</span><span class="p">&gt;(</span><span class="n">tenant</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他的代码已经省略。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到，最后也是返回的一个 <code>TenantConfiguration</code> 类型。关于这个类型，是 ABP 在多租户核心库定义的一个基本类型之一，主要是用于规定持久化一个租户信息需要包含的属性。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Serializable]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TenantConfiguration</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 租户的 Guid。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Guid</span> <span class="n">Id</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 租户的名称。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 租户对应的数据库连接字符串。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ConnectionStrings</span> <span class="n">ConnectionStrings</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TenantConfiguration</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TenantConfiguration</span><span class="p">(</span><span class="n">Guid</span> <span class="n">id</span><span class="p">,</span> <span class="p">[</span><span class="n">NotNull</span><span class="p">]</span> <span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">name</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">Id</span> <span class="p">=</span> <span class="n">id</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Name</span> <span class="p">=</span> <span class="n">name</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">ConnectionStrings</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ConnectionStrings</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-租户的解析">2.2 租户的解析</h3>
+<p>ABP vNext 如果要判断当前的租户是谁，则是通过 <code>AbpTenantResolveOptions</code> 提供的一组 <code>ITenantResolveContributor</code> 进行处理的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpTenantResolveOptions</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 会使用到的这组解析对象。</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [NotNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">ITenantResolveContributor</span><span class="p">&gt;</span> <span class="n">TenantResolvers</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">AbpTenantResolveOptions</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">TenantResolvers</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">ITenantResolveContributor</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 默认的解析对象，会通过 Token 内字段解析当前租户。</span>
+</span></span><span class="line"><span class="cl">            <span class="k">new</span> <span class="n">CurrentUserTenantResolveContributor</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">};</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里的设计与权限一样，都是由一组 <strong>解析对象(解析器)</strong> 进行处理，在上层开放的入口只有一个 <code>ITenantResolver</code> ，内部通过 <code>foreach</code> 执行这组解析对象的 <code>Resolve()</code> 方法。</p>
+<p>下面就是我们 <code>ITenantResolver</code> 的默认实现 <code>TenantResolver</code>，你可以在任何时候调用它。比如说你在想要获得当前租户 Id 的时候。不过一般不推荐这样做，因为 ABP 已经给我们提供了 <strong><code>MultiTenancyMiddleware</code></strong> 中间件。</p>
+<p><img src="/image-20200301214403371.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="image-20200301214403371"
+	
+	
+></p>
+<p>也就是说，在每次请求的时候，都会将这个 <code>Id</code> 通过 <code>ICurrentTenant.Change()</code> 进行变更，那么在这个请求执行完成之前，通过 <code>ICurrentTenant</code> 取得的 <code>Id</code> 都会是解析器解析出来的 Id。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TenantResolver</span> <span class="p">:</span> <span class="n">ITenantResolver</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IServiceProvider</span> <span class="n">_serviceProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">AbpTenantResolveOptions</span> <span class="n">_options</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TenantResolver</span><span class="p">(</span><span class="n">IOptions</span><span class="p">&lt;</span><span class="n">AbpTenantResolveOptions</span><span class="p">&gt;</span> <span class="n">options</span><span class="p">,</span> <span class="n">IServiceProvider</span> <span class="n">serviceProvider</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_serviceProvider</span> <span class="p">=</span> <span class="n">serviceProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_options</span> <span class="p">=</span> <span class="n">options</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TenantResolveResult</span> <span class="n">ResolveTenantIdOrName</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="k">new</span> <span class="n">TenantResolveResult</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">serviceScope</span> <span class="p">=</span> <span class="n">_serviceProvider</span><span class="p">.</span><span class="n">CreateScope</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 创建一个解析上下文，用于存储解析器的租户 Id 解析结果。</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">context</span> <span class="p">=</span> <span class="k">new</span> <span class="n">TenantResolveContext</span><span class="p">(</span><span class="n">serviceScope</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// 遍历执行解析器。</span>
+</span></span><span class="line"><span class="cl">            <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">tenantResolver</span> <span class="k">in</span> <span class="n">_options</span><span class="p">.</span><span class="n">TenantResolvers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">tenantResolver</span><span class="p">.</span><span class="n">Resolve</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="n">result</span><span class="p">.</span><span class="n">AppliedResolvers</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">tenantResolver</span><span class="p">.</span><span class="n">Name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="c1">// 如果有某个解析器为上下文设置了值，则跳出。</span>
+</span></span><span class="line"><span class="cl">                <span class="k">if</span> <span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">HasResolvedTenantOrHost</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">result</span><span class="p">.</span><span class="n">TenantIdOrName</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">TenantIdOrName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                    <span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">result</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="221-默认的解析对象">2.2.1 默认的解析对象</h4>
+<p>如果不使用 <strong>Volo.Abp.AspNetCore.MultiTenancy</strong> 模块，ABP vNext 会调用 <code>CurrentUserTenantResolveContributor</code> 解析当前操作的租户。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">CurrentUserTenantResolveContributor</span> <span class="p">:</span> <span class="n">TenantResolveContributorBase</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">const</span> <span class="kt">string</span> <span class="n">ContributorName</span> <span class="p">=</span> <span class="s">&#34;CurrentUser&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">=&gt;</span> <span class="n">ContributorName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">Resolve</span><span class="p">(</span><span class="n">ITenantResolveContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 从 Token 当中获取当前登录用户的信息。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">currentUser</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">ICurrentUser</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">currentUser</span><span class="p">.</span><span class="n">IsAuthenticated</span> <span class="p">!=</span> <span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 设置解析上下文，确认当前的租户 Id。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">Handled</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">TenantIdOrName</span> <span class="p">=</span> <span class="n">currentUser</span><span class="p">.</span><span class="n">TenantId</span><span class="p">?.</span><span class="n">ToString</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在这里可以看到，如果从 Token 当中解析到了租户 Id，会将这个 Id 传递给 <strong>解析上下文</strong>。这个上下文在最开始已经遇到过了，如果 ABP vNext 在解析的时候发现租户 Id 被确认了，就不会执行剩下的解析器。</p>
+<h4 id="222-abp-提供的其他解析器">2.2.2 ABP 提供的其他解析器</h4>
+<p>ABP 在 <strong>Volo.Abp.AspNetCore.MultiTenancy</strong> 模块当中还提供了其他几种解析器，他们的作用分别如下。</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:left">解析器类型</th>
+<th style="text-align:left">作用</th>
+<th style="text-align:left">优先级</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>QueryStringTenantResolveContributor</code></td>
+<td style="text-align:left">通过 Query String 的 <code>__tenant</code> 参数确认租户。</td>
+<td style="text-align:left">2</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>RouteTenantResolveContributor</code></td>
+<td style="text-align:left">通过路由判断当前租户。</td>
+<td style="text-align:left">3</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>HeaderTenantResolveContributor</code></td>
+<td style="text-align:left">通过 Header 里面的 <code>__tenant</code> 确认租户。</td>
+<td style="text-align:left">4</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>CookieTenantResolveContributor</code></td>
+<td style="text-align:left">通过携带的 Cookie 确认租户。</td>
+<td style="text-align:left">5</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>DomainTenantResolveContributor</code></td>
+<td style="text-align:left">二级域名解析器，通过二级域名确定租户。</td>
+<td style="text-align:left">第二</td>
+</tr>
+</tbody>
+</table></div>
+<h4 id="223-域名解析器">2.2.3 域名解析器</h4>
+<p>这里比较有意思的是 <code>DomainTenantResolveContributor</code>，开发人员可以通过 <code>AbpTenantResolveOptions.AddDomainTenantResolver()</code> 方法添加这个解析器。 域名解析器会通过解析二级域名来匹配对应的租户，例如我针对租户 A 分配了一个二级域名 <code>http://a.system.com</code>，那么这个 <strong>a</strong> 就会被作为租户名称解析出来，最后传递给 <code>ITenantResolver</code> 解析器作为结果。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---19-multi-tenancy/Snipaste_2020-03-03_11-37-36.png"
+	width="1617"
+	height="765"
+	srcset="/p/abp-vnext-source-code-analysis---19-multi-tenancy/Snipaste_2020-03-03_11-37-36_hue28ab3450baf80325f24fcdf1fa6b8b9_54129_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---19-multi-tenancy/Snipaste_2020-03-03_11-37-36_hue28ab3450baf80325f24fcdf1fa6b8b9_54129_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="Snipaste_2020-03-03_11-37-36"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="211"
+		data-flex-basis="507px"
+	
+></p>
+<blockquote>
+<p>注意：</p>
+<p>在使用 Header 作为租户信息提供者的时候，开发人员使用的是 <strong>NGINX 作为反向代理服务器</strong> 时，需要在对应的 config 文件内部配置 <code>underscores_in_headers on;</code> 选项。否则 ABP 所需要的 <code>__tenantId</code> 将会被过滤掉，或者你可以指定一个没有下划线的 Key。</p>
+</blockquote>
+<p><strong>域名解析器的详细代码解释：</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">DomainTenantResolveContributor</span> <span class="p">:</span> <span class="n">HttpTenantResolveContributorBase</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">const</span> <span class="kt">string</span> <span class="n">ContributorName</span> <span class="p">=</span> <span class="s">&#34;Domain&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">=&gt;</span> <span class="n">ContributorName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">static</span> <span class="k">readonly</span> <span class="kt">string</span><span class="p">[]</span> <span class="n">ProtocolPrefixes</span> <span class="p">=</span> <span class="p">{</span> <span class="s">&#34;http://&#34;</span><span class="p">,</span> <span class="s">&#34;https://&#34;</span> <span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="kt">string</span> <span class="n">_domainFormat</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 使用指定的格式来确定租户前缀，例如 “{0}.abp.io”。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">DomainTenantResolveContributor</span><span class="p">(</span><span class="kt">string</span> <span class="n">domainFormat</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_domainFormat</span> <span class="p">=</span> <span class="n">domainFormat</span><span class="p">.</span><span class="n">RemovePreFix</span><span class="p">(</span><span class="n">ProtocolPrefixes</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">override</span> <span class="kt">string</span> <span class="n">GetTenantIdOrNameFromHttpContextOrNull</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ITenantResolveContext</span> <span class="n">context</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">HttpContext</span> <span class="n">httpContext</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果 Host 值为空，则不进行任何操作。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">httpContext</span><span class="p">.</span><span class="n">Request</span><span class="p">?.</span><span class="n">Host</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 解析具体的域名信息，并进行匹配。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">hostName</span> <span class="p">=</span> <span class="n">httpContext</span><span class="p">.</span><span class="n">Request</span><span class="p">.</span><span class="n">Host</span><span class="p">.</span><span class="n">Host</span><span class="p">.</span><span class="n">RemovePreFix</span><span class="p">(</span><span class="n">ProtocolPrefixes</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 这里的 FormattedStringValueExtracter 类型是 ABP 自己实现的一个格式化解析器。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">extractResult</span> <span class="p">=</span> <span class="n">FormattedStringValueExtracter</span><span class="p">.</span><span class="n">Extract</span><span class="p">(</span><span class="n">hostName</span><span class="p">,</span> <span class="n">_domainFormat</span><span class="p">,</span> <span class="n">ignoreCase</span><span class="p">:</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">Handled</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="n">extractResult</span><span class="p">.</span><span class="n">IsMatch</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">extractResult</span><span class="p">.</span><span class="n">Matches</span><span class="p">[</span><span class="m">0</span><span class="p">].</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>从上述代码可以知道，域名解析器是基于 <code>HttpTenantResolveContributorBase</code> 基类进行处理的，这个抽象基类会取得当前请求的一个 <code>HttpContext</code>，将这个传递与解析上下文一起传递给子类实现，由子类实现负责具体的解析逻辑。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">HttpTenantResolveContributorBase</span> <span class="p">:</span> <span class="n">TenantResolveContributorBase</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">Resolve</span><span class="p">(</span><span class="n">ITenantResolveContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 获取当前请求的上下文。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">httpContext</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">GetHttpContext</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">httpContext</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">try</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">ResolveFromHttpContext</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">httpContext</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">e</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">context</span><span class="p">.</span><span class="n">ServiceProvider</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">ILogger</span><span class="p">&lt;</span><span class="n">HttpTenantResolveContributorBase</span><span class="p">&gt;&gt;()</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">LogWarning</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="n">ToString</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">ResolveFromHttpContext</span><span class="p">(</span><span class="n">ITenantResolveContext</span> <span class="n">context</span><span class="p">,</span> <span class="n">HttpContext</span> <span class="n">httpContext</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 调用抽象方法，获取具体的租户 Id 或名称。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">tenantIdOrName</span> <span class="p">=</span> <span class="n">GetTenantIdOrNameFromHttpContextOrNull</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">httpContext</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="n">tenantIdOrName</span><span class="p">.</span><span class="n">IsNullOrEmpty</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 获得到租户标识之后，填充到解析上下文。</span>
+</span></span><span class="line"><span class="cl">            <span class="n">context</span><span class="p">.</span><span class="n">TenantIdOrName</span> <span class="p">=</span> <span class="n">tenantIdOrName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">abstract</span> <span class="kt">string</span> <span class="n">GetTenantIdOrNameFromHttpContextOrNull</span><span class="p">([</span><span class="n">NotNull</span><span class="p">]</span> <span class="n">ITenantResolveContext</span> <span class="n">context</span><span class="p">,</span> <span class="p">[</span><span class="n">NotNull</span><span class="p">]</span> <span class="n">HttpContext</span> <span class="n">httpContext</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="23-租户信息的传递">2.3 租户信息的传递</h3>
+<p>租户解析器通过一系列的解析对象，获取到了租户或租户 Id 之后，会将这些数据给哪些对象呢？或者说，ABP 在什么地方调用了 <strong>租户解析器</strong>，答案就是 <strong>中间件</strong>。</p>
+<p>在 <strong>Volo.ABP.AspNetCore.MultiTenancy</strong> 模块的内部，提供了一个 <code>MultiTenancyMiddleware</code> 中间件。</p>
+<p>开发人员如果需要使用 ASP.NET Core 的多租户相关功能，也可以引入该模块。并且在模块的 <code>OnApplicationInitialization()</code> 方法当中，使用 <code>IApplicationBuilder.UseMultiTenancy()</code> 进行启用。</p>
+<p>这里在启用的时候，需要注意中间件的顺序和位置，不要放到最末尾进行处理。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">MultiTenancyMiddleware</span> <span class="p">:</span> <span class="n">IMiddleware</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">ITenantResolver</span> <span class="n">_tenantResolver</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">ITenantStore</span> <span class="n">_tenantStore</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">ICurrentTenant</span> <span class="n">_currentTenant</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">ITenantResolveResultAccessor</span> <span class="n">_tenantResolveResultAccessor</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">MultiTenancyMiddleware</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ITenantResolver</span> <span class="n">tenantResolver</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">ITenantStore</span> <span class="n">tenantStore</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">ICurrentTenant</span> <span class="n">currentTenant</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">ITenantResolveResultAccessor</span> <span class="n">tenantResolveResultAccessor</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_tenantResolver</span> <span class="p">=</span> <span class="n">tenantResolver</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_tenantStore</span> <span class="p">=</span> <span class="n">tenantStore</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_currentTenant</span> <span class="p">=</span> <span class="n">currentTenant</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_tenantResolveResultAccessor</span> <span class="p">=</span> <span class="n">tenantResolveResultAccessor</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">InvokeAsync</span><span class="p">(</span><span class="n">HttpContext</span> <span class="n">context</span><span class="p">,</span> <span class="n">RequestDelegate</span> <span class="n">next</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 通过租户解析器，获取当前请求的租户信息。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">resolveResult</span> <span class="p">=</span> <span class="n">_tenantResolver</span><span class="p">.</span><span class="n">ResolveTenantIdOrName</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_tenantResolveResultAccessor</span><span class="p">.</span><span class="n">Result</span> <span class="p">=</span> <span class="n">resolveResult</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">TenantConfiguration</span> <span class="n">tenant</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果当前请求是属于租户请求。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">resolveResult</span><span class="p">.</span><span class="n">TenantIdOrName</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 查询指定的租户 Id 或名称是否存在，不存在则抛出异常。</span>
+</span></span><span class="line"><span class="cl">            <span class="n">tenant</span> <span class="p">=</span> <span class="k">await</span> <span class="n">FindTenantAsync</span><span class="p">(</span><span class="n">resolveResult</span><span class="p">.</span><span class="n">TenantIdOrName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">tenant</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">//TODO: A better exception?</span>
+</span></span><span class="line"><span class="cl">                <span class="k">throw</span> <span class="k">new</span> <span class="n">AbpException</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                    <span class="s">&#34;There is no tenant with given tenant id or name: &#34;</span> <span class="p">+</span> <span class="n">resolveResult</span><span class="p">.</span><span class="n">TenantIdOrName</span>
+</span></span><span class="line"><span class="cl">                <span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 在接下来的请求当中，将会通过 ICurrentTenant.Change() 方法变更当前租户，直到</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 请求结束。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">using</span> <span class="p">(</span><span class="n">_currentTenant</span><span class="p">.</span><span class="n">Change</span><span class="p">(</span><span class="n">tenant</span><span class="p">?.</span><span class="n">Id</span><span class="p">,</span> <span class="n">tenant</span><span class="p">?.</span><span class="n">Name</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">next</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">TenantConfiguration</span><span class="p">&gt;</span> <span class="n">FindTenantAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">tenantIdOrName</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果可以格式化为 Guid ，则说明是租户 Id。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">Guid</span><span class="p">.</span><span class="n">TryParse</span><span class="p">(</span><span class="n">tenantIdOrName</span><span class="p">,</span> <span class="k">out</span> <span class="kt">var</span> <span class="n">parsedTenantId</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">await</span> <span class="n">_tenantStore</span><span class="p">.</span><span class="n">FindAsync</span><span class="p">(</span><span class="n">parsedTenantId</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">else</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">await</span> <span class="n">_tenantStore</span><span class="p">.</span><span class="n">FindAsync</span><span class="p">(</span><span class="n">tenantIdOrName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在取得了租户的标识(Id 或名称)之后，将会通过 <code>ICurrentTenant.Change()</code> 方法变更当前租户的信息，变更了当租户信息以后，在程序的其他任何地方使用 <code>ICurrentTenant.Id</code> 取得的数据都是租户解析器解析出来的数据。</p>
+<p>下面就是这个当前租户的具体实现，可以看到这里采用了一个 <strong>经典手法-嵌套</strong>。这个手法在工作单元和数据过滤器有见到过，结合 <code>DisposeAction()</code> 在 <code>using</code> 语句块结束的时候把当前的租户 Id 值设置为父级 Id。即在同一个语句当中，可以通过嵌套 <code>using</code> 语句块来处理不同的租户。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">using</span><span class="p">(</span><span class="n">_currentTenant</span><span class="p">.</span><span class="n">Change</span><span class="p">(</span><span class="s">&#34;A&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Logger</span><span class="p">.</span><span class="n">LogInformation</span><span class="p">(</span><span class="n">_currentTenant</span><span class="p">.</span><span class="n">Id</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">using</span><span class="p">(</span><span class="n">_currentTenant</span><span class="p">.</span><span class="n">Change</span><span class="p">(</span><span class="s">&#34;B&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Logger</span><span class="p">.</span><span class="n">LogInformation</span><span class="p">(</span><span class="n">_currentTenant</span><span class="p">.</span><span class="n">Id</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>具体的实现代码，这里的 <code>ICurrentTenantAccessor</code> 内部实现就是一个 <code>AsyncLocal&lt;BasicTenantInfo&gt;</code> ，用于在一个异步请求内部进行数据传递。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">CurrentTenant</span> <span class="p">:</span> <span class="n">ICurrentTenant</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="kt">bool</span> <span class="n">IsAvailable</span> <span class="p">=&gt;</span> <span class="n">Id</span><span class="p">.</span><span class="n">HasValue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">Guid</span><span class="p">?</span> <span class="n">Id</span> <span class="p">=&gt;</span> <span class="n">_currentTenantAccessor</span><span class="p">.</span><span class="n">Current</span><span class="p">?.</span><span class="n">TenantId</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">=&gt;</span> <span class="n">_currentTenantAccessor</span><span class="p">.</span><span class="n">Current</span><span class="p">?.</span><span class="n">Name</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">ICurrentTenantAccessor</span> <span class="n">_currentTenantAccessor</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">CurrentTenant</span><span class="p">(</span><span class="n">ICurrentTenantAccessor</span> <span class="n">currentTenantAccessor</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_currentTenantAccessor</span> <span class="p">=</span> <span class="n">currentTenantAccessor</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IDisposable</span> <span class="n">Change</span><span class="p">(</span><span class="n">Guid</span><span class="p">?</span> <span class="n">id</span><span class="p">,</span> <span class="kt">string</span> <span class="n">name</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">SetCurrent</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">IDisposable</span> <span class="n">SetCurrent</span><span class="p">(</span><span class="n">Guid</span><span class="p">?</span> <span class="n">tenantId</span><span class="p">,</span> <span class="kt">string</span> <span class="n">name</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">parentScope</span> <span class="p">=</span> <span class="n">_currentTenantAccessor</span><span class="p">.</span><span class="n">Current</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_currentTenantAccessor</span><span class="p">.</span><span class="n">Current</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BasicTenantInfo</span><span class="p">(</span><span class="n">tenantId</span><span class="p">,</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">new</span> <span class="n">DisposeAction</span><span class="p">(()</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">_currentTenantAccessor</span><span class="p">.</span><span class="n">Current</span> <span class="p">=</span> <span class="n">parentScope</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里的 <code>BasicTenantInfo</code> 与 <code>TenantConfiguraton</code> 不同，前者仅用于在程序当中传递用户的基本信息，而后者是用于定于持久化的标准模型。</p>
+<h3 id="24-租户的使用">2.4 租户的使用</h3>
+<h4 id="241-数据库过滤">2.4.1 数据库过滤</h4>
+<p>租户的核心作用就是隔离不同客户的数据，关于过滤的基本逻辑则是存放在 <code>AbpDbContext&lt;TDbContext&gt;</code> 的。从下面的代码可以看到，在使用的时候会从注入一个 <code>ICurrentTenant</code> 接口，这个接口可以获得从租户解析器里面取得的租户 Id 信息。并且还有一个 <code>IsMultiTenantFilterEnabled()</code> 方法来判定当前 <strong>是否应用租户过滤器</strong>。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">AbpDbContext</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;</span> <span class="p">:</span> <span class="n">DbContext</span><span class="p">,</span> <span class="n">IEfCoreDbContext</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl">    <span class="k">where</span> <span class="n">TDbContext</span> <span class="p">:</span> <span class="n">DbContext</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">virtual</span> <span class="n">Guid</span><span class="p">?</span> <span class="n">CurrentTenantId</span> <span class="p">=&gt;</span> <span class="n">CurrentTenant</span><span class="p">?.</span><span class="n">Id</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">virtual</span> <span class="kt">bool</span> <span class="n">IsMultiTenantFilterEnabled</span> <span class="p">=&gt;</span> <span class="n">DataFilter</span><span class="p">?.</span><span class="n">IsEnabled</span><span class="p">&lt;</span><span class="n">IMultiTenant</span><span class="p">&gt;()</span> <span class="p">??</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他的代码。</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ICurrentTenant</span> <span class="n">CurrentTenant</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他的代码。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">virtual</span> <span class="n">Expression</span><span class="p">&lt;</span><span class="n">Func</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">,</span> <span class="kt">bool</span><span class="p">&gt;&gt;</span> <span class="n">CreateFilterExpression</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;()</span> <span class="k">where</span> <span class="n">TEntity</span> <span class="p">:</span> <span class="k">class</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 定义一个 Lambda 表达式。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Expression</span><span class="p">&lt;</span><span class="n">Func</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">,</span> <span class="kt">bool</span><span class="p">&gt;&gt;</span> <span class="n">expression</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果聚合根/实体实现了软删除接口，则构建一个软删除过滤器。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">ISoftDelete</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TEntity</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">expression</span> <span class="p">=</span> <span class="n">e</span> <span class="p">=&gt;</span> <span class="p">!</span><span class="n">IsSoftDeleteFilterEnabled</span> <span class="p">||</span> <span class="p">!</span><span class="n">EF</span><span class="p">.</span><span class="n">Property</span><span class="p">&lt;</span><span class="kt">bool</span><span class="p">&gt;(</span><span class="n">e</span><span class="p">,</span> <span class="s">&#34;IsDeleted&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果聚合根/实体实现了多租户接口，则构建一个多租户过滤器。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">IMultiTenant</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TEntity</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 筛选 TenantId 为 CurrentTenantId 的数据。</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Expression</span><span class="p">&lt;</span><span class="n">Func</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">,</span> <span class="kt">bool</span><span class="p">&gt;&gt;</span> <span class="n">multiTenantFilter</span> <span class="p">=</span> <span class="n">e</span> <span class="p">=&gt;</span> <span class="p">!</span><span class="n">IsMultiTenantFilterEnabled</span> <span class="p">||</span> <span class="n">EF</span><span class="p">.</span><span class="n">Property</span><span class="p">&lt;</span><span class="n">Guid</span><span class="p">&gt;(</span><span class="n">e</span><span class="p">,</span> <span class="s">&#34;TenantId&#34;</span><span class="p">)</span> <span class="p">==</span> <span class="n">CurrentTenantId</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="n">expression</span> <span class="p">=</span> <span class="n">expression</span> <span class="p">==</span> <span class="k">null</span> <span class="p">?</span> <span class="n">multiTenantFilter</span> <span class="p">:</span> <span class="n">CombineExpressions</span><span class="p">(</span><span class="n">expression</span><span class="p">,</span> <span class="n">multiTenantFilter</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">expression</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他的代码。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="242-种子数据构建">2.4.2 种子数据构建</h4>
+<p>在 <strong>Volo.ABP.TenantManagement</strong> 模块当中，如果用户创建了一个租户，ABP 不只是在租户表插入一条新数据而已。它还会设置种子数据的 <strong>构造上下文</strong>，并且执行所有的 <strong>种子数据构建者</strong>(<code>IDataSeedContributor</code>)。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Authorize(TenantManagementPermissions.Tenants.Create)]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">TenantDto</span><span class="p">&gt;</span> <span class="n">CreateAsync</span><span class="p">(</span><span class="n">TenantCreateDto</span> <span class="n">input</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">tenant</span> <span class="p">=</span> <span class="k">await</span> <span class="n">TenantManager</span><span class="p">.</span><span class="n">CreateAsync</span><span class="p">(</span><span class="n">input</span><span class="p">.</span><span class="n">Name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">await</span> <span class="n">TenantRepository</span><span class="p">.</span><span class="n">InsertAsync</span><span class="p">(</span><span class="n">tenant</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="n">CurrentTenant</span><span class="p">.</span><span class="n">Change</span><span class="p">(</span><span class="n">tenant</span><span class="p">.</span><span class="n">Id</span><span class="p">,</span> <span class="n">tenant</span><span class="p">.</span><span class="n">Name</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">//TODO: Handle database creation?</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">//TODO: Set admin email &amp; password..?</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">DataSeeder</span><span class="p">.</span><span class="n">SeedAsync</span><span class="p">(</span><span class="n">tenant</span><span class="p">.</span><span class="n">Id</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">ObjectMapper</span><span class="p">.</span><span class="n">Map</span><span class="p">&lt;</span><span class="n">Tenant</span><span class="p">,</span> <span class="n">TenantDto</span><span class="p">&gt;(</span><span class="n">tenant</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这些构建者当中，就包括租户的超级管理员(admin)和角色构建，以及针对超级管理员角色进行权限赋值操作。</p>
+<p>这里需要注意第二点，如果开发人员没有指定超级管理员用户和密码，那么还是会使用默认密码为租户生成超级管理员，具体原因看如下代码。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">IdentityDataSeedContributor</span> <span class="p">:</span> <span class="n">IDataSeedContributor</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IIdentityDataSeeder</span> <span class="n">_identityDataSeeder</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IdentityDataSeedContributor</span><span class="p">(</span><span class="n">IIdentityDataSeeder</span> <span class="n">identityDataSeeder</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_identityDataSeeder</span> <span class="p">=</span> <span class="n">identityDataSeeder</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Task</span> <span class="n">SeedAsync</span><span class="p">(</span><span class="n">DataSeedContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">_identityDataSeeder</span><span class="p">.</span><span class="n">SeedAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">context</span><span class="p">[</span><span class="s">&#34;AdminEmail&#34;</span><span class="p">]</span> <span class="k">as</span> <span class="kt">string</span> <span class="p">??</span> <span class="s">&#34;admin@abp.io&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">context</span><span class="p">[</span><span class="s">&#34;AdminPassword&#34;</span><span class="p">]</span> <span class="k">as</span> <span class="kt">string</span> <span class="p">??</span> <span class="s">&#34;1q2w3E*&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">context</span><span class="p">.</span><span class="n">TenantId</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>所以开发人员要实现为不同租户 <strong>生成随机密码</strong>，那么就不能够使用 <strong>TenantManagement</strong> 提供的创建方法，而是需要自己编写一个应用服务进行处理。</p>
+<h4 id="243-权限的控制">2.4.3 权限的控制</h4>
+<p>如果开发人员使用了 ABP 提供的 <strong>Volo.Abp.PermissionManagement</strong> 模块，就会看到在它的种子数据构造者当中会对权限进行判定。因为有一些 <strong>超级权限</strong> 是租主才能够授予的，例如租户的增加、删除、修改等，这些超级权限在定义的时候就需要说明是否是数据租主独有的。</p>
+<p>关于这点，可以参考租户管理模块在权限定义时，传递的 <code>MultiTenancySides.Host</code> 参数。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpTenantManagementPermissionDefinitionProvider</span> <span class="p">:</span> <span class="n">PermissionDefinitionProvider</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">Define</span><span class="p">(</span><span class="n">IPermissionDefinitionContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">tenantManagementGroup</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">AddGroup</span><span class="p">(</span><span class="n">TenantManagementPermissions</span><span class="p">.</span><span class="n">GroupName</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:TenantManagement&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">tenantsPermission</span> <span class="p">=</span> <span class="n">tenantManagementGroup</span><span class="p">.</span><span class="n">AddPermission</span><span class="p">(</span><span class="n">TenantManagementPermissions</span><span class="p">.</span><span class="n">Tenants</span><span class="p">.</span><span class="n">Default</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:TenantManagement&#34;</span><span class="p">),</span> <span class="n">multiTenancySide</span><span class="p">:</span> <span class="n">MultiTenancySides</span><span class="p">.</span><span class="n">Host</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">tenantsPermission</span><span class="p">.</span><span class="n">AddChild</span><span class="p">(</span><span class="n">TenantManagementPermissions</span><span class="p">.</span><span class="n">Tenants</span><span class="p">.</span><span class="n">Create</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:Create&#34;</span><span class="p">),</span> <span class="n">multiTenancySide</span><span class="p">:</span> <span class="n">MultiTenancySides</span><span class="p">.</span><span class="n">Host</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">tenantsPermission</span><span class="p">.</span><span class="n">AddChild</span><span class="p">(</span><span class="n">TenantManagementPermissions</span><span class="p">.</span><span class="n">Tenants</span><span class="p">.</span><span class="n">Update</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:Edit&#34;</span><span class="p">),</span> <span class="n">multiTenancySide</span><span class="p">:</span> <span class="n">MultiTenancySides</span><span class="p">.</span><span class="n">Host</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">tenantsPermission</span><span class="p">.</span><span class="n">AddChild</span><span class="p">(</span><span class="n">TenantManagementPermissions</span><span class="p">.</span><span class="n">Tenants</span><span class="p">.</span><span class="n">Delete</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:Delete&#34;</span><span class="p">),</span> <span class="n">multiTenancySide</span><span class="p">:</span> <span class="n">MultiTenancySides</span><span class="p">.</span><span class="n">Host</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">tenantsPermission</span><span class="p">.</span><span class="n">AddChild</span><span class="p">(</span><span class="n">TenantManagementPermissions</span><span class="p">.</span><span class="n">Tenants</span><span class="p">.</span><span class="n">ManageFeatures</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:ManageFeatures&#34;</span><span class="p">),</span> <span class="n">multiTenancySide</span><span class="p">:</span> <span class="n">MultiTenancySides</span><span class="p">.</span><span class="n">Host</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">tenantsPermission</span><span class="p">.</span><span class="n">AddChild</span><span class="p">(</span><span class="n">TenantManagementPermissions</span><span class="p">.</span><span class="n">Tenants</span><span class="p">.</span><span class="n">ManageConnectionStrings</span><span class="p">,</span> <span class="n">L</span><span class="p">(</span><span class="s">&#34;Permission:ManageConnectionStrings&#34;</span><span class="p">),</span> <span class="n">multiTenancySide</span><span class="p">:</span> <span class="n">MultiTenancySides</span><span class="p">.</span><span class="n">Host</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">static</span> <span class="n">LocalizableString</span> <span class="n">L</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">LocalizableString</span><span class="p">.</span><span class="n">Create</span><span class="p">&lt;</span><span class="n">AbpTenantManagementResource</span><span class="p">&gt;(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>下面是权限种子数据构造者的代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">PermissionDataSeedContributor</span> <span class="p">:</span> <span class="n">IDataSeedContributor</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">ICurrentTenant</span> <span class="n">CurrentTenant</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IPermissionDefinitionManager</span> <span class="n">PermissionDefinitionManager</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IPermissionDataSeeder</span> <span class="n">PermissionDataSeeder</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">PermissionDataSeedContributor</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IPermissionDefinitionManager</span> <span class="n">permissionDefinitionManager</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IPermissionDataSeeder</span> <span class="n">permissionDataSeeder</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ICurrentTenant</span> <span class="n">currentTenant</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">PermissionDefinitionManager</span> <span class="p">=</span> <span class="n">permissionDefinitionManager</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">PermissionDataSeeder</span> <span class="p">=</span> <span class="n">permissionDataSeeder</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">CurrentTenant</span> <span class="p">=</span> <span class="n">currentTenant</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">Task</span> <span class="n">SeedAsync</span><span class="p">(</span><span class="n">DataSeedContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 通过 GetMultiTenancySide() 方法判断当前执行</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 种子构造者的租户情况，是租主还是租户。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">multiTenancySide</span> <span class="p">=</span> <span class="n">CurrentTenant</span><span class="p">.</span><span class="n">GetMultiTenancySide</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 根据条件筛选权限。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">permissionNames</span> <span class="p">=</span> <span class="n">PermissionDefinitionManager</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">GetPermissions</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">Where</span><span class="p">(</span><span class="n">p</span> <span class="p">=&gt;</span> <span class="n">p</span><span class="p">.</span><span class="n">MultiTenancySide</span><span class="p">.</span><span class="n">HasFlag</span><span class="p">(</span><span class="n">multiTenancySide</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">Select</span><span class="p">(</span><span class="n">p</span> <span class="p">=&gt;</span> <span class="n">p</span><span class="p">.</span><span class="n">Name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">ToArray</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 将权限授予具体租户的角色。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">PermissionDataSeeder</span><span class="p">.</span><span class="n">SeedAsync</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">RolePermissionValueProvider</span><span class="p">.</span><span class="n">ProviderName</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="s">&#34;admin&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">permissionNames</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">context</span><span class="p">.</span><span class="n">TenantId</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>而 ABP 在判断当前是租主还是租户的方法也很简单，如果当前租户 Id 为 NULL 则说明是租主，如果不为空则说明是具体租户。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="n">MultiTenancySides</span> <span class="n">GetMultiTenancySide</span><span class="p">(</span><span class="k">this</span> <span class="n">ICurrentTenant</span> <span class="n">currentTenant</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">currentTenant</span><span class="p">.</span><span class="n">Id</span><span class="p">.</span><span class="n">HasValue</span>
+</span></span><span class="line"><span class="cl">        <span class="p">?</span> <span class="n">MultiTenancySides</span><span class="p">.</span><span class="n">Tenant</span>
+</span></span><span class="line"><span class="cl">        <span class="p">:</span> <span class="n">MultiTenancySides</span><span class="p">.</span><span class="n">Host</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="244-租户的独立设置">2.4.4 租户的独立设置</h4>
+<p>关于这块的内容，可以参考之前的 <strong><a class="link" href="https://blog.myzony.com/abpvnext-source-analysis-user-setting-provider/"  target="_blank" rel="noopener"
+    >这篇文章</a></strong> ，ABP 也为我们提供了各个租户独立的自定义参数在，这块功能是由 <code>TenantSettingManagementProvider</code> 实现的，只需要在设置参数值的时候提供租户的 <code>ProviderName</code> 即可。</p>
+<p>例如：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">settingManager</span><span class="p">.</span><span class="n">SetAsync</span><span class="p">(</span><span class="s">&#34;WeChatIsOpen&#34;</span><span class="p">,</span> <span class="s">&#34;true&#34;</span><span class="p">,</span> <span class="n">TenantSettingValueProvider</span><span class="p">.</span><span class="n">ProviderName</span><span class="p">,</span> <span class="n">tenantId</span><span class="p">.</span><span class="n">ToString</span><span class="p">(),</span> <span class="k">false</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="三总结">三、总结</h2>
+<p>其他相关文章，请参阅 <strong><a class="link" href="https://www.cnblogs.com/myzony/p/10722506.html"  target="_blank" rel="noopener"
+    >文章目录</a></strong> 。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/abp-vnext/">ABP vNext</a>
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/asp.net-core/">ASP.NET Core</a>
+        
+            <a href="/tags/asp.net-core-mvc/">ASP.NET Core MVC</a>
+        
+            <a href="/tags/%E5%A4%9A%E7%A7%9F%E6%88%B7/">多租户</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis-integration-of-entityframework-core/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 14. EntityFramework Core 的集成</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一简介">一、简介</a></li>
+    <li><a href="#二源码分析">二、源码分析</a>
+      <ol>
+        <li><a href="#21-启动模块">2.1 启动模块</a>
+          <ol>
+            <li><a href="#211-默认租户来源">2.1.1 默认租户来源</a></li>
+            <li><a href="#212-基于数据库的租户存储">2.1.2 基于数据库的租户存储</a></li>
+          </ol>
+        </li>
+        <li><a href="#22-租户的解析">2.2 租户的解析</a>
+          <ol>
+            <li><a href="#221-默认的解析对象">2.2.1 默认的解析对象</a></li>
+            <li><a href="#222-abp-提供的其他解析器">2.2.2 ABP 提供的其他解析器</a></li>
+            <li><a href="#223-域名解析器">2.2.3 域名解析器</a></li>
+          </ol>
+        </li>
+        <li><a href="#23-租户信息的传递">2.3 租户信息的传递</a></li>
+        <li><a href="#24-租户的使用">2.4 租户的使用</a>
+          <ol>
+            <li><a href="#241-数据库过滤">2.4.1 数据库过滤</a></li>
+            <li><a href="#242-种子数据构建">2.4.2 种子数据构建</a></li>
+            <li><a href="#243-权限的控制">2.4.3 权限的控制</a></li>
+            <li><a href="#244-租户的独立设置">2.4.4 租户的独立设置</a></li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+    <li><a href="#三总结">三、总结</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

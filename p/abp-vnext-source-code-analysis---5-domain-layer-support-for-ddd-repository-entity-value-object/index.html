@@ -1,0 +1,2188 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、简要介绍 ABP vNext 框架本身就是围绕着 DDD 理念进行设计的，所以在 DDD 里面我们能够见到的实体、仓储、值对象、领域服务，ABP vNext 框架都为我们进行了实现，这些基础设施都存放在 Volo.Abp.Ddd.Domain 项目当中。
+本篇文章将会侧重于理论讲解，但也只是一个抛砖引玉的作用，关于 DDD 相关的知识可以阅读 Eric Evans 所编写的 《领域驱动设计：软件核心复杂性应对之道》。
+PS：
+该书也是目前我正在阅读的 DDD 理论书籍，因为基于 DDD 理论，我们能够精准地划分微服务的业务边界，为后续微服务架构的可扩展性提供坚实的基础。
+'><title>ABP vNext 源码分析 - 5. DDD 的领域层支持 (仓储、实体、值对象)</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='ABP vNext 源码分析 - 5. DDD 的领域层支持 (仓储、实体、值对象)'>
+<meta property='og:description' content='一、简要介绍 ABP vNext 框架本身就是围绕着 DDD 理念进行设计的，所以在 DDD 里面我们能够见到的实体、仓储、值对象、领域服务，ABP vNext 框架都为我们进行了实现，这些基础设施都存放在 Volo.Abp.Ddd.Domain 项目当中。
+本篇文章将会侧重于理论讲解，但也只是一个抛砖引玉的作用，关于 DDD 相关的知识可以阅读 Eric Evans 所编写的 《领域驱动设计：软件核心复杂性应对之道》。
+PS：
+该书也是目前我正在阅读的 DDD 理论书籍，因为基于 DDD 理论，我们能够精准地划分微服务的业务边界，为后续微服务架构的可扩展性提供坚实的基础。
+'>
+<meta property='og:url' content='https://real-zony.github.io/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='ABP vNext' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='ASP.NET Core' /><meta property='article:tag' content='ASP.NET Core MVC' /><meta property='article:published_time' content='2019-07-20T02:05:28&#43;00:00'/><meta property='article:modified_time' content='2019-07-20T02:05:28&#43;00:00'/>
+<meta name="twitter:title" content="ABP vNext 源码分析 - 5. DDD 的领域层支持 (仓储、实体、值对象)">
+<meta name="twitter:description" content="一、简要介绍 ABP vNext 框架本身就是围绕着 DDD 理念进行设计的，所以在 DDD 里面我们能够见到的实体、仓储、值对象、领域服务，ABP vNext 框架都为我们进行了实现，这些基础设施都存放在 Volo.Abp.Ddd.Domain 项目当中。
+本篇文章将会侧重于理论讲解，但也只是一个抛砖引玉的作用，关于 DDD 相关的知识可以阅读 Eric Evans 所编写的 《领域驱动设计：软件核心复杂性应对之道》。
+PS：
+该书也是目前我正在阅读的 DDD 理论书籍，因为基于 DDD 理论，我们能够精准地划分微服务的业务边界，为后续微服务架构的可扩展性提供坚实的基础。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/">ABP vNext 源码分析 - 5. DDD 的领域层支持 (仓储、实体、值对象)</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jul 20, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 12 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一简要介绍">一、简要介绍</h2>
+<p>ABP vNext 框架本身就是围绕着 DDD 理念进行设计的，所以在 DDD 里面我们能够见到的实体、仓储、值对象、领域服务，ABP vNext 框架都为我们进行了实现，这些基础设施都存放在 <strong>Volo.Abp.Ddd.Domain</strong> 项目当中。</p>
+<p>本篇文章将会侧重于理论讲解，但也只是一个抛砖引玉的作用，关于 DDD 相关的知识可以阅读 <strong>Eric Evans</strong> 所编写的 《领域驱动设计：软件核心复杂性应对之道》。</p>
+<blockquote>
+<p>PS：</p>
+<p>该书也是目前我正在阅读的 DDD 理论书籍，因为基于 DDD 理论，我们能够精准地划分微服务的业务边界，为后续微服务架构的可扩展性提供坚实的基础。</p>
+</blockquote>
+<p><img src="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563360520996.png"
+	width="512"
+	height="244"
+	srcset="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563360520996_hu8157f92338c51084ec23c2b1c8d409d0_13862_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563360520996_hu8157f92338c51084ec23c2b1c8d409d0_13862_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1563360520996"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="209"
+		data-flex-basis="503px"
+	
+></p>
+<h2 id="二源码分析">二、源码分析</h2>
+<p><strong>Volo.Abp.Ddd.Domain</strong> 分为 Volo 和 Microsoft 两个文件夹，在 Microsoft 文件夹当中主要是针对仓储和实体进行自动注入。</p>
+<h3 id="21-实体-entity">2.1 实体 (Entity)</h3>
+<h4 id="211-基本概念">2.1.1 基本概念</h4>
+<p>只要用过 EF Core 框架的人，基本都知道什么是实体。不过很多人就跟我一样，只是将实体作为数据库表在 C# 语言当中的另一种展现方式，认为它跟普通的对象没什么不一样。</p>
+<blockquote>
+<p>PS：虽然每个对象都会有一个内在的 <strong>对象引用指针</strong> 来作为唯一标识。</p>
+</blockquote>
+<p>在 DDD 的概念当中，通过标识定义的对象被称为实体(Entity)。虽然它们的属性可能因为不同的操作而被改变（多种生命周期），但必须保证一种内在的连续性。为了保证这种内在的连续性，就需要<strong>一个有意义并且唯一的属性</strong>。</p>
+<p>标识是否重要则完全取决于它是否有用，例如有个演唱会订票程序，你可以将座位与观众都当作一个实体处理。那么在分配座位时，每个座位肯定都会有一个唯一的座位号(唯一标识)，可也能拥有其他描述属性(是否是 VIP 座位、价格等&hellip;)。</p>
+<p>那么座位是否需要唯一标识，是否为一个实体，就取决于不同的入场方式。假如说是一人一票制，并且每张门票上面都有固定的座位号，这个时候座位就是一个实体，因为它需要座位号来区分不同的座位。</p>
+<p>另一种方式就是入场卷方式，门票上没有座位号，你想坐哪儿就坐哪儿。这个时候座位号就不需要与门票建立关联，在这种情况下座位就不是一个实体，所以不需要唯一标识。</p>
+<blockquote>
+<p>* 上述例子与描述改编自 《领域驱动设计：软件核心复杂性应对之道》的 ENTITY 一节。</p>
+</blockquote>
+<h4 id="212-如何实现">2.1.2 如何实现</h4>
+<p>了解了 DDD 概念里面的实体描述之后，我们就来看一下 ABP vNext 为我们准备了怎样的基础设施。</p>
+<p>首先看 Entities 文件夹下关于实体的基础定义，在实体的基础定义类里面，为每个实体定义了唯一标识。并且在某些情况下，我们需要确保 ID 在<strong>多个计算机系统之间具有唯一性</strong>。</p>
+<p>尤其是在多个系统/平台进行对接的时候，如果每个系统针对于 “张三” 这个用户的 ID 不是一致的，都是自己生成 ID ，那么就需要介入一个新的抽象层进行关系映射。</p>
+<p>在 <code>IEntity&lt;TKey&gt;</code> 的默认实现 <code>Entity&lt;TKey&gt;</code> 中，不仅提供了标识定义，也重写了 <code>Equals()</code> 比较方法和 <code>==</code> \ <code>!=</code> 操作符，用于区别不同实体。它为对象统一定义了一个 <code>TKey</code> 属性，该属性将会作为实体的唯一标识字段。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="kt">bool</span> <span class="n">Equals</span><span class="p">(</span><span class="kt">object</span> <span class="n">obj</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 比较的对象为 NULL 或者对象不是派生自 Entity&lt;T&gt; 都视为不相等。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">obj</span> <span class="p">==</span> <span class="k">null</span> <span class="p">||</span> <span class="p">!(</span><span class="n">obj</span> <span class="k">is</span> <span class="n">Entity</span><span class="p">&lt;</span><span class="n">TKey</span><span class="p">&gt;))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 比较的对象与当前对象属于同一个引用，视为相等的。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">ReferenceEquals</span><span class="p">(</span><span class="k">this</span><span class="p">,</span> <span class="n">obj</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 当前比较主要适用于 EF Core，如果任意对象是使用的默认 Id，即临时对象，则其默认 ID 都为负数，视为不相等。</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">other</span> <span class="p">=</span> <span class="p">(</span><span class="n">Entity</span><span class="p">&lt;</span><span class="n">TKey</span><span class="p">&gt;)</span><span class="n">obj</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">EntityHelper</span><span class="p">.</span><span class="n">HasDefaultId</span><span class="p">(</span><span class="k">this</span><span class="p">)</span> <span class="p">&amp;&amp;</span> <span class="n">EntityHelper</span><span class="p">.</span><span class="n">HasDefaultId</span><span class="p">(</span><span class="n">other</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 主要判断当前对象与比较对象的类型信息，看他们两个是否属于 IS-A 关系，如果不是，则视为不相等。</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">typeOfThis</span> <span class="p">=</span> <span class="n">GetType</span><span class="p">().</span><span class="n">GetTypeInfo</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">typeOfOther</span> <span class="p">=</span> <span class="n">other</span><span class="p">.</span><span class="n">GetType</span><span class="p">().</span><span class="n">GetTypeInfo</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(!</span><span class="n">typeOfThis</span><span class="p">.</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">typeOfOther</span><span class="p">)</span> <span class="p">&amp;&amp;</span> <span class="p">!</span><span class="n">typeOfOther</span><span class="p">.</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">typeOfThis</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 如果两个实体他们的租户 Id 不同，也视为不相等。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="k">this</span> <span class="k">is</span> <span class="n">IMultiTenant</span> <span class="p">&amp;&amp;</span> <span class="n">other</span> <span class="k">is</span> <span class="n">IMultiTenant</span> <span class="p">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">		<span class="k">this</span><span class="p">.</span><span class="n">As</span><span class="p">&lt;</span><span class="n">IMultiTenant</span><span class="p">&gt;().</span><span class="n">TenantId</span> <span class="p">!=</span> <span class="n">other</span><span class="p">.</span><span class="n">As</span><span class="p">&lt;</span><span class="n">IMultiTenant</span><span class="p">&gt;().</span><span class="n">TenantId</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 通过泛型的 Equals 方法进行最后的比较。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">Id</span><span class="p">.</span><span class="n">Equals</span><span class="p">(</span><span class="n">other</span><span class="p">.</span><span class="n">Id</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>实体本身是支持序列化的，所以特别标注了 <code>[Serializable]</code> 特性。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Serializable]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">Entity</span><span class="p">&lt;</span><span class="n">TKey</span><span class="p">&gt;</span> <span class="p">:</span> <span class="n">Entity</span><span class="p">,</span> <span class="n">IEntity</span><span class="p">&lt;</span><span class="n">TKey</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>针对于某些实体可能是 <strong>复合主键</strong> 的情况，ABP vNext 则推荐使用 <code>IEntity</code> 和 <code>Entity</code> 进行处理。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// 定义一个实体，但它的主键可能不是 “Id”，也有可能是否复合主键。</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// 开发人员应该尽可能使用 &lt;see cref=&#34;IEntity{TKey}&#34;/&gt; 来定义实体，以便更好的与其他框架/结构进行集成。</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IEntity</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 返回当前实体的标识数组。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">object</span><span class="p">[]</span> <span class="n">GetKeys</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-自动审计">2.2 自动审计</h3>
+<p>在 Entities 文件夹里面，还有一个 Auditing 文件夹。在这个文件夹里面定义了很多对象，我们最为常用的就是 <code>FullAuditiedEntity</code> 对象了。从字面意思来看，它是一个包含了所有审计属性的实体。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Serializable]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">FullAuditedEntity</span><span class="p">&lt;</span><span class="n">TKey</span><span class="p">&gt;</span> <span class="p">:</span> <span class="n">AuditedEntity</span><span class="p">&lt;</span><span class="n">TKey</span><span class="p">&gt;,</span> <span class="n">IFullAuditedObject</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 软删除标记，为 true 时说明实体已经被删除，反之亦然。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">virtual</span> <span class="kt">bool</span> <span class="n">IsDeleted</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 删除实体的用户 Id。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">virtual</span> <span class="n">Guid</span><span class="p">?</span> <span class="n">DeleterId</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 实体被删除的时间。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">virtual</span> <span class="n">DateTime</span><span class="p">?</span> <span class="n">DeletionTime</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>那么，什么是审计属性呢？在 ABP vNext 内部将以下属性定义为审计属性：<strong>创建人</strong>、<strong>创建时间</strong>、<strong>修改人</strong>、<strong>修改时间</strong>、<strong>删除人</strong>、<strong>删除时间</strong>、<strong>软删除标记</strong>。这些属性不需要开发人员手动去书写/控制，ABP vNext 框架将会自动跟踪这些属性并设置其值。</p>
+<p>开发人员除了可以直接继承 <code>FullAuditedEntity</code> 以外，也可以考虑集成其他的审计实例，例如只包含创建人与创建时间的 <code>CreationAuditedEntity</code>。如果你觉得你只想要创建人、软删除标记、修改时间的话，也可以直接继承相应的接口。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TestEntity</span> <span class="p">:</span> <span class="n">Entity</span><span class="p">&lt;</span><span class="kt">int</span><span class="p">&gt;,</span><span class="n">IMayHaveCreator</span><span class="p">,</span><span class="n">ISoftDelete</span><span class="p">,</span><span class="n">IHasModificationTime</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 创建人的 Id。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">Guid</span><span class="p">?</span> <span class="n">CreatorId</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 软删除标记。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="kt">bool</span> <span class="n">IsDeleted</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 最后的修改时间。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">DateTime</span><span class="p">?</span> <span class="n">LastModificationTime</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里我只重点提一下关于审计实体相关的内容，对于聚合的根对象的审计实体，内容也是相似的，就不再赘述。</p>
+<h3 id="23-值对象-valueobject">2.3 值对象 (ValueObject)</h3>
+<h4 id="231-基本概念">2.3.1 基本概念</h4>
+<p>DDD 关于值对象某一个概念来说，每个值对象都是单一的副本，这个概念你可以类比 C# 里面关于值对象和引用对象的区别。</p>
+<p>值对象与实体最大的区别就在于，<strong>值对象是没有概念标识的</strong>，还有比较重要的一点就是值对象是<strong>不可变的</strong>，所谓的不可变，就是值对象产生任何变化应该直接替换掉原有副本，而不是在原有副本上进行修改。**如果值对象是可变的，那么它一定不能被共享。**值对象可以引用实体或者其他的值对象。</p>
+<p>这里仍然以书中的例子进行说明值对象的标识问题，例如 “地址” 这个概念。</p>
+<p>如果我在淘宝买了一个键盘，我的室友也从淘宝买了同款键盘。对于淘宝系统来说，我们两个是否处于同一个地址并不重要，所以这里 “地址” 就是一个值对象。因为系统不需要关心两个地址的唯一标识是否一致，在业务上来说也没有这个需要。</p>
+<p>另一个情况就是家里停电了，我和我的室友同时在电力服务系统提交了工单。这个时候对于电力系统来说，如果两个工单的地址是在同一个地方，那么只需要派一个人去进行维修即可。这种情况下，地址就是一个实体，因为地址涉及到比较，而比较的依据则是地址的唯一标识。</p>
+<p>上述情况还有的另一种实现方式，即我们将住处抽象为一个实体，电力系统与住处进行关联。住处里面包含地址，这个时候地址就是一个值对象。因为这个时候电力系统关心的是住处是否一致，而地址则作为一个普通的属性而已。</p>
+<p>关于值对象的另一个用法则更加通俗，例如一个 Person 类，他原来的定义是拥有一个 Id、姓名、街道、社区、城市。那么我们可以将街道、社区、城市抽象到一个值对象 Address 类里面，每个值对象内部包含的属性应该形成一个<strong>概念上的整体</strong>。</p>
+<h4 id="232-如何实现">2.3.2 如何实现</h4>
+<p>ABP vNext 对于值对象的实现是比较粗糙的，他仅参考 MSDN 定义了一个简单的 <code>ValueObject</code> 类型，具体的用法开发人员可以参考 <strong><a class="link" href="https://docs.microsoft.com/en-us/dotnet/standard/microservices-architecture/microservice-ddd-cqrs-patterns/implement-value-objects"  target="_blank" rel="noopener"
+    >MSDN</a></strong> 实现值对象的细节，下文仅是摘抄部分内容进行简要描述。</p>
+<p>MSDN 也是以地址为例，他将 Address 定义为一个值对象，如下代码。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">Address</span> <span class="p">:</span> <span class="n">ValueObject</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">String</span> <span class="n">Street</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">String</span> <span class="n">City</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">String</span> <span class="n">State</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">String</span> <span class="n">Country</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">String</span> <span class="n">ZipCode</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">Address</span><span class="p">()</span> <span class="p">{</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Address</span><span class="p">(</span><span class="kt">string</span> <span class="n">street</span><span class="p">,</span> <span class="kt">string</span> <span class="n">city</span><span class="p">,</span> <span class="kt">string</span> <span class="n">state</span><span class="p">,</span> <span class="kt">string</span> <span class="n">country</span><span class="p">,</span> <span class="kt">string</span> <span class="n">zipcode</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Street</span> <span class="p">=</span> <span class="n">street</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">City</span> <span class="p">=</span> <span class="n">city</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">State</span> <span class="p">=</span> <span class="n">state</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Country</span> <span class="p">=</span> <span class="n">country</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ZipCode</span> <span class="p">=</span> <span class="n">zipcode</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">override</span> <span class="n">IEnumerable</span><span class="p">&lt;</span><span class="kt">object</span><span class="p">&gt;</span> <span class="n">GetAtomicValues</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// Using a yield return statement to return each element one at a time</span>
+</span></span><span class="line"><span class="cl">        <span class="k">yield</span> <span class="k">return</span> <span class="n">Street</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">yield</span> <span class="k">return</span> <span class="n">City</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">yield</span> <span class="k">return</span> <span class="n">State</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">yield</span> <span class="k">return</span> <span class="n">Country</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">yield</span> <span class="k">return</span> <span class="n">ZipCode</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>不过我们知道，如果一个值对象需要持久化到数据库，没有 Id 标识咋办？MSDN 上面也说明了在 EF Core 1.1 和 EF Core 2.0 的处理方法，这里我们只着重说明 EF Core 2.0 的处理方法。</p>
+<p>EF Core 2.0 可以使用 owned entity(固有实体类型) 来实现值对象，固有实体的以下特征可以帮助我们实现值对象。</p>
+<ul>
+<li>固有对象可以用作属性，并且没有自己的标识。</li>
+<li>在查询所有实体时，固有实体将会包含进去。例如我查询订单 A，那么就会将地址这个值对象包含到订单 A 的结果当中。</li>
+</ul>
+<p>但一个类型不管怎样都是会拥有它自己的标识的，这里不再详细叙述，更加详细的可以参考 MSDN 英文原版说明。(中文版翻译有问题)</p>
+<blockquote>
+<ul>
+<li>The identity of the owner</li>
+<li>The navigation property pointing to them</li>
+<li>In the case of collections of owned types, an independent component (not yet supported in EF Core 2.0, coming up on 2.2).</li>
+</ul>
+</blockquote>
+<p>EF Core 不会自动发现固有实体类型，需要显示声明，这里以 MSDN 官方的 eShopOnContainers DEMO 为例。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">override</span> <span class="k">void</span> <span class="n">OnModelCreating</span><span class="p">(</span><span class="n">ModelBuilder</span> <span class="n">modelBuilder</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">modelBuilder</span><span class="p">.</span><span class="n">ApplyConfiguration</span><span class="p">(</span><span class="k">new</span> <span class="n">ClientRequestEntityTypeConfiguration</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">    <span class="n">modelBuilder</span><span class="p">.</span><span class="n">ApplyConfiguration</span><span class="p">(</span><span class="k">new</span> <span class="n">PaymentMethodEntityTypeConfiguration</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">    <span class="n">modelBuilder</span><span class="p">.</span><span class="n">ApplyConfiguration</span><span class="p">(</span><span class="k">new</span> <span class="n">OrderEntityTypeConfiguration</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">    <span class="n">modelBuilder</span><span class="p">.</span><span class="n">ApplyConfiguration</span><span class="p">(</span><span class="k">new</span> <span class="n">OrderItemEntityTypeConfiguration</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">//...Additional type configurations</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>接着我们来到 <code>OrderEntityTypeConfiguration</code> 类型的 <code>Configure()</code> 方法中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">Configure</span><span class="p">(</span><span class="n">EntityTypeBuilder</span><span class="p">&lt;</span><span class="n">Order</span><span class="p">&gt;</span> <span class="n">orderConfiguration</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">orderConfiguration</span><span class="p">.</span><span class="n">ToTable</span><span class="p">(</span><span class="s">&#34;orders&#34;</span><span class="p">,</span> <span class="n">OrderingContext</span><span class="p">.</span><span class="n">DEFAULT_SCHEMA</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">orderConfiguration</span><span class="p">.</span><span class="n">HasKey</span><span class="p">(</span><span class="n">o</span> <span class="p">=&gt;</span> <span class="n">o</span><span class="p">.</span><span class="n">Id</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">orderConfiguration</span><span class="p">.</span><span class="n">Ignore</span><span class="p">(</span><span class="n">b</span> <span class="p">=&gt;</span> <span class="n">b</span><span class="p">.</span><span class="n">DomainEvents</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">orderConfiguration</span><span class="p">.</span><span class="n">Property</span><span class="p">(</span><span class="n">o</span> <span class="p">=&gt;</span> <span class="n">o</span><span class="p">.</span><span class="n">Id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">ForSqlServerUseSequenceHiLo</span><span class="p">(</span><span class="s">&#34;orderseq&#34;</span><span class="p">,</span> <span class="n">OrderingContext</span><span class="p">.</span><span class="n">DEFAULT_SCHEMA</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 说明 Address 属性是 Order 类型的固有实体。</span>
+</span></span><span class="line"><span class="cl">    <span class="n">orderConfiguration</span><span class="p">.</span><span class="n">OwnsOne</span><span class="p">(</span><span class="n">o</span> <span class="p">=&gt;</span> <span class="n">o</span><span class="p">.</span><span class="n">Address</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">orderConfiguration</span><span class="p">.</span><span class="n">Property</span><span class="p">&lt;</span><span class="n">DateTime</span><span class="p">&gt;(</span><span class="s">&#34;OrderDate&#34;</span><span class="p">).</span><span class="n">IsRequired</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">//...Additional validations, constraints and code...</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">//...</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>默认情况下，EF Core 会将固有实体的数据库列名，以 &lt;实体的属性名&gt;_&lt;固有实体的属性&gt;。以上面的 <code>Address</code> 类型字段为例，将会生成 <code>Address_Street</code> 、<code>Address_City</code> 这样的名称。你也可以通过流畅接口来重命名这些列，代码如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">orderConfiguration</span><span class="p">.</span><span class="n">OwnsOne</span><span class="p">(</span><span class="n">p</span> <span class="p">=&gt;</span> <span class="n">p</span><span class="p">.</span><span class="n">Address</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                            <span class="p">.</span><span class="n">Property</span><span class="p">(</span><span class="n">p</span><span class="p">=&gt;</span><span class="n">p</span><span class="p">.</span><span class="n">Street</span><span class="p">).</span><span class="n">HasColumnName</span><span class="p">(</span><span class="s">&#34;ShippingStreet&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">orderConfiguration</span><span class="p">.</span><span class="n">OwnsOne</span><span class="p">(</span><span class="n">p</span> <span class="p">=&gt;</span> <span class="n">p</span><span class="p">.</span><span class="n">Address</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                            <span class="p">.</span><span class="n">Property</span><span class="p">(</span><span class="n">p</span><span class="p">=&gt;</span><span class="n">p</span><span class="p">.</span><span class="n">City</span><span class="p">).</span><span class="n">HasColumnName</span><span class="p">(</span><span class="s">&#34;ShippingCity&#34;</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="24-聚合">2.4 聚合</h3>
+<p>如果说实体的概念还比较好理解的话，那么聚合则是在实体之上新的抽象。聚合就是一组相关对象的集合，他会有一个<strong>根对象(root)</strong>，和它的一个<strong>边界(boundary)</strong>。对于聚合外部来说，只能够引用它的根对象，而在聚合内部的其他对象则可以相互引用。</p>
+<p>一个简单的例子(《领域驱动设计》)来说，汽车是一个具有全局标识的实体，每一辆汽车都拥有自己唯一的标识。在某些时候，我们可能会需要知道轮胎的磨损情况与公里数，因为汽车有四个轮胎，所以我们也需要将轮胎视为<strong>实体，为其分配唯一本地的标识</strong>，这个标识是聚合内唯一的。但是在脱离了汽车这个边界之后，我们就不需要关心这些轮胎的标识。</p>
+<p>所以在上述例子当中，汽车是一个聚合的根实体，而轮胎处于这个聚合的边界之内。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563374038731.png"
+	width="1862"
+	height="1272"
+	srcset="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563374038731_hue576407a3cbcc9125e5f42fdf18da99e_44466_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563374038731_hue576407a3cbcc9125e5f42fdf18da99e_44466_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1563374038731"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="146"
+		data-flex-basis="351px"
+	
+></p>
+<p>那么一个聚合应该怎样进行设计呢？这里我引用汤雪华大神的 <a class="link" href="https://www.cnblogs.com/netfocus/p/3307971.html"  target="_blank" rel="noopener"
+    >《关于领域驱动设计（DDD）中聚合设计的一些思考》</a> 和 <a class="link" href="https://www.cnblogs.com/netfocus/archive/2012/02/12/2347938.html"  target="_blank" rel="noopener"
+    >《聚合（根）、实体、值对象精炼思考总结》</a> 说明一下聚合根要怎么设计才合理。</p>
+<p>聚合的几大设计原则：</p>
+<ol>
+<li>聚合是用来封装<strong>不变性（即固定规则）</strong>，而不是将领域对象简单组合到一起。</li>
+<li>聚合应该尽量设计成小聚合。</li>
+<li>聚合与聚合之间的关系应该通过 Id 进行引用。</li>
+<li>聚合内部应该是强一致性（同一事务），聚合之间只需要追求最终一致性即可。</li>
+</ol>
+<p>以上内容我们还是以经典的订单系统来举例子，说明我们的实体与聚合应该怎样进行划分。我们有一个订单系统，其结构如下图：</p>
+<p><img src="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563553347212.png"
+	width="872"
+	height="370"
+	srcset="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563553347212_hu65f75b24179bfd34be448853ab45c10d_85221_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563553347212_hu65f75b24179bfd34be448853ab45c10d_85221_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1563553347212"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="235"
+		data-flex-basis="565px"
+	
+></p>
+<p>其中有一个固定规则，就是采购项(Line Item)的总量不能够超过 PO 总额(approved limit)的限制，这里的 Part 是具体采购的部件(产品)，它拥有一个 price 属性作为它的金额。</p>
+<p>从上述业务场景我们就可以得出以下问题：</p>
+<ol>
+<li>固定规则的实施，即添加新的采购项时，PO 需要检查总额，如果超出限制视为无效。</li>
+<li>当 PO 被删除或者存档时，采购项也应该一并处理。（<strong>同生共死原则</strong>）</li>
+<li>多用户的竞争问题，如果在采购过程中，采购项与部件都被用户修改，会产生问题。</li>
+</ol>
+<p><strong>场景 1：</strong></p>
+<p>当用户编辑任何一个对象时，锁定该对象，直到编辑完成提交事务。这样就会造成 George 编辑订单 #0001 的采购项 001 时，Amanda 无法修改该采购项。但是 Amanda 可以修改其他的采购项，这样最后提交的时候就会导致 #0001 订单破坏了固定规则。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563555072130.png"
+	width="1785"
+	height="985"
+	srcset="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563555072130_hue53fe27c991ae2b71c8f3bb766a09b71_447855_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563555072130_hue53fe27c991ae2b71c8f3bb766a09b71_447855_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1563555072130"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="181"
+		data-flex-basis="434px"
+	
+></p>
+<p><strong>场景 2：</strong></p>
+<p>如果锁定单行对象不行，那么我们直接锁定 PO 对象，并且为了防止 Part 的价格被修改，Part 对象也需要被锁定。这样就会造成太多的数据争用，现在 3 个人都需要等待。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563555184451.png"
+	width="855"
+	height="556"
+	srcset="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563555184451_hu52b155ecc2ab478d9f862a699971f18f_182178_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563555184451_hu52b155ecc2ab478d9f862a699971f18f_182178_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1563555184451"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="153"
+		data-flex-basis="369px"
+	
+></p>
+<p>从上述场景来看，我们可以得出以下结论：</p>
+<ol>
+<li>Part 在很多 PO 当中被使用。</li>
+<li>对 Part 的修改少于对 PO 的修改。</li>
+<li>PO 与采购项不能分开，后者独立存在没有意义。</li>
+<li>对 Part 的价格修改不一定要实时传播给 PO，仅取决于修改价格时 PO 处于什么状态。</li>
+</ol>
+<p>有以上结论可以知道，我们可以将 Part 的价格冗余到采购项，PO 和采购项的创建与删除是很自然的业务规则，而 Part 的创建与删除是独立的，所以将 PO 与采购项能划为一个聚合。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563555404214.png"
+	width="868"
+	height="527"
+	srcset="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563555404214_hud84c8db94e1e9920b03d566482abd1d5_108809_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563555404214_hud84c8db94e1e9920b03d566482abd1d5_108809_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1563555404214"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="164"
+		data-flex-basis="395px"
+	
+></p>
+<p>Abp vNext 框架也为我们提供了聚合的定义与具体实现，即 <code>AggregateRoot</code> 类型。该类型也继承自 <code>Entity</code> 类型，并且内部提供了一个并发令牌防止并发冲突。</p>
+<p>并且在其内部也提供了领域事件的快速增删方法，其他的与常规实体基本一致。<strong>通过领域事件，我们可以完成对事务的拆分</strong>。例如上述的例子当中，我们也可以为 Part 增加一个领域事件，当价格被更新时，PO 可以订阅这个事件，实现对应的采购项更新。</p>
+<p>只是这里你会奇怪，增加的事件到哪儿去了呢？他们这些事件最终会被添加到 <code>EntityChangeReport</code> 类型的 <code>DomainEvents</code> 集合里面，并且在实体变更时进行触发。</p>
+<p>关于聚合的 <strong><a class="link" href="https://docs.abp.io/en/abp/latest/Entities"  target="_blank" rel="noopener"
+    >示例</a></strong>，在 ABP vNext 官网已经有十分详细的描述，这里我贴上代码供大家理解以下，官方的例子仍然是以订单和采购项来说的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span><span class="lnt">75
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">Order</span> <span class="p">:</span> <span class="n">AggregateRoot</span><span class="p">&lt;</span><span class="n">Guid</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="kt">string</span> <span class="n">ReferenceNo</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">protected</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="kt">int</span> <span class="n">TotalItemCount</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">protected</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">DateTime</span> <span class="n">CreationTime</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">protected</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">OrderLine</span><span class="p">&gt;</span> <span class="n">OrderLines</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">protected</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">Order</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Order</span><span class="p">(</span><span class="n">Guid</span> <span class="n">id</span><span class="p">,</span> <span class="kt">string</span> <span class="n">referenceNo</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="n">referenceNo</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">referenceNo</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="n">Id</span> <span class="p">=</span> <span class="n">id</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ReferenceNo</span> <span class="p">=</span> <span class="n">referenceNo</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="n">OrderLines</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">OrderLine</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">AddProduct</span><span class="p">(</span><span class="n">Guid</span> <span class="n">productId</span><span class="p">,</span> <span class="kt">int</span> <span class="n">count</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">count</span> <span class="p">&lt;=</span> <span class="m">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">throw</span> <span class="k">new</span> <span class="n">ArgumentException</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="s">&#34;You can not add zero or negative count of products!&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">nameof</span><span class="p">(</span><span class="n">count</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">existingLine</span> <span class="p">=</span> <span class="n">OrderLines</span><span class="p">.</span><span class="n">FirstOrDefault</span><span class="p">(</span><span class="n">ol</span> <span class="p">=&gt;</span> <span class="n">ol</span><span class="p">.</span><span class="n">ProductId</span> <span class="p">==</span> <span class="n">productId</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">existingLine</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">OrderLines</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="k">new</span> <span class="n">OrderLine</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="n">Id</span><span class="p">,</span> <span class="n">productId</span><span class="p">,</span> <span class="n">count</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">else</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">existingLine</span><span class="p">.</span><span class="n">ChangeCount</span><span class="p">(</span><span class="n">existingLine</span><span class="p">.</span><span class="n">Count</span> <span class="p">+</span> <span class="n">count</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">TotalItemCount</span> <span class="p">+=</span> <span class="n">count</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">OrderLine</span> <span class="p">:</span> <span class="n">Entity</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">Guid</span> <span class="n">OrderId</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">protected</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">Guid</span> <span class="n">ProductId</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">protected</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="kt">int</span> <span class="n">Count</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">protected</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">OrderLine</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">internal</span> <span class="n">OrderLine</span><span class="p">(</span><span class="n">Guid</span> <span class="n">orderId</span><span class="p">,</span> <span class="n">Guid</span> <span class="n">productId</span><span class="p">,</span> <span class="kt">int</span> <span class="n">count</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">OrderId</span> <span class="p">=</span> <span class="n">orderId</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ProductId</span> <span class="p">=</span> <span class="n">productId</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Count</span> <span class="p">=</span> <span class="n">count</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">internal</span> <span class="k">void</span> <span class="n">ChangeCount</span><span class="p">(</span><span class="kt">int</span> <span class="n">newCount</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Count</span> <span class="p">=</span> <span class="n">newCount</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="25-服务-service">2.5 服务 (Service)</h3>
+<p>根据 DDD 理论来说，每个实体或者值对象已经具有一些业务方法，为什么还需要服务对象来进行处理呢？</p>
+<p>因为在某些情况下，某些重要的领域动作都不属于任何实体或者值对象，强行将它归纳在某一个对象里面，那么就会产生概念上的混淆。</p>
+<p>服务都是没有自己的状态，它们除了承载领域操作以外没有其他任何意义。服务则是作为一种接口提供操作，一个良好的服务定义拥有一下几个特征。</p>
+<ul>
+<li>与领域概念相关的操作不是实体或者值对象的<strong>自然组成部分</strong>。</li>
+<li>接口是根据领域模型的其他元素定义的。</li>
+<li>操作是无状态的。</li>
+</ul>
+<p>从上述定义来看，我们的**控制器(Controller)**就符合这几个特征，尤其是无状态的定义。那么我们哪些操作能够放到服务对象当中呢？根据 DDD 理论来说，只有领域当中某个重要的过程或者转换操作不是实体或值对象的自然职责的时候，就应该添加一个独立的服务来承载这些操作。</p>
+<p>那么问题来了，在层级架构来说，<strong>领域层的服务对象</strong>和<strong>应用层的服务对象</strong>最难以区分。以书中的例子举例，当客户余额小于某个阈值的时候，就会向客户发送电子邮件。在这里，应用服务负责通知的设置，而领域服务则需要确定客户是否满足阈值。这里就涉及到了银行领域的业务，说白了<strong>领域服务是会涉及到具体业务规则</strong>的。</p>
+<p>下面就是书中关于不同分层当中服务对象的划分：</p>
+<p><img src="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563531930351.png"
+	width="855"
+	height="266"
+	srcset="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563531930351_hud73969c27970ea39f8ecbb9e4c94388e_106968_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563531930351_hud73969c27970ea39f8ecbb9e4c94388e_106968_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1563531930351"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="321"
+		data-flex-basis="771px"
+	
+></p>
+<p>从上面的描述来看，领域层的应用服务就对应着 ABP vNext 框架当中的应用服务。所以我们可以将应用服务作为 API 接口暴露给前端(表现层)，因为应用服务仅仅是起一个协调领域层和基础设施层的作用。(类似脚本)</p>
+<h4 id="251-领域服务-domain-service">2.5.1 领域服务 (Domain Service)</h4>
+<p>上面我们了解了什么是领域服务，ABP vNext 为我们提供了领域服务的基本抽象定义 <code>IDomainService</code> 与 <code>DomainService</code>。</p>
+<p>它们的内部实现比较简单，只注入了一些常用的基础组件，我们使用的时候直接继承 <code>DomainService</code> 类型即可。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">DomainService</span> <span class="p">:</span> <span class="n">IDomainService</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">IServiceProvider</span> <span class="n">ServiceProvider</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="k">protected</span> <span class="k">readonly</span> <span class="kt">object</span> <span class="n">ServiceProviderLock</span> <span class="p">=</span> <span class="k">new</span> <span class="kt">object</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="k">protected</span> <span class="n">TService</span> <span class="n">LazyGetRequiredService</span><span class="p">&lt;</span><span class="n">TService</span><span class="p">&gt;(</span><span class="k">ref</span> <span class="n">TService</span> <span class="n">reference</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 比较简单的双重检查锁定模式。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">reference</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">lock</span> <span class="p">(</span><span class="n">ServiceProviderLock</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="k">if</span> <span class="p">(</span><span class="n">reference</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="p">{</span>
+</span></span><span class="line"><span class="cl">					<span class="n">reference</span> <span class="p">=</span> <span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">TService</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">				<span class="p">}</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">reference</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">IClock</span> <span class="n">Clock</span> <span class="p">=&gt;</span> <span class="n">LazyGetRequiredService</span><span class="p">(</span><span class="k">ref</span> <span class="n">_clock</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="n">IClock</span> <span class="n">_clock</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// Guid 生成器。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">IGuidGenerator</span> <span class="n">GuidGenerator</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 日志工厂。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">ILoggerFactory</span> <span class="n">LoggerFactory</span> <span class="p">=&gt;</span> <span class="n">LazyGetRequiredService</span><span class="p">(</span><span class="k">ref</span> <span class="n">_loggerFactory</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="n">ILoggerFactory</span> <span class="n">_loggerFactory</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1">// 获取当前租户。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">ICurrentTenant</span> <span class="n">CurrentTenant</span> <span class="p">=&gt;</span> <span class="n">LazyGetRequiredService</span><span class="p">(</span><span class="k">ref</span> <span class="n">_currentTenant</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="n">ICurrentTenant</span> <span class="n">_currentTenant</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 日志组件。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">protected</span> <span class="n">ILogger</span> <span class="n">Logger</span> <span class="p">=&gt;</span> <span class="n">_lazyLogger</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="n">Lazy</span><span class="p">&lt;</span><span class="n">ILogger</span><span class="p">&gt;</span> <span class="n">_lazyLogger</span> <span class="p">=&gt;</span> <span class="k">new</span> <span class="n">Lazy</span><span class="p">&lt;</span><span class="n">ILogger</span><span class="p">&gt;(()</span> <span class="p">=&gt;</span> <span class="n">LoggerFactory</span><span class="p">?.</span><span class="n">CreateLogger</span><span class="p">(</span><span class="n">GetType</span><span class="p">().</span><span class="n">FullName</span><span class="p">)</span> <span class="p">??</span> <span class="n">NullLogger</span><span class="p">.</span><span class="n">Instance</span><span class="p">,</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="k">protected</span> <span class="n">DomainService</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">GuidGenerator</span> <span class="p">=</span> <span class="n">SimpleGuidGenerator</span><span class="p">.</span><span class="n">Instance</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="252-应用服务-application-service">2.5.2 应用服务 (Application Service)</h4>
+<p>应用服务的内容比较复杂繁多，会在下一篇文章《[Abp vNext 源码分析] - 6. DDD 的应用层支持 (应用服务)》里面进行详细描述，这里就暂不进行说明。</p>
+<h3 id="26-仓储-repository">2.6 仓储 (Repository)</h3>
+<p>仓储这个东西大家应该都不会陌生，毕竟仓储模式这玩意儿玩了这么久了，我等 Crud 码农必备利器。那么这里的仓储和 DDD 概念里面的仓储有什么异同呢？</p>
+<h4 id="261-背景">2.6.1 背景</h4>
+<p>我们首先要明确 DDD 里面为什么会引入仓储这个概念，虽然我们可以通过遍历对象的关联来获取相关的对象，但总是要有一个起点。传统开发人员会构造一个 SQL 查询，将其传递给基础设施层的某个查询服务，然后根据得到的表/行数据重建实体对象，ORM 框架就是这样诞生的。</p>
+<p>通过上述手段，开发人员就会试图绕开领域模型，转而直接获取或者操作它们所需要的数据，这样就会导致越来越多的<strong>领域规则被嵌入到查询代码</strong>当中。更为严重的是，开发人员将会直接查询数据库从中提取它们需要的数据，而不是通过聚合的根来得到这些对象。这样就会导致领域逻辑(业务规则)进入查询代码当中，而我们的<strong>实体和值对象最终只是存放数据的容器</strong>而已。最后我们的<strong>领域层只是一个空壳</strong>，最后使得模型无关紧要。</p>
+<p>所以我们需要一种组件，能够通过根遍历查找对象，并且禁止其他方法对聚合内部的任何对象进行访问。而持久化的值对象可以通过遍历某个实体找到，所以值对象是不需要全局搜索的。</p>
+<p>而仓储就能够解决上述问题，仓储可以将某种类型的所有对象表示为一个概念上的集合。开发人员只需要调用仓储对外提供的简单接口，就可以重建实体，而具体的查询、插入等技术细节完全被仓储封装。这样开发人员只需要关注领域模型。</p>
+<p>仓储的优点有以下几点：</p>
+<ul>
+<li>提供简单的模型，可用来获取持久化对象并管理它们的生命周期。</li>
+<li>将应用程序与持久化技术解耦。</li>
+<li>利于进行单元测试，例如使用内存数据库替换掉实际访问的数据库。</li>
+</ul>
+<h4 id="262-实现">2.6.2 实现</h4>
+<p>ABP vNext 为我们提供了几种类型的仓储 <code>IRepository</code>、<code>IBasicRepository</code>、<code>IReadOnlyRepository</code> 等，其实从名字就可以看出来它们具体的职责。首先我们来看 <code>IReadonly&lt;XXX&gt;</code> 仓储，很明显这种类型的仓储只提供了查询方法，因为它们是只读的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IReadOnlyBasicRepository</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;</span> <span class="p">:</span> <span class="n">IRepository</span>
+</span></span><span class="line"><span class="cl">	<span class="k">where</span> <span class="n">TEntity</span> <span class="p">:</span> <span class="n">class</span><span class="p">,</span> <span class="n">IEntity</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 获得所有实体对象。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">List</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;</span> <span class="n">GetList</span><span class="p">(</span><span class="kt">bool</span> <span class="n">includeDetails</span> <span class="p">=</span> <span class="k">false</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 获得所有实体对象。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Task</span><span class="p">&lt;</span><span class="n">List</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;&gt;</span> <span class="n">GetListAsync</span><span class="p">(</span><span class="kt">bool</span> <span class="n">includeDetails</span> <span class="p">=</span> <span class="k">false</span><span class="p">,</span> <span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 获得实体对象的数据量。</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">long</span> <span class="n">GetCount</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 获得实体对象的数据量。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Task</span><span class="p">&lt;</span><span class="kt">long</span><span class="p">&gt;</span> <span class="n">GetCountAsync</span><span class="p">(</span><span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IReadOnlyBasicRepository</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">,</span> <span class="n">TKey</span><span class="p">&gt;</span> <span class="p">:</span> <span class="n">IReadOnlyBasicRepository</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">where</span> <span class="n">TEntity</span> <span class="p">:</span> <span class="n">class</span><span class="p">,</span> <span class="n">IEntity</span><span class="p">&lt;</span><span class="n">TKey</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 根据实体的唯一标识重建对象，没有找到对象时抛出 EntityNotFoundException 异常。</span>
+</span></span><span class="line"><span class="cl"><span class="na">	[NotNull]</span>
+</span></span><span class="line"><span class="cl">	<span class="n">TEntity</span> <span class="n">Get</span><span class="p">(</span><span class="n">TKey</span> <span class="n">id</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">includeDetails</span> <span class="p">=</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">	[NotNull]</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Task</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;</span> <span class="n">GetAsync</span><span class="p">(</span><span class="n">TKey</span> <span class="n">id</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">includeDetails</span> <span class="p">=</span> <span class="k">true</span><span class="p">,</span> <span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">//  根据实体的唯一标识重建对象，没有找到对象时返回 null。</span>
+</span></span><span class="line"><span class="cl"><span class="na">	[CanBeNull]</span>
+</span></span><span class="line"><span class="cl">	<span class="n">TEntity</span> <span class="n">Find</span><span class="p">(</span><span class="n">TKey</span> <span class="n">id</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">includeDetails</span> <span class="p">=</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">Task</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;</span> <span class="n">FindAsync</span><span class="p">(</span><span class="n">TKey</span> <span class="n">id</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">includeDetails</span> <span class="p">=</span> <span class="k">true</span><span class="p">,</span> <span class="n">CancellationToken</span> <span class="n">cancellationToken</span> <span class="p">=</span> <span class="k">default</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>除了只读仓储以外， 还拥有支持插入、更新、删除的仓储定义，它们都存放在 <code>IBasicRepository</code> 当中。在 <strong>Volo.Abp.Ddd.Domain</strong> 模块里面为我们提供了仓储类型的抽象实现 <code>RepositoryBase</code> 。</p>
+<p>这个抽象基类里面我们需要注意几个基础组件：</p>
+<ol>
+<li><code>BasicRepositoryBase</code> 基类里面注入的 <code>ICancellationTokenProvider</code> 对象。</li>
+<li><code>RepositoryBase</code> 基类注入的 <code>IDataFilter</code> 对象。</li>
+<li><code>RepositoryBase</code> 基类注入的 <code>ICurrentTenant</code> 对象。</li>
+</ol>
+<p>以上三个对象都不是我们讲过的组件，这里我先大概说一下它们的作用。</p>
+<h5 id="2621-icancellationtokenprovider">2.6.2.1 ICancellationTokenProvider</h5>
+<p><code>CancellationToken</code> 很多人都用过，它的作用是用来取消某个耗时的异步任务。<code>ICancellationTokenProvider</code> 顾名思义就是 <code>CancellationToken</code> 的提供者，那么谁提供呢？</p>
+<p><img src="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563536451020.png"
+	width="1106"
+	height="182"
+	srcset="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563536451020_hu503cb33ac8f6252a82331791d87920ef_29455_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563536451020_hu503cb33ac8f6252a82331791d87920ef_29455_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1563536451020"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="607"
+		data-flex-basis="1458px"
+	
+></p>
+<p>可以看到它有两个定义，一个是从 Http 上下文获取，一个是默认实现，首先来看一般都很简单的默认实现。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">NullCancellationTokenProvider</span> <span class="p">:</span> <span class="n">ICancellationTokenProvider</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">static</span> <span class="n">NullCancellationTokenProvider</span> <span class="n">Instance</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span> <span class="p">=</span> <span class="k">new</span> <span class="n">NullCancellationTokenProvider</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">CancellationToken</span> <span class="n">Token</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span> <span class="p">=</span> <span class="n">CancellationToken</span><span class="p">.</span><span class="n">None</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="n">NullCancellationTokenProvider</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>emmm，确实很简单，他直接返回的就是 <code>CancellationToken.None</code> 空值。那我们现在去看一下 Http 上下文的实现吧：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Dependency(ReplaceServices = true)]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">HttpContextCancellationTokenProvider</span> <span class="p">:</span> <span class="n">ICancellationTokenProvider</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">CancellationToken</span> <span class="n">Token</span> <span class="p">=&gt;</span> <span class="n">_httpContextAccessor</span><span class="p">.</span><span class="n">HttpContext</span><span class="p">?.</span><span class="n">RequestAborted</span> <span class="p">??</span> <span class="n">CancellationToken</span><span class="p">.</span><span class="n">None</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">IHttpContextAccessor</span> <span class="n">_httpContextAccessor</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">HttpContextCancellationTokenProvider</span><span class="p">(</span><span class="n">IHttpContextAccessor</span> <span class="n">httpContextAccessor</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_httpContextAccessor</span> <span class="p">=</span> <span class="n">httpContextAccessor</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>从上面可以看到，这个提供者是从 <code>HttpContext</code> 里面拿的 <code>RequestAborted</code> ，这个属性是哪儿来的呢？看它的说明是：</p>
+<blockquote>
+<p>Notifies when the connection underlying this request is aborted and thus request operations should be cancelled.</p>
+</blockquote>
+<p>Soga，这个意思就是如果一个 Http 请求被中止的时候，就会触发的取消标记哦。</p>
+<p>那么它放在仓储基类里面干什么呢？肯定是要取消掉耗时的查询/持久化异步任务啊，不然一直等么&hellip;</p>
+<h5 id="2622-idatafilter">2.6.2.2 IDataFilter</h5>
+<p>这个接口名字跟之前一样，很通俗，数据过滤器，用来过滤查询数据用的。使用过 ABP 框架的同学肯定知道这玩意儿，主要是用来过滤多租户和软删除标记的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="n">TQueryable</span> <span class="n">ApplyDataFilters</span><span class="p">&lt;</span><span class="n">TQueryable</span><span class="p">&gt;(</span><span class="n">TQueryable</span> <span class="n">query</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">where</span> <span class="n">TQueryable</span> <span class="p">:</span> <span class="n">IQueryable</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 如果实体实现了软删除标记，过滤掉已删除的数据。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">ISoftDelete</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TEntity</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">query</span> <span class="p">=</span> <span class="p">(</span><span class="n">TQueryable</span><span class="p">)</span><span class="n">query</span><span class="p">.</span><span class="n">WhereIf</span><span class="p">(</span><span class="n">DataFilter</span><span class="p">.</span><span class="n">IsEnabled</span><span class="p">&lt;</span><span class="n">ISoftDelete</span><span class="p">&gt;(),</span> <span class="n">e</span> <span class="p">=&gt;</span> <span class="p">((</span><span class="n">ISoftDelete</span><span class="p">)</span><span class="n">e</span><span class="p">).</span><span class="n">IsDeleted</span> <span class="p">==</span> <span class="k">false</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 如果实体实现了多租户标记，根据租户 Id 过滤数据。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">IMultiTenant</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TEntity</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">tenantId</span> <span class="p">=</span> <span class="n">CurrentTenant</span><span class="p">.</span><span class="n">Id</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">query</span> <span class="p">=</span> <span class="p">(</span><span class="n">TQueryable</span><span class="p">)</span><span class="n">query</span><span class="p">.</span><span class="n">WhereIf</span><span class="p">(</span><span class="n">DataFilter</span><span class="p">.</span><span class="n">IsEnabled</span><span class="p">&lt;</span><span class="n">IMultiTenant</span><span class="p">&gt;(),</span> <span class="n">e</span> <span class="p">=&gt;</span> <span class="p">((</span><span class="n">IMultiTenant</span><span class="p">)</span><span class="n">e</span><span class="p">).</span><span class="n">TenantId</span> <span class="p">==</span> <span class="n">tenantId</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">query</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>更加详细的我们放在后面说明&hellip;这里你只需要知道它是用来过滤数据的就行了。</p>
+<h5 id="2623-icurrenttenant">2.6.2.3 ICurrentTenant</h5>
+<p>英语在学习编程的时候还是很重要的，这个接口的意思是当前租户，肯定这玩意儿就是提供当前登录用户的租户 Id 咯，在上面的例子里面有使用到。</p>
+<h4 id="263-仓储的注册">2.6.3 仓储的注册</h4>
+<p>不论是 ABP vNext 提供的默认仓储也好，还是说我们自己定义的仓储也好，都需要注入到 IoC 容器当中。ABP vNext 为我们提供了一个仓储注册基类 <code>RepositoryRegisterarBase&lt;TOptions&gt;</code> ，查看这个基类的实现就会发现仓储的具体实现模块都实现了这个基类。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563534972313.png"
+	width="1645"
+	height="240"
+	srcset="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563534972313_hu4c1ba348e401682fb939e43455b1a63d_52988_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563534972313_hu4c1ba348e401682fb939e43455b1a63d_52988_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1563534972313"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="685"
+		data-flex-basis="1645px"
+	
+></p>
+<p>这是因为仓储肯定会有多种实现的，例如 EF Core 的仓储实现肯定有自己的一套注册机制，所以这里仅提供了一个抽象基类给开发人员。</p>
+<p>在基类里面，ABP vNext 首先会注册自定义的仓储类型，因为从仓储的 DDD 定义来看，我们有些业务可能会需要一些特殊的仓储接口，这个时候就需要自定义仓储了。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">AddRepositories</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 遍历自定义仓储。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">customRepository</span> <span class="k">in</span> <span class="n">Options</span><span class="p">.</span><span class="n">CustomRepositories</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 调用注册方法，注册这些仓储。</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Options</span><span class="p">.</span><span class="n">Services</span><span class="p">.</span><span class="n">AddDefaultRepository</span><span class="p">(</span><span class="n">customRepository</span><span class="p">.</span><span class="n">Key</span><span class="p">,</span> <span class="n">customRepository</span><span class="p">.</span><span class="n">Value</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 是否注册 ABP vNext 生成的默认仓储。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">Options</span><span class="p">.</span><span class="n">RegisterDefaultRepositories</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">RegisterDefaultRepositories</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>CustomRepositories 里面的仓储是通过基类 <code>CommonDbContextRegistrationOptions</code> 所定义的 <code>AddRepository()</code> 方法进行添加的。例如单元测试里面就有使用范例：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">ConfigureServices</span><span class="p">(</span><span class="n">ServiceConfigurationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">connStr</span> <span class="p">=</span> <span class="n">Guid</span><span class="p">.</span><span class="n">NewGuid</span><span class="p">().</span><span class="n">ToString</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">Configure</span><span class="p">&lt;</span><span class="n">DbConnectionOptions</span><span class="p">&gt;(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">options</span><span class="p">.</span><span class="n">ConnectionStrings</span><span class="p">.</span><span class="n">Default</span> <span class="p">=</span> <span class="n">connStr</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">});</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 添加自定义仓储。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">.</span><span class="n">AddMemoryDbContext</span><span class="p">&lt;</span><span class="n">TestAppMemoryDbContext</span><span class="p">&gt;(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">options</span><span class="p">.</span><span class="n">AddDefaultRepositories</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">options</span><span class="p">.</span><span class="n">AddRepository</span><span class="p">&lt;</span><span class="n">City</span><span class="p">,</span> <span class="n">CityRepository</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">});</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>接着我们看自定义仓储是如何注册到 IoC 容器里面的呢？这里调用的 <code>AddDefaultRepository()</code> 方法就是在 Microsoft 文件夹里面定义的注册扩展方法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="n">IServiceCollection</span> <span class="n">AddDefaultRepository</span><span class="p">(</span><span class="k">this</span> <span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> <span class="n">Type</span> <span class="n">entityType</span><span class="p">,</span> <span class="n">Type</span> <span class="n">repositoryImplementationType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 注册复合主键实体所对应的仓储。</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">//IReadOnlyBasicRepository&lt;TEntity&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">readOnlyBasicRepositoryInterface</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">IReadOnlyBasicRepository</span><span class="p">&lt;&gt;).</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">entityType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">readOnlyBasicRepositoryInterface</span><span class="p">.</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">repositoryImplementationType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">services</span><span class="p">.</span><span class="n">TryAddTransient</span><span class="p">(</span><span class="n">readOnlyBasicRepositoryInterface</span><span class="p">,</span> <span class="n">repositoryImplementationType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="c1">//IReadOnlyRepository&lt;TEntity&gt;</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">readOnlyRepositoryInterface</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">IReadOnlyRepository</span><span class="p">&lt;&gt;).</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">entityType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">readOnlyRepositoryInterface</span><span class="p">.</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">repositoryImplementationType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">services</span><span class="p">.</span><span class="n">TryAddTransient</span><span class="p">(</span><span class="n">readOnlyRepositoryInterface</span><span class="p">,</span> <span class="n">repositoryImplementationType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="c1">//IBasicRepository&lt;TEntity&gt;</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">basicRepositoryInterface</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">IBasicRepository</span><span class="p">&lt;&gt;).</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">entityType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">basicRepositoryInterface</span><span class="p">.</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">repositoryImplementationType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">services</span><span class="p">.</span><span class="n">TryAddTransient</span><span class="p">(</span><span class="n">basicRepositoryInterface</span><span class="p">,</span> <span class="n">repositoryImplementationType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="c1">//IRepository&lt;TEntity&gt;</span>
+</span></span><span class="line"><span class="cl">			<span class="kt">var</span> <span class="n">repositoryInterface</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">IRepository</span><span class="p">&lt;&gt;).</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">entityType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">repositoryInterface</span><span class="p">.</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">repositoryImplementationType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">			<span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="n">services</span><span class="p">.</span><span class="n">TryAddTransient</span><span class="p">(</span><span class="n">repositoryInterface</span><span class="p">,</span> <span class="n">repositoryImplementationType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 首先获得实体的主键类型，再进行注册。</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">primaryKeyType</span> <span class="p">=</span> <span class="n">EntityHelper</span><span class="p">.</span><span class="n">FindPrimaryKeyType</span><span class="p">(</span><span class="n">entityType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">primaryKeyType</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">//IReadOnlyBasicRepository&lt;TEntity, TKey&gt;</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">readOnlyBasicRepositoryInterfaceWithPk</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">IReadOnlyBasicRepository</span><span class="p">&lt;,&gt;).</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">entityType</span><span class="p">,</span> <span class="n">primaryKeyType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">readOnlyBasicRepositoryInterfaceWithPk</span><span class="p">.</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">repositoryImplementationType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">services</span><span class="p">.</span><span class="n">TryAddTransient</span><span class="p">(</span><span class="n">readOnlyBasicRepositoryInterfaceWithPk</span><span class="p">,</span> <span class="n">repositoryImplementationType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="c1">//IReadOnlyRepository&lt;TEntity, TKey&gt;</span>
+</span></span><span class="line"><span class="cl">			<span class="kt">var</span> <span class="n">readOnlyRepositoryInterfaceWithPk</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">IReadOnlyRepository</span><span class="p">&lt;,&gt;).</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">entityType</span><span class="p">,</span> <span class="n">primaryKeyType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">readOnlyRepositoryInterfaceWithPk</span><span class="p">.</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">repositoryImplementationType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">			<span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="n">services</span><span class="p">.</span><span class="n">TryAddTransient</span><span class="p">(</span><span class="n">readOnlyRepositoryInterfaceWithPk</span><span class="p">,</span> <span class="n">repositoryImplementationType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="c1">//IBasicRepository&lt;TEntity, TKey&gt;</span>
+</span></span><span class="line"><span class="cl">			<span class="kt">var</span> <span class="n">basicRepositoryInterfaceWithPk</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">IBasicRepository</span><span class="p">&lt;,&gt;).</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">entityType</span><span class="p">,</span> <span class="n">primaryKeyType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">basicRepositoryInterfaceWithPk</span><span class="p">.</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">repositoryImplementationType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">			<span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="n">services</span><span class="p">.</span><span class="n">TryAddTransient</span><span class="p">(</span><span class="n">basicRepositoryInterfaceWithPk</span><span class="p">,</span> <span class="n">repositoryImplementationType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">				<span class="c1">//IRepository&lt;TEntity, TKey&gt;</span>
+</span></span><span class="line"><span class="cl">				<span class="kt">var</span> <span class="n">repositoryInterfaceWithPk</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">IRepository</span><span class="p">&lt;,&gt;).</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">entityType</span><span class="p">,</span> <span class="n">primaryKeyType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">				<span class="k">if</span> <span class="p">(</span><span class="n">repositoryInterfaceWithPk</span><span class="p">.</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">repositoryImplementationType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">				<span class="p">{</span>
+</span></span><span class="line"><span class="cl">					<span class="n">services</span><span class="p">.</span><span class="n">TryAddTransient</span><span class="p">(</span><span class="n">repositoryInterfaceWithPk</span><span class="p">,</span> <span class="n">repositoryImplementationType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">				<span class="p">}</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">services</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>上面代码没什么好说的，只是根据不同的类型来进行不同的注册而已。</p>
+<p>以上是注册我们自定义的仓储类型，只要开发人员调用过 <code>AddDefaultRepositories()</code> 方法，那么 ABP vNext 会为每个不同的实体注册响应的默认仓库。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">ICommonDbContextRegistrationOptionsBuilder</span> <span class="n">AddDefaultRepositories</span><span class="p">(</span><span class="kt">bool</span> <span class="n">includeAllEntities</span> <span class="p">=</span> <span class="k">false</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 可以看到将参数设置为 true 了。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">RegisterDefaultRepositories</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IncludeAllEntitiesForDefaultRepositories</span> <span class="p">=</span> <span class="n">includeAllEntities</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="k">this</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>默认仓库仅包含基础仓储所定义的增删改查等方法，开发人员只需要注入相应的接口就能够直接使用。既然要为每个实体类型注入对应的默认仓储，肯定就需要知道当前项目有多少个实体，并获得它们的类型定义。</p>
+<p>这里我们基类仅仅是调用抽象方法 <code>GetEntityTypes()</code> ，然后根据具体实现返回的类型定义来注册默认仓储。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">RegisterDefaultRepositories</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">entityType</span> <span class="k">in</span> <span class="n">GetEntityTypes</span><span class="p">(</span><span class="n">Options</span><span class="p">.</span><span class="n">OriginalDbContextType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 判断该实体类型是否需要注册默认仓储。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(!</span><span class="n">ShouldRegisterDefaultRepositoryFor</span><span class="p">(</span><span class="n">entityType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 为实体对象注册相应的默认仓储，这里仍然调用之前的扩展方法进行注册。</span>
+</span></span><span class="line"><span class="cl">		<span class="n">RegisterDefaultRepository</span><span class="p">(</span><span class="n">entityType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563547880976.png"
+	width="1951"
+	height="276"
+	srcset="/p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563547880976_hu26ad4526ed28805c39b828fe30e3897a_71646_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---5-domain-layer-support-for-ddd-repository-entity-value-object/1563547880976_hu26ad4526ed28805c39b828fe30e3897a_71646_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1563547880976"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="706"
+		data-flex-basis="1696px"
+	
+></p>
+<p>找到 EF Core 定义的仓储注册器，就能够看到他是通过遍历 DbContext 里面的属性来获取所有实体类型定义的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="n">IEnumerable</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;</span> <span class="n">GetEntityTypes</span><span class="p">(</span><span class="n">Type</span> <span class="n">dbContextType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span>
+</span></span><span class="line"><span class="cl">		<span class="k">from</span> <span class="n">property</span> <span class="k">in</span> <span class="n">dbContextType</span><span class="p">.</span><span class="n">GetTypeInfo</span><span class="p">().</span><span class="n">GetProperties</span><span class="p">(</span><span class="n">BindingFlags</span><span class="p">.</span><span class="n">Public</span> <span class="p">|</span> <span class="n">BindingFlags</span><span class="p">.</span><span class="n">Instance</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">where</span>
+</span></span><span class="line"><span class="cl">			<span class="n">ReflectionHelper</span><span class="p">.</span><span class="n">IsAssignableToGenericType</span><span class="p">(</span><span class="n">property</span><span class="p">.</span><span class="n">PropertyType</span><span class="p">,</span> <span class="k">typeof</span><span class="p">(</span><span class="n">DbSet</span><span class="p">&lt;&gt;))</span> <span class="p">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">typeof</span><span class="p">(</span><span class="n">IEntity</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">property</span><span class="p">.</span><span class="n">PropertyType</span><span class="p">.</span><span class="n">GenericTypeArguments</span><span class="p">[</span><span class="m">0</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl">		<span class="k">select</span> <span class="n">property</span><span class="p">.</span><span class="n">PropertyType</span><span class="p">.</span><span class="n">GenericTypeArguments</span><span class="p">[</span><span class="m">0</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>最后的最后，这个注册器在什么时候被调用的呢？注册器一般是在项目的基础设施模块当中进行调用，这里以单元测试的代码为例，它是使用的 EF Core 作为持久层的基础设施。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[DependsOn(typeof(AbpEntityFrameworkCoreModule))]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpEfCoreTestSecondContextModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">ConfigureServices</span><span class="p">(</span><span class="n">ServiceConfigurationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 注意这里。</span>
+</span></span><span class="line"><span class="cl">		<span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">.</span><span class="n">AddAbpDbContext</span><span class="p">&lt;</span><span class="n">SecondDbContext</span><span class="p">&gt;(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">options</span><span class="p">.</span><span class="n">AddDefaultRepositories</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="p">});</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="c1">// 注意这里。</span>
+</span></span><span class="line"><span class="cl">		<span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">.</span><span class="n">AddAbpDbContext</span><span class="p">&lt;</span><span class="n">ThirdDbContext</span><span class="p">.</span><span class="n">ThirdDbContext</span><span class="p">&gt;(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">options</span><span class="p">.</span><span class="n">AddDefaultRepositories</span><span class="p">&lt;</span><span class="n">IThirdDbContext</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">		<span class="p">});</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>跳转到 ABP vNext 提供的 EF Core模块，找到 <code>AddAbpDbContext()</code> 方法当中，发现了仓储注册器。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">AbpEfCoreServiceCollectionExtensions</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">static</span> <span class="n">IServiceCollection</span> <span class="n">AddAbpDbContext</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;(</span>
+</span></span><span class="line"><span class="cl">		<span class="k">this</span> <span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">		<span class="n">Action</span><span class="p">&lt;</span><span class="n">IAbpDbContextRegistrationOptionsBuilder</span><span class="p">&gt;</span> <span class="n">optionsBuilder</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">where</span> <span class="n">TDbContext</span> <span class="p">:</span> <span class="n">AbpDbContext</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">services</span><span class="p">.</span><span class="n">AddMemoryCache</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">options</span> <span class="p">=</span> <span class="k">new</span> <span class="n">AbpDbContextRegistrationOptions</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TDbContext</span><span class="p">),</span> <span class="n">services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">optionsBuilder</span><span class="p">?.</span><span class="n">Invoke</span><span class="p">(</span><span class="n">options</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">services</span><span class="p">.</span><span class="n">TryAddTransient</span><span class="p">(</span><span class="n">DbContextOptionsFactory</span><span class="p">.</span><span class="n">Create</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">dbContextType</span> <span class="k">in</span> <span class="n">options</span><span class="p">.</span><span class="n">ReplacedDbContextTypes</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">services</span><span class="p">.</span><span class="n">Replace</span><span class="p">(</span><span class="n">ServiceDescriptor</span><span class="p">.</span><span class="n">Transient</span><span class="p">(</span><span class="n">dbContextType</span><span class="p">,</span> <span class="k">typeof</span><span class="p">(</span><span class="n">TDbContext</span><span class="p">)));</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 在这里。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">new</span> <span class="n">EfCoreRepositoryRegistrar</span><span class="p">(</span><span class="n">options</span><span class="p">).</span><span class="n">AddRepositories</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">services</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="27-领域事件">2.7 领域事件</h3>
+<p>在 ABP vNext 中，除了<strong>本地事件总线</strong>以外，还为我们提供了<strong>基于 Rabbit MQ 的分布式事件总线</strong>。关于事件总线的内容，这里就不再详细赘述，后面会有专门的文章讲解事件总线的相关知识。</p>
+<p>在这里，主要提一下什么是领域事件。其实领域事件与普通的事件并没什么本质上的不同，只是它们触发的地方和携带的参数有点特殊罢了。并且按照聚合的特性来说，其实<strong>聚合与聚合之间的通讯，主要是通过领域事件来实现</strong>的。</p>
+<p>这里的领域事件都是针对于实体产生变更时需要被触发的事件，例如我们有一个学生实体，在它被修改之后，ABP vNext 框架就会触发一个实体更新事件。</p>
+<p>触发领域事件这些动作都被封装在 <code>EntityChangeEventHelper</code> 里面，以刚才的例子来说，我们可以看到它会触发以下代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">TriggerEntityUpdatedEventOnUowCompletedAsync</span><span class="p">(</span><span class="kt">object</span> <span class="n">entity</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 触发本地事件总线。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">await</span> <span class="n">TriggerEventWithEntity</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">		<span class="n">LocalEventBus</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="k">typeof</span><span class="p">(</span><span class="n">EntityUpdatedEventData</span><span class="p">&lt;&gt;),</span>
+</span></span><span class="line"><span class="cl">		<span class="n">entity</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="k">false</span>
+</span></span><span class="line"><span class="cl">	<span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">eto</span> <span class="p">=</span> <span class="n">EntityToEtoMapper</span><span class="p">.</span><span class="n">Map</span><span class="p">(</span><span class="n">entity</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">eto</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 触发分布式事件总线。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">await</span> <span class="n">TriggerEventWithEntity</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">			<span class="n">DistributedEventBus</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			<span class="k">typeof</span><span class="p">(</span><span class="n">EntityUpdatedEto</span><span class="p">&lt;&gt;),</span>
+</span></span><span class="line"><span class="cl">			<span class="n">eto</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			<span class="k">false</span>
+</span></span><span class="line"><span class="cl">		<span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>关于领域事件其他的细节就不再描述，如果大家想要更加全面的了解，请直接阅读 ABP vNext 的相关源码。</p>
+<h2 id="三总结">三、总结</h2>
+<p>本篇文章更多的注重 DDD 理论，关于 ABP vNext 的技术实现细节并未体现在当前模块，后续我会在其他章节注重描述关于上述 DDD 概念的技术实现。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/abp-vnext/">ABP vNext</a>
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/asp.net-core/">ASP.NET Core</a>
+        
+            <a href="/tags/asp.net-core-mvc/">ASP.NET Core MVC</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-multi-tenancy/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 多租户</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一简要介绍">一、简要介绍</a></li>
+    <li><a href="#二源码分析">二、源码分析</a>
+      <ol>
+        <li><a href="#21-实体-entity">2.1 实体 (Entity)</a>
+          <ol>
+            <li><a href="#211-基本概念">2.1.1 基本概念</a></li>
+            <li><a href="#212-如何实现">2.1.2 如何实现</a></li>
+          </ol>
+        </li>
+        <li><a href="#22-自动审计">2.2 自动审计</a></li>
+        <li><a href="#23-值对象-valueobject">2.3 值对象 (ValueObject)</a>
+          <ol>
+            <li><a href="#231-基本概念">2.3.1 基本概念</a></li>
+            <li><a href="#232-如何实现">2.3.2 如何实现</a></li>
+          </ol>
+        </li>
+        <li><a href="#24-聚合">2.4 聚合</a></li>
+        <li><a href="#25-服务-service">2.5 服务 (Service)</a>
+          <ol>
+            <li><a href="#251-领域服务-domain-service">2.5.1 领域服务 (Domain Service)</a></li>
+            <li><a href="#252-应用服务-application-service">2.5.2 应用服务 (Application Service)</a></li>
+          </ol>
+        </li>
+        <li><a href="#26-仓储-repository">2.6 仓储 (Repository)</a>
+          <ol>
+            <li><a href="#261-背景">2.6.1 背景</a></li>
+            <li><a href="#262-实现">2.6.2 实现</a></li>
+            <li><a href="#263-仓储的注册">2.6.3 仓储的注册</a></li>
+          </ol>
+        </li>
+        <li><a href="#27-领域事件">2.7 领域事件</a></li>
+      </ol>
+    </li>
+    <li><a href="#三总结">三、总结</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

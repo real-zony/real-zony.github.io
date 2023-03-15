@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、背景 DotNetty 本身是一个优秀的网络通讯框架，不过它是基于异步事件驱动来处理另一端的响应，需要在单独的 Handler 去处理相应的返回结果。而在我们的实际使用当中，尤其是 客户端程序 基本都是 请求-响应 模型，在发送了数据时候需要等待服务器的响应才能进行下一步操作，如果服务器返回的是错误信息，则需要进行特殊的处理。
+类似于下面这种方式：
+1 2 3 4 5 6 7 8 9 10 11 public async void Button1_Click() { var result = await DotNettyClient.SendData(&amp;#34;Hello&amp;#34;); if(result == &amp;#34;Error&amp;#34;) { throw new Exception(&amp;#34;服务器返回错误!&amp;#34;); } Console.WriteLine($&amp;#34;Hello {result}&amp;#34;); } '><title>在 DotNetty 中实现同步请求</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/implementing-synchronous-requests-in-dotnetty/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='在 DotNetty 中实现同步请求'>
+<meta property='og:description' content='一、背景 DotNetty 本身是一个优秀的网络通讯框架，不过它是基于异步事件驱动来处理另一端的响应，需要在单独的 Handler 去处理相应的返回结果。而在我们的实际使用当中，尤其是 客户端程序 基本都是 请求-响应 模型，在发送了数据时候需要等待服务器的响应才能进行下一步操作，如果服务器返回的是错误信息，则需要进行特殊的处理。
+类似于下面这种方式：
+1 2 3 4 5 6 7 8 9 10 11 public async void Button1_Click() { var result = await DotNettyClient.SendData(&amp;#34;Hello&amp;#34;); if(result == &amp;#34;Error&amp;#34;) { throw new Exception(&amp;#34;服务器返回错误!&amp;#34;); } Console.WriteLine($&amp;#34;Hello {result}&amp;#34;); } '>
+<meta property='og:url' content='https://real-zony.github.io/p/implementing-synchronous-requests-in-dotnetty/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='DotNetty' /><meta property='article:tag' content='网络编程' /><meta property='article:tag' content='异步' /><meta property='article:tag' content='Task' /><meta property='article:tag' content='C#' /><meta property='article:published_time' content='2019-05-22T01:52:19&#43;00:00'/><meta property='article:modified_time' content='2019-05-22T01:52:19&#43;00:00'/>
+<meta name="twitter:title" content="在 DotNetty 中实现同步请求">
+<meta name="twitter:description" content="一、背景 DotNetty 本身是一个优秀的网络通讯框架，不过它是基于异步事件驱动来处理另一端的响应，需要在单独的 Handler 去处理相应的返回结果。而在我们的实际使用当中，尤其是 客户端程序 基本都是 请求-响应 模型，在发送了数据时候需要等待服务器的响应才能进行下一步操作，如果服务器返回的是错误信息，则需要进行特殊的处理。
+类似于下面这种方式：
+1 2 3 4 5 6 7 8 9 10 11 public async void Button1_Click() { var result = await DotNettyClient.SendData(&amp;#34;Hello&amp;#34;); if(result == &amp;#34;Error&amp;#34;) { throw new Exception(&amp;#34;服务器返回错误!&amp;#34;); } Console.WriteLine($&amp;#34;Hello {result}&amp;#34;); } ">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/implementing-synchronous-requests-in-dotnetty/">在 DotNetty 中实现同步请求</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">May 22, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 2 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一背景">一、背景</h2>
+<p>DotNetty 本身是一个优秀的网络通讯框架，不过它是基于异步事件驱动来处理另一端的响应，需要在单独的 Handler 去处理相应的返回结果。而在我们的实际使用当中，尤其是 <strong>客户端程序</strong> 基本都是 <strong>请求-响应</strong> 模型，在发送了数据时候需要等待服务器的响应才能进行下一步操作，如果服务器返回的是错误信息，则需要进行特殊的处理。</p>
+<p>类似于下面这种方式：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">async</span> <span class="k">void</span> <span class="n">Button1_Click</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="k">await</span> <span class="n">DotNettyClient</span><span class="p">.</span><span class="n">SendData</span><span class="p">(</span><span class="s">&#34;Hello&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">if</span><span class="p">(</span><span class="n">result</span> <span class="p">==</span> <span class="s">&#34;Error&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span> <span class="k">new</span> <span class="n">Exception</span><span class="p">(</span><span class="s">&#34;服务器返回错误!&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;Hello {result}&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="二解决思路">二、解决思路</h2>
+<p>参阅了大部分资料之后，发现在 Java 的 Netty 当中可以使用 Future / Promise 来实现，那么 C# 是否有类似的组件呢？答案是有的，他们对应的就是 <code>Task</code> 和 <code>TaskCompletionSource</code>，前者是给调用者的任务，而后者则是用于设置响应任务的结果。</p>
+<p>那么我们就可以这么来处理，当客户端发送请求时，附带唯一的一个请求 ID，并将 <code>TaskCompletionSource</code> 放在一个请求字典当中，请求 ID 作为字典的 Key，值是 <code>TaskCompletionSource</code>，之后返回一个 <code>Task</code>。当客户端接收到服务器响应的时候，通过 <code>TaskCompletionSource</code> 设置之前那个 <code>Task</code> 的结果，这样我们接收到响应之后，就会从之前 await 的地方继续执行。</p>
+<p>这里我自己的需求仅仅是类似于 <strong>同步阻塞式</strong> 的操作，所以我直接使用一个队列来做简单处理，并没有用唯一的请求 ID 来表示不同的请求，也没有使用字典，因为我可以 <strong>保证在同一时间内有且仅有一个客户端请求被发起</strong>，而且也做了响应的超时处理机制。</p>
+<h2 id="三代码实现">三、代码实现</h2>
+<p>实现起来超级简单，只需要在发起请求的时候，创建一个 <code>TaskCompletionSource&lt;TResponse&gt;</code> 对象。这个泛型参数指的是你想要的返回值类型，这里我以 TResponse 代替，下面的 DEMO 我会用 <code>string</code> 类型进行演示。</p>
+<p>创建好一个 <code>TaskCompletionSource&lt;TResponse&gt;</code> 之后，在发送方法里面，我们可以将其对象放在一个先进先出的队列当中，然后将其 <code>Task</code> 属性作为发送方法的返回值。</p>
+<p>我们再来到处理服务器响应的 Handler 当中，从队列里面拿去之前存放的 <code>TaskCompletionSource&lt;TResponse&gt;</code> 对象，调用其 <code>SetResult()</code> 方法，将具体响应进行设置。</p>
+<p>通过以上的操作，我们在发送数据的时候，就可以使用 <code>await</code> 关键字等待服务端的响应，但不会阻塞线程，当客户端接收到服务端响应时，就会恢复到之前 <code>await</code> 的位置继续执行。</p>
+<p><strong>数据发送方法：</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">DotNettyClient</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">static</span> <span class="n">DotNettyClient</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">RequestQueue</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Queue</span><span class="p">&lt;</span><span class="n">TaskCompletionSource</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="n">Queue</span><span class="p">&lt;</span><span class="n">TaskCompletionSource</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;&gt;</span> <span class="n">RequestQueue</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">SendData</span><span class="p">(</span><span class="kt">string</span> <span class="n">data</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">resultTask</span> <span class="p">=</span> <span class="k">new</span> <span class="n">TaskCompletionSource</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">buffer</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Unpooled</span><span class="p">.</span><span class="n">Buffer</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">buffer</span><span class="p">.</span><span class="n">WriteBytes</span><span class="p">(</span><span class="n">Encoding</span><span class="p">.</span><span class="n">UTF8</span><span class="p">.</span><span class="n">GetBytes</span><span class="p">(</span><span class="n">data</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">_clientChannel</span><span class="p">.</span><span class="n">WriteAndFlushAsync</span><span class="p">(</span><span class="n">buffer</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="n">RequestQueue</span><span class="p">.</span><span class="n">Enqueue</span><span class="p">(</span><span class="n">resultTask</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">await</span> <span class="n">resultTask</span><span class="p">.</span><span class="n">Task</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong>服务端响应处理：</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">ProtocolHandler</span> <span class="p">:</span> <span class="n">ChannelHandlerAdapter</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">ChannelRead</span><span class="p">(</span><span class="n">IChannelHandlerContext</span> <span class="n">context</span><span class="p">,</span> <span class="kt">object</span> <span class="n">message</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span><span class="p">(</span><span class="n">message</span> <span class="k">is</span> <span class="kt">string</span> <span class="n">response</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span><span class="p">(!</span><span class="n">DotNettyClient</span><span class="p">.</span><span class="n">RequestQueue</span><span class="p">.</span><span class="n">TryDequeue</span><span class="p">(</span><span class="k">out</span> <span class="n">TaskCompletionSource</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">result</span><span class="p">))</span> <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="n">result</span><span class="p">.</span><span class="n">SetResult</span><span class="p">(</span><span class="n">response</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里我就不再编写解析器，主要说明一下代码的思路，下面在使用的时候就如同第一节说的一样，直接使用 <code>await</code> 关键字等待响应结果即可。</p>
+<h2 id="四缺陷">四、缺陷</h2>
+<p>在这里我并没有展示多个异步请求的情况，如果是用户同时发起多个请求的时候，你可以通过数据的唯一 ID 来标识每一个请求，读取时根据唯一 ID 从字典获取数据，这样在接收服务端响应的时候就能处理这种情况了。</p>
+<h2 id="五参考资料">五、参考资料</h2>
+<ul>
+<li><a class="link" href="https://github.com/Azure/DotNetty/issues/84"  target="_blank" rel="noopener"
+    >DotNetty Github Issues</a></li>
+<li>[dotBlogs - 《<a class="link" href="https://dotblogs.com.tw/renewalwu/2014/07/27/eventdriven2awaitablemethod"  target="_blank" rel="noopener"
+    >C#] 將事件驅動 (event-driven) 的模式改為可等候的方法 (awaitable method)》</a></li>
+<li>[dotBlogs -《<a class="link" href="https://dotblogs.com.tw/yc421206/2013/08/07/113628"  target="_blank" rel="noopener"
+    >C#.NET][TPL] 利用 TaskCompletionSource 將 EAP 轉換成 TAP》</a></li>
+<li><a class="link" href="https://www.cnblogs.com/1zhk/p/5399538.html"  target="_blank" rel="noopener"
+    >HK-Zhang -《TaskCompletionSource的使用场景》</a></li>
+</ul>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/dotnetty/">DotNetty</a>
+        
+            <a href="/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/">网络编程</a>
+        
+            <a href="/tags/%E5%BC%82%E6%AD%A5/">异步</a>
+        
+            <a href="/tags/task/">Task</a>
+        
+            <a href="/tags/c#/">C#</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/clr-via-csharp-reading-notes-27-asynchronous-operation-of-calculation-limit/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">《CLR Via C#》读书笔记：27.计算限制的异步操作</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/problems-encountered-with-task-parallel-operations/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">对于 Task 并行操作所遇到的问题</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/implementation-of-csharp-dynamic-buffer/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">C# 动态缓冲区的实现</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/talking-about-the-coding-of-csharp-and-c-communication-again/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">再谈C#与C&#43;&#43;通信之编码</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/conversion-between-csharp-structure-and-byte-and-communication-between-csharp-and-cc-server/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">C# 结构体与byte[]之间的转换，以及C#与C/C&#43;&#43;服务器之间的通信</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一背景">一、背景</a></li>
+    <li><a href="#二解决思路">二、解决思路</a></li>
+    <li><a href="#三代码实现">三、代码实现</a></li>
+    <li><a href="#四缺陷">四、缺陷</a></li>
+    <li><a href="#五参考资料">五、参考资料</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

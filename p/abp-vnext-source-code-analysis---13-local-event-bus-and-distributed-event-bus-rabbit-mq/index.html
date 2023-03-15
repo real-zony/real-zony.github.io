@@ -1,0 +1,1722 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、简要介绍 ABP vNext 封装了两种事件总线结构，第一种是 ABP vNext 自己实现的本地事件总线，这种事件总线无法跨项目发布和订阅。第二种则是分布式事件总线，ABP vNext 自己封装了一个抽象层进行定义，并使用 RabbitMQ 编写了一个基本实现。
+在使用方式上，两种事件总线的作用基本相同。
+事件总线分布在两个模块，在 Volo.Abp.EventBus 模块内部，定义了事件总线的抽象接口，以及本地事件总线 (ILocalEventBus) 的实现。分布式事件总线的具体实现，是在 Volo.Abp.EventBus.RabbitMQ 模块内部进行定义，从项目名称可以看出来，这个模块是基于 RabbitMQ 消息队列实现的。
+但是该项目并不是直接引用 RabbitMQ.Client 包，而是在 Volo.Abp.RabbitMQ 项目内部引用。这是因为除了分布式事件总线以外，ABP 还基于 RabbitMQ 实现了一个后台作业管理器。
+ABP vNext 框架便将一些对象抽象出来，放在 Volo.Abp.RabbitMQ 项目内部进行定义和实现。
+'><title>Abp vNext 源码分析 - 13. 本地事件总线与分布式事件总线 (Rabbit MQ)</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp vNext 源码分析 - 13. 本地事件总线与分布式事件总线 (Rabbit MQ)'>
+<meta property='og:description' content='一、简要介绍 ABP vNext 封装了两种事件总线结构，第一种是 ABP vNext 自己实现的本地事件总线，这种事件总线无法跨项目发布和订阅。第二种则是分布式事件总线，ABP vNext 自己封装了一个抽象层进行定义，并使用 RabbitMQ 编写了一个基本实现。
+在使用方式上，两种事件总线的作用基本相同。
+事件总线分布在两个模块，在 Volo.Abp.EventBus 模块内部，定义了事件总线的抽象接口，以及本地事件总线 (ILocalEventBus) 的实现。分布式事件总线的具体实现，是在 Volo.Abp.EventBus.RabbitMQ 模块内部进行定义，从项目名称可以看出来，这个模块是基于 RabbitMQ 消息队列实现的。
+但是该项目并不是直接引用 RabbitMQ.Client 包，而是在 Volo.Abp.RabbitMQ 项目内部引用。这是因为除了分布式事件总线以外，ABP 还基于 RabbitMQ 实现了一个后台作业管理器。
+ABP vNext 框架便将一些对象抽象出来，放在 Volo.Abp.RabbitMQ 项目内部进行定义和实现。
+'>
+<meta property='og:url' content='https://real-zony.github.io/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='事件总线' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='ABP vNext' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='ASP.NET Core' /><meta property='article:tag' content='ASP.NET Core MVC' /><meta property='article:published_time' content='2019-12-10T09:54:06&#43;00:00'/><meta property='article:modified_time' content='2019-12-10T09:54:06&#43;00:00'/>
+<meta name="twitter:title" content="Abp vNext 源码分析 - 13. 本地事件总线与分布式事件总线 (Rabbit MQ)">
+<meta name="twitter:description" content="一、简要介绍 ABP vNext 封装了两种事件总线结构，第一种是 ABP vNext 自己实现的本地事件总线，这种事件总线无法跨项目发布和订阅。第二种则是分布式事件总线，ABP vNext 自己封装了一个抽象层进行定义，并使用 RabbitMQ 编写了一个基本实现。
+在使用方式上，两种事件总线的作用基本相同。
+事件总线分布在两个模块，在 Volo.Abp.EventBus 模块内部，定义了事件总线的抽象接口，以及本地事件总线 (ILocalEventBus) 的实现。分布式事件总线的具体实现，是在 Volo.Abp.EventBus.RabbitMQ 模块内部进行定义，从项目名称可以看出来，这个模块是基于 RabbitMQ 消息队列实现的。
+但是该项目并不是直接引用 RabbitMQ.Client 包，而是在 Volo.Abp.RabbitMQ 项目内部引用。这是因为除了分布式事件总线以外，ABP 还基于 RabbitMQ 实现了一个后台作业管理器。
+ABP vNext 框架便将一些对象抽象出来，放在 Volo.Abp.RabbitMQ 项目内部进行定义和实现。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/">Abp vNext 源码分析 - 13. 本地事件总线与分布式事件总线 (Rabbit MQ)</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Dec 10, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 8 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一简要介绍">一、简要介绍</h2>
+<p>ABP vNext 封装了两种事件总线结构，第一种是 ABP vNext 自己实现的本地事件总线，这种事件总线无法跨项目发布和订阅。第二种则是分布式事件总线，ABP vNext 自己封装了一个抽象层进行定义，并使用 RabbitMQ 编写了一个基本实现。</p>
+<p>在使用方式上，两种事件总线的作用基本相同。</p>
+<p>事件总线分布在两个模块，在 <strong>Volo.Abp.EventBus</strong> 模块内部，定义了事件总线的抽象接口，以及本地事件总线 (<code>ILocalEventBus</code>) 的实现。分布式事件总线的具体实现，是在 <strong>Volo.Abp.EventBus.RabbitMQ</strong> 模块内部进行定义，从项目名称可以看出来，这个模块是基于 RabbitMQ 消息队列实现的。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210132252458.png"
+	width="906"
+	height="89"
+	srcset="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210132252458_hu3ba1d5fdfa75a03d336cda26129c879c_6326_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210132252458_hu3ba1d5fdfa75a03d336cda26129c879c_6326_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="image-20191210132252458"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="1017"
+		data-flex-basis="2443px"
+	
+></p>
+<p><img src="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210132345656.png"
+	width="912"
+	height="551"
+	srcset="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210132345656_hu365928def5fb72693fa916c69e0dd6a8_26553_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210132345656_hu365928def5fb72693fa916c69e0dd6a8_26553_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="image-20191210132345656"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="165"
+		data-flex-basis="397px"
+	
+></p>
+<p>但是该项目并不是直接引用 <strong>RabbitMQ.Client</strong> 包，而是在 <strong>Volo.Abp.RabbitMQ</strong> 项目内部引用。这是因为除了分布式事件总线以外，ABP 还基于 RabbitMQ 实现了一个后台作业管理器。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210132504932.png"
+	width="897"
+	height="416"
+	srcset="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210132504932_hu2393531fb7725db5152a97baa071cb4a_21248_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210132504932_hu2393531fb7725db5152a97baa071cb4a_21248_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="image-20191210132504932"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="215"
+		data-flex-basis="517px"
+	
+></p>
+<p>ABP vNext 框架便将一些对象抽象出来，放在 <strong>Volo.Abp.RabbitMQ</strong> 项目内部进行定义和实现。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210132622410.png"
+	width="911"
+	height="964"
+	srcset="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210132622410_hu0eb941e070627388caf606eed7af35d5_59841_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210132622410_hu0eb941e070627388caf606eed7af35d5_59841_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="image-20191210132622410"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="94"
+		data-flex-basis="226px"
+	
+></p>
+<h2 id="二源码分析">二、源码分析</h2>
+<h3 id="21-事件处理器的注册">2.1 事件处理器的注册</h3>
+<p>分析源码，首先从一个项目的模块开始，<strong>Volo.Abp.EventBus</strong> 库的模块 <code>AbpEventBusModule</code> 只干了一件事情。在组件注册的时候，根据组件的实现接口 (<code>ILocalEventHandler</code> 或 <code>IDistributedEventHandler</code>) 不同，将其赋值给 <code>AbpLocalEventBusOptions</code> 与 <code>AbpDistributedEventBusOptions</code> 的 <code>Handlers</code> 属性。</p>
+<p>也就是说，开发人员定义的事件处理程序 (<code>Handler</code>) 都会在依赖注入的时候，都会将其类型 (<code>Type</code>) 添加到事件总线的配置类当中，方便后续进行使用。</p>
+<h3 id="22-事件总线的接口">2.2 事件总线的接口</h3>
+<p>通过事件总线模块的单元测试我们可以知道，事件的发布与订阅都是通过 <code>IEventBus</code> 的两个子接口 (<code>ILocalEventBus</code>/<code>IDistributedEventBus</code>) 进行的。在 <code>IEventBus</code> 接口的定义中，有三种行为，分别是 <strong>发布</strong>、<strong>订阅</strong>、<strong>取消订阅</strong>。</p>
+<p>对于 <code>ILocalEventBus</code> 接口和 <code>IDistributedEventBus</code> 接口来说，它们都提供了一个，针对本地事件处理器和分布式处理器的特殊订阅方法。</p>
+<p><strong><code>ILocalEventBus</code></strong>：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// Defines interface of the event bus.</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">ILocalEventBus</span> <span class="p">:</span> <span class="n">IEventBus</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// Registers to an event. </span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// Same (given) instance of the handler is used for all event occurrences.</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;typeparam name=&#34;TEvent&#34;&gt;Event type&lt;/typeparam&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;param name=&#34;handler&#34;&gt;Object to handle the event&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IDisposable</span> <span class="n">Subscribe</span><span class="p">&lt;</span><span class="n">TEvent</span><span class="p">&gt;(</span><span class="n">ILocalEventHandler</span><span class="p">&lt;</span><span class="n">TEvent</span><span class="p">&gt;</span> <span class="n">handler</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="k">where</span> <span class="n">TEvent</span> <span class="p">:</span> <span class="n">class</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong><code>IDistributedEventBus</code></strong>：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IDistributedEventBus</span> <span class="p">:</span> <span class="n">IEventBus</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// Registers to an event. </span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// Same (given) instance of the handler is used for all event occurrences.</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;typeparam name=&#34;TEvent&#34;&gt;Event type&lt;/typeparam&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;param name=&#34;handler&#34;&gt;Object to handle the event&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IDisposable</span> <span class="n">Subscribe</span><span class="p">&lt;</span><span class="n">TEvent</span><span class="p">&gt;(</span><span class="n">IDistributedEventHandler</span><span class="p">&lt;</span><span class="n">TEvent</span><span class="p">&gt;</span> <span class="n">handler</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="k">where</span> <span class="n">TEvent</span> <span class="p">:</span> <span class="n">class</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="23-事件总线基本流程和实现">2.3 事件总线基本流程和实现</h3>
+<p>同其他模块一样，因为有分布式事件总线和本地事件总线，ABP vNext 同样抽象了一个 <code>EventBusBase</code> 类型，作为它们的基类实现。</p>
+<p>一般的流程，我们是先定义某个事件，然后订阅该事件并指定事件处理器，最后在某个时刻发布事件。例如下面的代码：</p>
+<p>首先定义了一个事件处理器，专门用于处理 <code>EntityChangedEventData&lt;MyEntity&gt;</code> 事件。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">MyEventHandler</span> <span class="p">:</span> <span class="n">ILocalEventHandler</span><span class="p">&lt;</span><span class="n">EntityChangedEventData</span><span class="p">&lt;</span><span class="n">MyEntity</span><span class="p">&gt;&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">int</span> <span class="n">EntityChangedEventCount</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Task</span> <span class="n">HandleEventAsync</span><span class="p">(</span><span class="n">EntityChangedEventData</span><span class="p">&lt;</span><span class="n">MyEntity</span><span class="p">&gt;</span> <span class="n">eventData</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">EntityChangedEventCount</span><span class="p">++;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">Task</span><span class="p">.</span><span class="n">CompletedTask</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">handler</span> <span class="p">=</span> <span class="k">new</span> <span class="n">MyEventHandler</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">LocalEventBus</span><span class="p">.</span><span class="n">Subscribe</span><span class="p">&lt;</span><span class="n">EntityChangedEventData</span><span class="p">&lt;</span><span class="n">MyEntity</span><span class="p">&gt;&gt;(</span><span class="n">handler</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">await</span> <span class="n">LocalEventBus</span><span class="p">.</span><span class="n">PublishAsync</span><span class="p">(</span><span class="k">new</span> <span class="n">EntityCreatedEventData</span><span class="p">&lt;</span><span class="n">MyEntity</span><span class="p">&gt;(</span><span class="k">new</span> <span class="n">MyEntity</span><span class="p">()));</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="231-事件的订阅">2.3.1 事件的订阅</h4>
+<p>可以看到，这里使用的是 <code>ILocalEventBus</code> 定义的订阅方法，跳转到内部实现，它还是调用的 <code>EventBus</code> 的方法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="n">IDisposable</span> <span class="n">Subscribe</span><span class="p">&lt;</span><span class="n">TEvent</span><span class="p">&gt;(</span><span class="n">ILocalEventHandler</span><span class="p">&lt;</span><span class="n">TEvent</span><span class="p">&gt;</span> <span class="n">handler</span><span class="p">)</span> <span class="k">where</span> <span class="n">TEvent</span> <span class="p">:</span> <span class="k">class</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 调用基类的 Subscribe 方法，并传递 TEvent 的类型，和事件处理器。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">Subscribe</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TEvent</span><span class="p">),</span> <span class="n">handler</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="n">IDisposable</span> <span class="n">Subscribe</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">IEventHandler</span> <span class="n">handler</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">Subscribe</span><span class="p">(</span><span class="n">eventType</span><span class="p">,</span> <span class="k">new</span> <span class="n">SingleInstanceHandlerFactory</span><span class="p">(</span><span class="n">handler</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到，这里传递了一个 <code>SingleInstanceHandlerFactory</code> 对象，这玩意儿是干嘛用的呢？从名字可以看出来，这是一个工厂，是用来创建 Handler (事件处理器) 的工厂，并且是一个单实例的事件处理器工厂。</p>
+<p>下面就是 <code>IEventHandlerFactory</code> 接口的定义，以及 <code>SingleInstanceHandlerFactory</code> 实现。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IEventHandlerFactory</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得一个事件处理器包装对象，即事件处理器执行完毕之后，可以调用</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// IEventHandlerDisposeWrapper.Dispose() 进行释放。</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IEventHandlerDisposeWrapper</span> <span class="n">GetHandler</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 判断在已有的事件处理器工厂集合中，是否已经存在了相同的事件处理器。</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">bool</span> <span class="n">IsInFactories</span><span class="p">(</span><span class="n">List</span><span class="p">&lt;</span><span class="n">IEventHandlerFactory</span><span class="p">&gt;</span> <span class="n">handlerFactories</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">SingleInstanceHandlerFactory</span> <span class="p">:</span> <span class="n">IEventHandlerFactory</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 构造工厂时，传递的事件处理器实例。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IEventHandler</span> <span class="n">HandlerInstance</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">SingleInstanceHandlerFactory</span><span class="p">(</span><span class="n">IEventHandler</span> <span class="n">handler</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">HandlerInstance</span> <span class="p">=</span> <span class="n">handler</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 通过 EventHandlerDisposeWrapper 包装事件处理器实例。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IEventHandlerDisposeWrapper</span> <span class="n">GetHandler</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">new</span> <span class="n">EventHandlerDisposeWrapper</span><span class="p">(</span><span class="n">HandlerInstance</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 判断针对 HandlerInstance 的事件处理器是否已经存在。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">IsInFactories</span><span class="p">(</span><span class="n">List</span><span class="p">&lt;</span><span class="n">IEventHandlerFactory</span><span class="p">&gt;</span> <span class="n">handlerFactories</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">handlerFactories</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">OfType</span><span class="p">&lt;</span><span class="n">SingleInstanceHandlerFactory</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">Any</span><span class="p">(</span><span class="n">f</span> <span class="p">=&gt;</span> <span class="n">f</span><span class="p">.</span><span class="n">HandlerInstance</span> <span class="p">==</span> <span class="n">HandlerInstance</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>针对 <code>IEventHandlerFactory</code> 工厂，还拥有 3 个不同的实现，下表分别说明它们的应用场景。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210143548128.png"
+	width="1106"
+	height="220"
+	srcset="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210143548128_hub94a114ae66127e1430a6e58da6c8f46_22907_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210143548128_hub94a114ae66127e1430a6e58da6c8f46_22907_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="image-20191210143548128"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="502"
+		data-flex-basis="1206px"
+	
+></p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:left">实现类型</th>
+<th style="text-align:left">作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>IocEventHandlerFactory</code></td>
+<td style="text-align:left">每个工厂对应一个事件处理器的的类型，并通过 <code>ScopeFactory</code> 解析具体的事件处理器。生命周期由 <code>scope</code> 控制，当 <code>scope</code> 释放时，对应的事件处理器实例也会被销毁。</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>SingleInstanceHandlerFactory</code></td>
+<td style="text-align:left">每个工厂对应单独的一个事件处理器实例，事件处理器实例是由创建者控制的。</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>TransientEventHandlerFactory</code></td>
+<td style="text-align:left">每个工厂对应一个事件处理器的类型，区别是它不由 IoC 解析实例，而是使用的 <code>Activator.CreateInstance()</code> 方法构造实例，是一个瞬时对象，调用包装器的 <code>Dispose</code> 即会进行释放。</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>TransientEventHandlerFactory&lt;THandler&gt;</code></td>
+<td style="text-align:left">每个工厂对应指定的 <code>THandler</code> 事件处理器，生命周期同上面的工厂一样。</td>
+</tr>
+</tbody>
+</table></div>
+<p>这几种工厂都是在订阅操作时，不同的订阅重载使用不同的工厂，或者是自己指定事件处理器的工厂均可。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="n">IDisposable</span> <span class="n">Subscribe</span><span class="p">&lt;</span><span class="n">TEvent</span><span class="p">,</span> <span class="n">THandler</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">    <span class="k">where</span> <span class="n">TEvent</span> <span class="p">:</span> <span class="k">class</span>
+</span></span><span class="line"><span class="cl">    <span class="nc">where</span> <span class="n">THandler</span> <span class="p">:</span> <span class="n">IEventHandler</span><span class="p">,</span> <span class="k">new</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">Subscribe</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TEvent</span><span class="p">),</span> <span class="k">new</span> <span class="n">TransientEventHandlerFactory</span><span class="p">&lt;</span><span class="n">THandler</span><span class="p">&gt;());</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="n">IDisposable</span> <span class="n">Subscribe</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">IEventHandler</span> <span class="n">handler</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">Subscribe</span><span class="p">(</span><span class="n">eventType</span><span class="p">,</span> <span class="k">new</span> <span class="n">SingleInstanceHandlerFactory</span><span class="p">(</span><span class="n">handler</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>不过有一种特殊的行为，开发人员可以 <strong>不用显式订阅</strong>。在 <code>EventBus</code> 类型中，定义了一个 <code>SubscribeHandlers(ITypeList&lt;IEventHandler&gt; handlers)</code> 方法。该方法接收一个类型集合，通过遍历集合，从事件处理器的定义当中，取得事件处理器监听的事件类型 <code>TEvent</code>。</p>
+<p>在取得了事件类型，并知晓了事件处理器类型以后，事件总线就可以订阅 <code>TEvent</code> 类型的事件，并使用 <code>IocEventHandlerFactory</code> 工厂来构造事件处理器。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">SubscribeHandlers</span><span class="p">(</span><span class="n">ITypeList</span><span class="p">&lt;</span><span class="n">IEventHandler</span><span class="p">&gt;</span> <span class="n">handlers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 遍历事件处理器的类型，其实这里的就是模块启动时，传递给 XXXOptions 的集合。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">handler</span> <span class="k">in</span> <span class="n">handlers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 获得事件处理器的所有接口定义，并遍历接口进行检查。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">interfaces</span> <span class="p">=</span> <span class="n">handler</span><span class="p">.</span><span class="n">GetInterfaces</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">@interface</span> <span class="k">in</span> <span class="n">interfaces</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 如果接口没有实现 IEventHandler 类型，则忽略。</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(!</span><span class="k">typeof</span><span class="p">(</span><span class="n">IEventHandler</span><span class="p">).</span><span class="n">GetTypeInfo</span><span class="p">().</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">@interface</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// 从泛型参数当中，获得定义的事件类型。</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">genericArgs</span> <span class="p">=</span> <span class="n">@interface</span><span class="p">.</span><span class="n">GetGenericArguments</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 泛型参数完全匹配 1 时，才进行订阅操作。</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">genericArgs</span><span class="p">.</span><span class="n">Length</span> <span class="p">==</span> <span class="m">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">Subscribe</span><span class="p">(</span><span class="n">genericArgs</span><span class="p">[</span><span class="m">0</span><span class="p">],</span> <span class="k">new</span> <span class="n">IocEventHandlerFactory</span><span class="p">(</span><span class="n">ServiceScopeFactory</span><span class="p">,</span> <span class="n">handler</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这个订阅方法在 <code>EventBus</code> 当中是一个抽象方法，分别在本地事件总线和分布式事件总线有实现，这里我们首先讲解本地事件的逻辑。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210150712047.png"
+	width="1745"
+	height="321"
+	srcset="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210150712047_hu708d089e7904b8aace3eea9475d4d21f_32954_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210150712047_hu708d089e7904b8aace3eea9475d4d21f_32954_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="image-20191210150712047"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="543"
+		data-flex-basis="1304px"
+	
+></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">LocalEventBus</span> <span class="p">:</span> <span class="n">EventBusBase</span><span class="p">,</span> <span class="n">ILocalEventBus</span><span class="p">,</span> <span class="n">ISingletonDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">ConcurrentDictionary</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">,</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">IEventHandlerFactory</span><span class="p">&gt;&gt;</span> <span class="n">HandlerFactories</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">LocalEventBus</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IOptions</span><span class="p">&lt;</span><span class="n">AbpLocalEventBusOptions</span><span class="p">&gt;</span> <span class="n">options</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IServiceScopeFactory</span> <span class="n">serviceScopeFactory</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">:</span> <span class="k">base</span><span class="p">(</span><span class="n">serviceScopeFactory</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Options</span> <span class="p">=</span> <span class="n">options</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Logger</span> <span class="p">=</span> <span class="n">NullLogger</span><span class="p">&lt;</span><span class="n">LocalEventBus</span><span class="p">&gt;.</span><span class="n">Instance</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">HandlerFactories</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ConcurrentDictionary</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">,</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">IEventHandlerFactory</span><span class="p">&gt;&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 调用父类的方法，将模块初始化时扫描到的事件处理器，都尝试进行订阅。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">SubscribeHandlers</span><span class="p">(</span><span class="n">Options</span><span class="p">.</span><span class="n">Handlers</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="n">IDisposable</span> <span class="n">Subscribe</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">IEventHandlerFactory</span> <span class="n">factory</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">GetOrCreateHandlerFactories</span><span class="p">(</span><span class="n">eventType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 锁住集合，以确保线程安全。</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">Locking</span><span class="p">(</span><span class="n">factories</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                    <span class="c1">// 如果在集合内部，已经有了对应的工厂，则不进行添加。</span>
+</span></span><span class="line"><span class="cl">                    <span class="k">if</span> <span class="p">(!</span><span class="n">factory</span><span class="p">.</span><span class="n">IsInFactories</span><span class="p">(</span><span class="n">factories</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                        <span class="n">factories</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">factory</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">                <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 返回一个事件处理器工厂注销器，当调用 Dispose() 方法时，会取消之前订阅的事件。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">new</span> <span class="n">EventHandlerFactoryUnregistrar</span><span class="p">(</span><span class="k">this</span><span class="p">,</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">factory</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">IEventHandlerFactory</span><span class="p">&gt;</span> <span class="n">GetOrCreateHandlerFactories</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 根据事件的类型，从字典中获得该类型的所有事件处理器工厂。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">HandlerFactories</span><span class="p">.</span><span class="n">GetOrAdd</span><span class="p">(</span><span class="n">eventType</span><span class="p">,</span> <span class="p">(</span><span class="n">type</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">IEventHandlerFactory</span><span class="p">&gt;());</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>上述流程结合 <code>EventBus</code> 和 <code>LocalEventBus</code> 讲解了事件的订阅流程，事件的订阅操作都是对 <code>HandlerFactories</code> 的操作，往里面添加指定事件的事件处理器工厂，而每个工厂都是跟具体的事件处理器实例/类型进行关联的。</p>
+<h4 id="232-事件的发布">2.3.2 事件的发布</h4>
+<p>当开发人员需要发布事件的时候，一般都是通过对应的 <code>EventBus</code>，调用响应的 <code>PublishAsync</code> 方法，传递要触发的事件类型与事件数据。接口和基类当中，定义了两种发布方法的签名与实现：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="n">Task</span> <span class="n">PublishAsync</span><span class="p">&lt;</span><span class="n">TEvent</span><span class="p">&gt;(</span><span class="n">TEvent</span> <span class="n">eventData</span><span class="p">)</span> <span class="k">where</span> <span class="n">TEvent</span> <span class="p">:</span> <span class="k">class</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">PublishAsync</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TEvent</span><span class="p">),</span> <span class="n">eventData</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="n">Task</span> <span class="n">PublishAsync</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="kt">object</span> <span class="n">eventData</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210152220343.png"
+	width="1979"
+	height="261"
+	srcset="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210152220343_hua4d26e7a11d336d98a6d9d29ef1b5d8c_31042_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210152220343_hua4d26e7a11d336d98a6d9d29ef1b5d8c_31042_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="image-20191210152220343"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="758"
+		data-flex-basis="1819px"
+	
+></p>
+<p>第二种方法一共也分为本地事件总线的实现，和分布式事件总线的实现，本地事件比较简单，我们先分析本地事件总线的实现。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">PublishAsync</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="kt">object</span> <span class="n">eventData</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 定义了一个异常集合，用于接收多个事件处理器执行时，产生的所有异常。</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">exceptions</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Exception</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 触发事件处理器。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">await</span> <span class="n">TriggerHandlersAsync</span><span class="p">(</span><span class="n">eventType</span><span class="p">,</span> <span class="n">eventData</span><span class="p">,</span> <span class="n">exceptions</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果有任何异常产生，则抛出到之前的调用栈。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">exceptions</span><span class="p">.</span><span class="n">Any</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">exceptions</span><span class="p">.</span><span class="n">Count</span> <span class="p">==</span> <span class="m">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">exceptions</span><span class="p">[</span><span class="m">0</span><span class="p">].</span><span class="n">ReThrow</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span> <span class="k">new</span> <span class="n">AggregateException</span><span class="p">(</span><span class="s">&#34;More than one error has occurred while triggering the event: &#34;</span> <span class="p">+</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">exceptions</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到真正的触发行为是在 <code>TriggerHandlersAsync(Type eventType, object eventData, List&lt;Exception&gt; exceptions)</code> 内部进行实现的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">TriggerHandlersAsync</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="kt">object</span> <span class="n">eventData</span><span class="p">,</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Exception</span><span class="p">&gt;</span> <span class="n">exceptions</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 针对于这个的作用，等同于 ConfigureAwait(false) 。</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 具体可以参考 https://blogs.msdn.microsoft.com/benwilli/2017/02/09/an-alternative-to-configureawaitfalse-everywhere/。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">await</span> <span class="k">new</span> <span class="n">SynchronizationContextRemover</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 根据事件的类型，得到它的所有事件处理器工厂。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">handlerFactories</span> <span class="k">in</span> <span class="n">GetHandlerFactories</span><span class="p">(</span><span class="n">eventType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 遍历所有的事件处理器工厂，通过 Factory 获得事件处理器，调用 Handler 的 HandleEventAsync 方法。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">handlerFactory</span> <span class="k">in</span> <span class="n">handlerFactories</span><span class="p">.</span><span class="n">EventHandlerFactories</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">TriggerHandlerAsync</span><span class="p">(</span><span class="n">handlerFactory</span><span class="p">,</span> <span class="n">handlerFactories</span><span class="p">.</span><span class="n">EventType</span><span class="p">,</span> <span class="n">eventData</span><span class="p">,</span> <span class="n">exceptions</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果类型继承了 IEventDataWithInheritableGenericArgument 接口，那么会检测泛型参数是否有父类。</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果有父类，则会使用当前的事件数据，为其父类发布一个事件。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">eventType</span><span class="p">.</span><span class="n">GetTypeInfo</span><span class="p">().</span><span class="n">IsGenericType</span> <span class="p">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">eventType</span><span class="p">.</span><span class="n">GetGenericArguments</span><span class="p">().</span><span class="n">Length</span> <span class="p">==</span> <span class="m">1</span> <span class="p">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">typeof</span><span class="p">(</span><span class="n">IEventDataWithInheritableGenericArgument</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">eventType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">genericArg</span> <span class="p">=</span> <span class="n">eventType</span><span class="p">.</span><span class="n">GetGenericArguments</span><span class="p">()[</span><span class="m">0</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">baseArg</span> <span class="p">=</span> <span class="n">genericArg</span><span class="p">.</span><span class="n">GetTypeInfo</span><span class="p">().</span><span class="n">BaseType</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">baseArg</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 构造基类的事件类型，使用当前一样的泛型定义，只是泛型参数使用基类。</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">baseEventType</span> <span class="p">=</span> <span class="n">eventType</span><span class="p">.</span><span class="n">GetGenericTypeDefinition</span><span class="p">().</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">baseArg</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 构建类型的构造参数。</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">constructorArgs</span> <span class="p">=</span> <span class="p">((</span><span class="n">IEventDataWithInheritableGenericArgument</span><span class="p">)</span><span class="n">eventData</span><span class="p">).</span><span class="n">GetConstructorArgs</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 通过事件类型和构造参数，构造一个新的事件数据实例。</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">baseEventData</span> <span class="p">=</span> <span class="n">Activator</span><span class="p">.</span><span class="n">CreateInstance</span><span class="p">(</span><span class="n">baseEventType</span><span class="p">,</span> <span class="n">constructorArgs</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 发布父类的同类事件。</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">PublishAsync</span><span class="p">(</span><span class="n">baseEventType</span><span class="p">,</span> <span class="n">baseEventData</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在上述代码内部，都还没有真正执行事件处理器，真正的事件处理器执行程序是在下面的方法进行执行的。ABP vNext 通过引入 <code>IEventDataWithInheritableGenericArgument</code> 接口，实现了 <strong>类型继承事件</strong> 的触发，该接口提供了一个 <code>GetConstructorArgs()</code> 方法定义，方便后面生成构造参数。</p>
+<p>例如有一个基础事件叫做 <code>EntityEventData&lt;Student&gt;</code>，如果 <code>Student</code> 继承自 <code>Person</code>，那么在触发该事件的时候，也会发布一个 <code>EntityEventData&lt;Person&gt;</code> 事件。</p>
+<h4 id="233-事件处理器的执行">2.3.3 事件处理器的执行</h4>
+<p>真正事件处理器的执行，是通过下面的方法实现的，大概思路就是通过事件总线工厂，构建了事件处理器的实例。通过反射，调用事件处理器的 <code>HandleEventAsync()</code> 方法。如果在处理过程当中，出现了异常，则将异常数据放置在 <code>List&lt;Exception&gt;</code> 集合当中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">TriggerHandlerAsync</span><span class="p">(</span><span class="n">IEventHandlerFactory</span> <span class="n">asyncHandlerFactory</span><span class="p">,</span> <span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="kt">object</span> <span class="n">eventData</span><span class="p">,</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Exception</span><span class="p">&gt;</span> <span class="n">exceptions</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">eventHandlerWrapper</span> <span class="p">=</span> <span class="n">asyncHandlerFactory</span><span class="p">.</span><span class="n">GetHandler</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">try</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 获得事件处理器的类型。</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">handlerType</span> <span class="p">=</span> <span class="n">eventHandlerWrapper</span><span class="p">.</span><span class="n">EventHandler</span><span class="p">.</span><span class="n">GetType</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// 判断事件处理器是本地事件还是分布式事件。</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">ReflectionHelper</span><span class="p">.</span><span class="n">IsAssignableToGenericType</span><span class="p">(</span><span class="n">handlerType</span><span class="p">,</span> <span class="k">typeof</span><span class="p">(</span><span class="n">ILocalEventHandler</span><span class="p">&lt;&gt;)))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 获得方法定义。</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">var</span> <span class="n">method</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">ILocalEventHandler</span><span class="p">&lt;&gt;)</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">.</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">eventType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">.</span><span class="n">GetMethod</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                        <span class="n">nameof</span><span class="p">(</span><span class="n">ILocalEventHandler</span><span class="p">&lt;</span><span class="kt">object</span><span class="p">&gt;.</span><span class="n">HandleEventAsync</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">                        <span class="k">new</span><span class="p">[]</span> <span class="p">{</span> <span class="n">eventType</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="c1">// 使用工厂创建的实例调用方法。</span>
+</span></span><span class="line"><span class="cl">                <span class="k">await</span> <span class="p">(</span><span class="n">Task</span><span class="p">)</span><span class="n">method</span><span class="p">.</span><span class="n">Invoke</span><span class="p">(</span><span class="n">eventHandlerWrapper</span><span class="p">.</span><span class="n">EventHandler</span><span class="p">,</span> <span class="k">new</span><span class="p">[]</span> <span class="p">{</span> <span class="n">eventData</span> <span class="p">});</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">ReflectionHelper</span><span class="p">.</span><span class="n">IsAssignableToGenericType</span><span class="p">(</span><span class="n">handlerType</span><span class="p">,</span> <span class="k">typeof</span><span class="p">(</span><span class="n">IDistributedEventHandler</span><span class="p">&lt;&gt;)))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">var</span> <span class="n">method</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">IDistributedEventHandler</span><span class="p">&lt;&gt;)</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">.</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">eventType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">.</span><span class="n">GetMethod</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                        <span class="n">nameof</span><span class="p">(</span><span class="n">IDistributedEventHandler</span><span class="p">&lt;</span><span class="kt">object</span><span class="p">&gt;.</span><span class="n">HandleEventAsync</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">                        <span class="k">new</span><span class="p">[]</span> <span class="p">{</span> <span class="n">eventType</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="k">await</span> <span class="p">(</span><span class="n">Task</span><span class="p">)</span><span class="n">method</span><span class="p">.</span><span class="n">Invoke</span><span class="p">(</span><span class="n">eventHandlerWrapper</span><span class="p">.</span><span class="n">EventHandler</span><span class="p">,</span> <span class="k">new</span><span class="p">[]</span> <span class="p">{</span> <span class="n">eventData</span> <span class="p">});</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="k">else</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 如果都不是，则说明类型不正确，抛出异常。</span>
+</span></span><span class="line"><span class="cl">                <span class="k">throw</span> <span class="k">new</span> <span class="n">AbpException</span><span class="p">(</span><span class="s">&#34;The object instance is not an event handler. Object type: &#34;</span> <span class="p">+</span> <span class="n">handlerType</span><span class="p">.</span><span class="n">AssemblyQualifiedName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 捕获到异常都统一添加到异常集合当中。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">catch</span> <span class="p">(</span><span class="n">TargetInvocationException</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">exceptions</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">ex</span><span class="p">.</span><span class="n">InnerException</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">exceptions</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">ex</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="24-分布式事件总线">2.4 分布式事件总线</h3>
+<p>分布式事件总线的实现都存放在 <strong>Volo.Abp.EventBus.RabbitMQ</strong>，该项目的代码比较少，由三个文件构成。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210162817622.png"
+	width="609"
+	height="137"
+	srcset="/p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210162817622_hu8d8687450e694d1126b0ce981b938f18_9635_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---13-local-event-bus-and-distributed-event-bus-rabbit-mq/image-20191210162817622_hu8d8687450e694d1126b0ce981b938f18_9635_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="image-20191210162817622"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="444"
+		data-flex-basis="1066px"
+	
+></p>
+<p>在 RabbitMQ 模块的内部，只干了两件事情。首先从 JSON 配置文件当中，获取 <code>AbpRabbitMqEventBusOptions</code> 配置的三个参数，然后解析 <code>RabbitMqDistributedEventBus</code> 实例，并调用初始化方法 (<code>Initialize()</code>)。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[DependsOn(
+</span></span></span><span class="line"><span class="cl"><span class="na">    typeof(AbpEventBusModule),
+</span></span></span><span class="line"><span class="cl"><span class="na">    typeof(AbpRabbitMqModule))]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpEventBusRabbitMqModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">ConfigureServices</span><span class="p">(</span><span class="n">ServiceConfigurationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">configuration</span> <span class="p">=</span> <span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">.</span><span class="n">GetConfiguration</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 从配置文件读取配置。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Configure</span><span class="p">&lt;</span><span class="n">AbpRabbitMqEventBusOptions</span><span class="p">&gt;(</span><span class="n">configuration</span><span class="p">.</span><span class="n">GetSection</span><span class="p">(</span><span class="s">&#34;RabbitMQ:EventBus&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">OnApplicationInitialization</span><span class="p">(</span><span class="n">ApplicationInitializationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 调用初始化方法。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">ServiceProvider</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">RabbitMqDistributedEventBus</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="241-分布式事件总线的初始化">2.4.1 分布式事件总线的初始化</h4>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">Initialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 创建一个消费者，并配置交换器和队列。</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Consumer</span> <span class="p">=</span> <span class="n">MessageConsumerFactory</span><span class="p">.</span><span class="n">Create</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="k">new</span> <span class="n">ExchangeDeclareConfiguration</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">AbpRabbitMqEventBusOptions</span><span class="p">.</span><span class="n">ExchangeName</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">type</span><span class="p">:</span> <span class="s">&#34;direct&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">durable</span><span class="p">:</span> <span class="k">true</span>
+</span></span><span class="line"><span class="cl">        <span class="p">),</span>
+</span></span><span class="line"><span class="cl">        <span class="k">new</span> <span class="n">QueueDeclareConfiguration</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">AbpRabbitMqEventBusOptions</span><span class="p">.</span><span class="n">ClientName</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">durable</span><span class="p">:</span> <span class="k">true</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">exclusive</span><span class="p">:</span> <span class="k">false</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">autoDelete</span><span class="p">:</span> <span class="k">false</span>
+</span></span><span class="line"><span class="cl">        <span class="p">),</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AbpRabbitMqEventBusOptions</span><span class="p">.</span><span class="n">ConnectionName</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 消费者在消费消息的时候，具体的执行逻辑。</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Consumer</span><span class="p">.</span><span class="n">OnMessageReceived</span><span class="p">(</span><span class="n">ProcessEventAsync</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 调用基类的方法，自动订阅对应的事件。</span>
+</span></span><span class="line"><span class="cl">    <span class="n">SubscribeHandlers</span><span class="p">(</span><span class="n">AbpDistributedEventBusOptions</span><span class="p">.</span><span class="n">Handlers</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="242-分布式事件的订阅">2.4.2 分布式事件的订阅</h4>
+<p>在定义分布式事件的时候，我们必须使用 <code>EventNameAttribute</code> 为事件声明路由键。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="n">IDisposable</span> <span class="n">Subscribe</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">IEventHandlerFactory</span> <span class="n">factory</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">handlerFactories</span> <span class="p">=</span> <span class="n">GetOrCreateHandlerFactories</span><span class="p">(</span><span class="n">eventType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">factory</span><span class="p">.</span><span class="n">IsInFactories</span><span class="p">(</span><span class="n">handlerFactories</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">NullDisposable</span><span class="p">.</span><span class="n">Instance</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">handlerFactories</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">factory</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">handlerFactories</span><span class="p">.</span><span class="n">Count</span> <span class="p">==</span> <span class="m">1</span><span class="p">)</span> <span class="c1">//TODO: Multi-threading!</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 为消费者绑定一个路由键，在收到对应的事件时，就会触发之前绑定的方法。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Consumer</span><span class="p">.</span><span class="n">BindAsync</span><span class="p">(</span><span class="n">EventNameAttribute</span><span class="p">.</span><span class="n">GetNameOrDefault</span><span class="p">(</span><span class="n">eventType</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">new</span> <span class="n">EventHandlerFactoryUnregistrar</span><span class="p">(</span><span class="k">this</span><span class="p">,</span> <span class="n">eventType</span><span class="p">,</span> <span class="n">factory</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>订阅的时候，除了 <code>Consumer.BindAsync()</code> 以外，基本流程和本地事件总线基本一致。</p>
+<h4 id="243-分布式事件的发布">2.4.3 分布式事件的发布</h4>
+<p>分布式事件总线一样重写了发布方法，内部首先使用 <code>IRabbitMqSerializer</code> 序列化器 (基于 JSON.NET) 将事件数据进行序列化，然后将消息投递出去。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="n">Task</span> <span class="n">PublishAsync</span><span class="p">(</span><span class="n">Type</span> <span class="n">eventType</span><span class="p">,</span> <span class="kt">object</span> <span class="n">eventData</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">eventName</span> <span class="p">=</span> <span class="n">EventNameAttribute</span><span class="p">.</span><span class="n">GetNameOrDefault</span><span class="p">(</span><span class="n">eventType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 序列化事件数据。</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">body</span> <span class="p">=</span> <span class="n">Serializer</span><span class="p">.</span><span class="n">Serialize</span><span class="p">(</span><span class="n">eventData</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 创建一个信道用于通讯。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">channel</span> <span class="p">=</span> <span class="n">ConnectionPool</span><span class="p">.</span><span class="n">Get</span><span class="p">(</span><span class="n">AbpRabbitMqEventBusOptions</span><span class="p">.</span><span class="n">ConnectionName</span><span class="p">).</span><span class="n">CreateModel</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">channel</span><span class="p">.</span><span class="n">ExchangeDeclare</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">AbpRabbitMqEventBusOptions</span><span class="p">.</span><span class="n">ExchangeName</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="s">&#34;direct&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">durable</span><span class="p">:</span> <span class="k">true</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="c1">// 更改投递模式为持久化模式。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">properties</span> <span class="p">=</span> <span class="n">channel</span><span class="p">.</span><span class="n">CreateBasicProperties</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">properties</span><span class="p">.</span><span class="n">DeliveryMode</span> <span class="p">=</span> <span class="n">RabbitMqConsts</span><span class="p">.</span><span class="n">DeliveryModes</span><span class="p">.</span><span class="n">Persistent</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 发布一个新的事件。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">channel</span><span class="p">.</span><span class="n">BasicPublish</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">exchange</span><span class="p">:</span> <span class="n">AbpRabbitMqEventBusOptions</span><span class="p">.</span><span class="n">ExchangeName</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">routingKey</span><span class="p">:</span> <span class="n">eventName</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">mandatory</span><span class="p">:</span> <span class="k">true</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">basicProperties</span><span class="p">:</span> <span class="n">properties</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">body</span><span class="p">:</span> <span class="n">body</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">Task</span><span class="p">.</span><span class="n">CompletedTask</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="244-分布式事件的执行">2.4.4 分布式事件的执行</h4>
+<p>执行逻辑都存放在 <code>ProcessEventAsync(IModel channel, BasicDeliverEventArgs ea)</code> 方法内部，基本就是监听到指定的消息，首先反序列化消息，调用父类的 <code>TriggerHandlersAsync</code> 去执行具体的事件处理器。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">ProcessEventAsync</span><span class="p">(</span><span class="n">IModel</span> <span class="n">channel</span><span class="p">,</span> <span class="n">BasicDeliverEventArgs</span> <span class="n">ea</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">eventName</span> <span class="p">=</span> <span class="n">ea</span><span class="p">.</span><span class="n">RoutingKey</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">eventType</span> <span class="p">=</span> <span class="n">EventTypes</span><span class="p">.</span><span class="n">GetOrDefault</span><span class="p">(</span><span class="n">eventName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">eventType</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">eventData</span> <span class="p">=</span> <span class="n">Serializer</span><span class="p">.</span><span class="n">Deserialize</span><span class="p">(</span><span class="n">ea</span><span class="p">.</span><span class="n">Body</span><span class="p">,</span> <span class="n">eventType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">await</span> <span class="n">TriggerHandlersAsync</span><span class="p">(</span><span class="n">eventType</span><span class="p">,</span> <span class="n">eventData</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="三总结">三、总结</h2>
+<p>ABP vNext 为我们实现了比较完善的本地事件总线，和基于 RabbitMQ 的分布式事件总线。在平时开发过程中，我们本地事件总线的使用频率应该还是比较高，而分布式事件总线目前仍处于一个半成品，很多高级特性还没实现，例如重试策略等。所以分布式事件总线要使用的话，建议使用较为成熟的 CAP 库替代 ABP vNext 的分布式事件总线。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E4%BA%8B%E4%BB%B6%E6%80%BB%E7%BA%BF/">事件总线</a>
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/abp-vnext/">ABP vNext</a>
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/asp.net-core/">ASP.NET Core</a>
+        
+            <a href="/tags/asp.net-core-mvc/">ASP.NET Core MVC</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-multi-tenancy/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 多租户</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一简要介绍">一、简要介绍</a></li>
+    <li><a href="#二源码分析">二、源码分析</a>
+      <ol>
+        <li><a href="#21-事件处理器的注册">2.1 事件处理器的注册</a></li>
+        <li><a href="#22-事件总线的接口">2.2 事件总线的接口</a></li>
+        <li><a href="#23-事件总线基本流程和实现">2.3 事件总线基本流程和实现</a>
+          <ol>
+            <li><a href="#231-事件的订阅">2.3.1 事件的订阅</a></li>
+            <li><a href="#232-事件的发布">2.3.2 事件的发布</a></li>
+            <li><a href="#233-事件处理器的执行">2.3.3 事件处理器的执行</a></li>
+          </ol>
+        </li>
+        <li><a href="#24-分布式事件总线">2.4 分布式事件总线</a>
+          <ol>
+            <li><a href="#241-分布式事件总线的初始化">2.4.1 分布式事件总线的初始化</a></li>
+            <li><a href="#242-分布式事件的订阅">2.4.2 分布式事件的订阅</a></li>
+            <li><a href="#243-分布式事件的发布">2.4.3 分布式事件的发布</a></li>
+            <li><a href="#244-分布式事件的执行">2.4.4 分布式事件的执行</a></li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+    <li><a href="#三总结">三、总结</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

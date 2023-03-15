@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='0.简介 Abp 框架在其内部实现了仓储模式，并且支持 EF Core 与 Dapper 来进行数据库连接与管理，你可以很方便地通过注入通用仓储来操作你的数据，而不需要你自己来为每一个实体定义单独的仓储的实现，通用仓储包含了常用的 CRUD 接口和一些常用方法。
+例如：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 public class TestAppService : ITransientDependency { private readonly IRepository&amp;lt;TestTable&amp;gt; _rep; // 注入通用仓储 public TestAppService(IRepository&amp;lt;TestTable&amp;gt; rep) { _rep = rep; } public void TestMethod() { // 插入一条新数据 _rep.Insert(new TestTable{ Name = &amp;#34;TestName&amp;#34; }); } } 1.通用仓储定义与实现 在 Abp 内部，仓储的基本定义存放在 Abp 项目的 Domain/Repositories 内部，包括以下几个文件：
+文件名称 作用描述 AbpRepositoryBase.'><title>Abp 源码分析：七、工作单元的实现</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/abp-source-code-analysis-7-implementation-of-work-unit/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp 源码分析：七、工作单元的实现'>
+<meta property='og:description' content='0.简介 Abp 框架在其内部实现了仓储模式，并且支持 EF Core 与 Dapper 来进行数据库连接与管理，你可以很方便地通过注入通用仓储来操作你的数据，而不需要你自己来为每一个实体定义单独的仓储的实现，通用仓储包含了常用的 CRUD 接口和一些常用方法。
+例如：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 public class TestAppService : ITransientDependency { private readonly IRepository&amp;lt;TestTable&amp;gt; _rep; // 注入通用仓储 public TestAppService(IRepository&amp;lt;TestTable&amp;gt; rep) { _rep = rep; } public void TestMethod() { // 插入一条新数据 _rep.Insert(new TestTable{ Name = &amp;#34;TestName&amp;#34; }); } } 1.通用仓储定义与实现 在 Abp 内部，仓储的基本定义存放在 Abp 项目的 Domain/Repositories 内部，包括以下几个文件：
+文件名称 作用描述 AbpRepositoryBase.'>
+<meta property='og:url' content='https://real-zony.github.io/p/abp-source-code-analysis-7-implementation-of-work-unit/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='AspNetBoilerplate' /><meta property='article:tag' content='工作单元' /><meta property='article:published_time' content='2018-07-24T05:46:22&#43;00:00'/><meta property='article:modified_time' content='2018-07-24T05:46:22&#43;00:00'/>
+<meta name="twitter:title" content="Abp 源码分析：七、工作单元的实现">
+<meta name="twitter:description" content="0.简介 Abp 框架在其内部实现了仓储模式，并且支持 EF Core 与 Dapper 来进行数据库连接与管理，你可以很方便地通过注入通用仓储来操作你的数据，而不需要你自己来为每一个实体定义单独的仓储的实现，通用仓储包含了常用的 CRUD 接口和一些常用方法。
+例如：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 public class TestAppService : ITransientDependency { private readonly IRepository&amp;lt;TestTable&amp;gt; _rep; // 注入通用仓储 public TestAppService(IRepository&amp;lt;TestTable&amp;gt; rep) { _rep = rep; } public void TestMethod() { // 插入一条新数据 _rep.Insert(new TestTable{ Name = &amp;#34;TestName&amp;#34; }); } } 1.通用仓储定义与实现 在 Abp 内部，仓储的基本定义存放在 Abp 项目的 Domain/Repositories 内部，包括以下几个文件：
+文件名称 作用描述 AbpRepositoryBase.">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-source-code-analysis-7-implementation-of-work-unit/">Abp 源码分析：七、工作单元的实现</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jul 24, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 7 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="0简介">0.简介</h2>
+<p>Abp 框架在其内部实现了仓储模式，并且支持 EF Core 与 Dapper 来进行数据库连接与管理，你可以很方便地通过注入通用仓储来操作你的数据，而不需要你自己来为每一个实体定义单独的仓储的实现，通用仓储包含了常用的 CRUD 接口和一些常用方法。</p>
+<p>例如：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TestAppService</span> <span class="p">:</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IRepository</span><span class="p">&lt;</span><span class="n">TestTable</span><span class="p">&gt;</span> <span class="n">_rep</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// 注入通用仓储</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TestAppService</span><span class="p">(</span><span class="n">IRepository</span><span class="p">&lt;</span><span class="n">TestTable</span><span class="p">&gt;</span> <span class="n">rep</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_rep</span> <span class="p">=</span> <span class="n">rep</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">TestMethod</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="c1">// 插入一条新数据</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_rep</span><span class="p">.</span><span class="n">Insert</span><span class="p">(</span><span class="k">new</span> <span class="n">TestTable</span><span class="p">{</span> <span class="n">Name</span> <span class="p">=</span> <span class="s">&#34;TestName&#34;</span> <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="1通用仓储定义与实现">1.通用仓储定义与实现</h2>
+<p>在 Abp 内部，仓储的基本定义存放在 Abp 项目的 Domain/Repositories 内部，包括以下几个文件：</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:left">文件名称</th>
+<th style="text-align:left">作用描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">AbpRepositoryBase.cs</td>
+<td style="text-align:left">仓储基类</td>
+</tr>
+<tr>
+<td style="text-align:left">AutoRepositoryTypesAttribute.cs</td>
+<td style="text-align:left">自动构建仓储，用于实体标记</td>
+</tr>
+<tr>
+<td style="text-align:left">IRepository.cs</td>
+<td style="text-align:left">仓储基本接口定义</td>
+</tr>
+<tr>
+<td style="text-align:left">IRepositoryOfTEntity.cs</td>
+<td style="text-align:left">仓储接口定义，默认主键为 int 类型</td>
+</tr>
+<tr>
+<td style="text-align:left">IRepositoryOfTEntityAndTPrimaryKey.cs</td>
+<td style="text-align:left">仓储接口定义，主键与实体类型由用户定义</td>
+</tr>
+<tr>
+<td style="text-align:left">ISupportsExplicitLoading.cs</td>
+<td style="text-align:left">显式加载</td>
+</tr>
+<tr>
+<td style="text-align:left">RepositoryExtensions.cs</td>
+<td style="text-align:left">仓储相关的扩展方法</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="11-通用仓储定义">1.1 通用仓储定义</h3>
+<p>综上所述，仓储的基础定义是由 <code>IRepository</code> 决定的，这个接口没什么其他用处，就如同 <code>ITransientDependency</code> 接口与 <code>ISingletonDependency</code> 一样，只是做一个标识作用。</p>
+<p>真正定义了仓储接口的是在 <code>IRepositoryOfTEntityAndTPrimaryKey&lt;TEntity, TPrimaryKey&gt;</code> 内部，他的接口定义如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IRepository</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">,</span> <span class="n">TPrimaryKey</span><span class="p">&gt;</span> <span class="p">:</span> <span class="n">IRepository</span> <span class="k">where</span> <span class="n">TEntity</span> <span class="p">:</span> <span class="n">class</span><span class="p">,</span> <span class="n">IEntity</span><span class="p">&lt;</span><span class="n">TPrimaryKey</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// CRUD 方法</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到，他有两个泛型参数，第一个是实体类型，第二个是实体的主键类型，并且约束了 <code>TEntity</code> 必须实现了 <code>IEntity&lt;TPrimaryKey&gt;</code> 接口，这是因为在仓储接口内部的一些方法需要得到实体的主键才能够操作，比如修改与查询方法。</p>
+<p>在 Abp 内部还有另外一个仓储的定义，叫做 <code>IRepository&lt;TEntity&gt;</code> ，这个接口就是默认你的主键类型为 <code>int</code>类型，一般很少使用 <code>IRepository&lt;TEntity, TPrimaryKey&gt;</code> 更多的还是用的 <code>IRepository&lt;TEntity&gt;</code>。</p>
+<h3 id="12-通用仓储的实现">1.2 通用仓储的实现</h3>
+<p>在 Abp 库里面，有一个默认的抽象基类实现了仓储接口，这个基类内部主要注入了 <code>IUnitOfWorkManager</code> 用来控制事务，还有 <code>IIocResolver</code> 用来解析 Ioc 容器内部注册的组件。</p>
+<p>本身在这个抽象仓储类里面没有什么实质性的东西，它只是之前 <code>IRepository&lt;TEntity&gt;</code> 的简单实现，在 <code>EfCoreRepositoryBase</code> 类当中则才是具体调用 EF Core API 的实现。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">EfCoreRepositoryBase</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">,</span> <span class="n">TEntity</span><span class="p">,</span> <span class="n">TPrimaryKey</span><span class="p">&gt;</span> <span class="p">:</span> 
+</span></span><span class="line"><span class="cl">    <span class="n">AbpRepositoryBase</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">,</span> <span class="n">TPrimaryKey</span><span class="p">&gt;,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">ISupportsExplicitLoading</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">,</span> <span class="n">TPrimaryKey</span><span class="p">&gt;,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IRepositoryWithDbContext</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">where</span> <span class="n">TEntity</span> <span class="p">:</span> <span class="n">class</span><span class="p">,</span> <span class="n">IEntity</span><span class="p">&lt;</span><span class="n">TPrimaryKey</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">where</span> <span class="n">TDbContext</span> <span class="p">:</span> <span class="n">DbContext</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 获得数据库上下文</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">TDbContext</span> <span class="n">Context</span> <span class="p">=&gt;</span> <span class="n">_dbContextProvider</span><span class="p">.</span><span class="n">GetDbContext</span><span class="p">(</span><span class="n">MultiTenancySide</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 具体的实体表</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">DbSet</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;</span> <span class="n">Table</span> <span class="p">=&gt;</span> <span class="n">Context</span><span class="p">.</span><span class="n">Set</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 数据库事务</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">DbTransaction</span> <span class="n">Transaction</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">get</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="p">(</span><span class="n">DbTransaction</span><span class="p">)</span> <span class="n">TransactionProvider</span><span class="p">?.</span><span class="n">GetActiveTransaction</span><span class="p">(</span><span class="k">new</span> <span class="n">ActiveTransactionProviderArgs</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span><span class="s">&#34;ContextType&#34;</span><span class="p">,</span> <span class="k">typeof</span><span class="p">(</span><span class="n">TDbContext</span><span class="p">)</span> <span class="p">},</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span><span class="s">&#34;MultiTenancySide&#34;</span><span class="p">,</span> <span class="n">MultiTenancySide</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="p">});</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 数据库连接</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">DbConnection</span> <span class="n">Connection</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">get</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">connection</span> <span class="p">=</span> <span class="n">Context</span><span class="p">.</span><span class="n">Database</span><span class="p">.</span><span class="n">GetDbConnection</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">connection</span><span class="p">.</span><span class="n">State</span> <span class="p">!=</span> <span class="n">ConnectionState</span><span class="p">.</span><span class="n">Open</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">connection</span><span class="p">.</span><span class="n">Open</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">connection</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 事务提供器，用于获取已经激活的事务</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IActiveTransactionProvider</span> <span class="n">TransactionProvider</span> <span class="p">{</span> <span class="k">private</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IDbContextProvider</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;</span> <span class="n">_dbContextProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 构造函数</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;param name=&#34;dbContextProvider&#34;&gt;&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">EfCoreRepositoryBase</span><span class="p">(</span><span class="n">IDbContextProvider</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;</span> <span class="n">dbContextProvider</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_dbContextProvider</span> <span class="p">=</span> <span class="n">dbContextProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>其实从上方就可以看出来，Abp 对于每一个仓储都会重新打开一个数据库链接，在 <code>EfCoreRepositoryBase</code> 里面的 CRUD 方法实际上都是针对 <code>DbContext</code> 来进行的操作。</p>
+<p>举个例子：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="c1">// 插入数据</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="n">TEntity</span> <span class="n">Insert</span><span class="p">(</span><span class="n">TEntity</span> <span class="n">entity</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">Table</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">entity</span><span class="p">).</span><span class="n">Entity</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 更新数据</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="n">TEntity</span> <span class="n">Update</span><span class="p">(</span><span class="n">TEntity</span> <span class="n">entity</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">AttachIfNot</span><span class="p">(</span><span class="n">entity</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Context</span><span class="p">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">entity</span><span class="p">).</span><span class="n">State</span> <span class="p">=</span> <span class="n">EntityState</span><span class="p">.</span><span class="n">Modified</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">entity</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 附加实体状态</span>
+</span></span><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">AttachIfNot</span><span class="p">(</span><span class="n">TEntity</span> <span class="n">entity</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">entry</span> <span class="p">=</span> <span class="n">Context</span><span class="p">.</span><span class="n">ChangeTracker</span><span class="p">.</span><span class="n">Entries</span><span class="p">().</span><span class="n">FirstOrDefault</span><span class="p">(</span><span class="n">ent</span> <span class="p">=&gt;</span> <span class="n">ent</span><span class="p">.</span><span class="n">Entity</span> <span class="p">==</span> <span class="n">entity</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">entry</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">Table</span><span class="p">.</span><span class="n">Attach</span><span class="p">(</span><span class="n">entity</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里需要注意的是 <code>Update()</code> 方法，之前遇到过一个问题，假如我传入了一个实体，它的 ID 是不存在的，那么我将这个实体传入 <code>Update()</code> 方法之后执行 <code>SaveChanges()</code> 的时候，会抛出 <code>DbUpdateConcurrencyException</code> 异常。</p>
+<p>正确的操作是先使用实体的 ID 去查询数据库是否存在该条记录，存在再执行 <code>Update()</code> 操作。</p>
+<blockquote>
+<p>这里 AttachIfNot 作用是将实体附加到追踪上下文当中，如果你之前是通过 <code>Get()</code> 方法获取实体之后更改了某个实体，那么在调用 <code>Context.ChangeTracker.Entries()</code> 方法的时候会获取到已经发生变动的身体对象集合。</p>
+</blockquote>
+<h3 id="13-通用仓储的注入">1.3 通用仓储的注入</h3>
+<p>仓储的注入操作发生在 <code>AbpEntityFrameworkCoreModule</code> 模块执行 <code>Initialize()</code> 方法的时候，在 <code>Initialize()</code> 方法内部调用了 <code>RegisterGenericRepositoriesAndMatchDbContexes()</code> 方法，其定义如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">void</span> <span class="n">RegisterGenericRepositoriesAndMatchDbContexes</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 查找所有数据库上下文</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">dbContextTypes</span> <span class="p">=</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_typeFinder</span><span class="p">.</span><span class="n">Find</span><span class="p">(</span><span class="n">type</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">typeInfo</span> <span class="p">=</span> <span class="n">type</span><span class="p">.</span><span class="n">GetTypeInfo</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">typeInfo</span><span class="p">.</span><span class="n">IsPublic</span> <span class="p">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">!</span><span class="n">typeInfo</span><span class="p">.</span><span class="n">IsAbstract</span> <span class="p">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">typeInfo</span><span class="p">.</span><span class="n">IsClass</span> <span class="p">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">                    <span class="k">typeof</span><span class="p">(</span><span class="n">AbpDbContext</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">type</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">});</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">dbContextTypes</span><span class="p">.</span><span class="n">IsNullOrEmpty</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Logger</span><span class="p">.</span><span class="n">Warn</span><span class="p">(</span><span class="s">&#34;No class found derived from AbpDbContext.&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="n">IScopedIocResolver</span> <span class="n">scope</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">CreateScope</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 遍历数据库上下文</span>
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">dbContextType</span> <span class="k">in</span> <span class="n">dbContextTypes</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Logger</span><span class="p">.</span><span class="n">Debug</span><span class="p">(</span><span class="s">&#34;Registering DbContext: &#34;</span> <span class="p">+</span> <span class="n">dbContextType</span><span class="p">.</span><span class="n">AssemblyQualifiedName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// 为数据库上下文每个实体注册仓储</span>
+</span></span><span class="line"><span class="cl">            <span class="n">scope</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IEfGenericRepositoryRegistrar</span><span class="p">&gt;().</span><span class="n">RegisterForDbContext</span><span class="p">(</span><span class="n">dbContextType</span><span class="p">,</span> <span class="n">IocManager</span><span class="p">,</span> <span class="n">EfCoreAutoRepositoryTypes</span><span class="p">.</span><span class="n">Default</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// 为自定义的 DbContext 注册仓储</span>
+</span></span><span class="line"><span class="cl">            <span class="n">IocManager</span><span class="p">.</span><span class="n">IocContainer</span><span class="p">.</span><span class="n">Register</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">Component</span><span class="p">.</span><span class="n">For</span><span class="p">&lt;</span><span class="n">ISecondaryOrmRegistrar</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">.</span><span class="n">Named</span><span class="p">(</span><span class="n">Guid</span><span class="p">.</span><span class="n">NewGuid</span><span class="p">().</span><span class="n">ToString</span><span class="p">(</span><span class="s">&#34;N&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">.</span><span class="n">Instance</span><span class="p">(</span><span class="k">new</span> <span class="n">EfCoreBasedSecondaryOrmRegistrar</span><span class="p">(</span><span class="n">dbContextType</span><span class="p">,</span> <span class="n">scope</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IDbContextEntityFinder</span><span class="p">&gt;()))</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">.</span><span class="n">LifestyleTransient</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">scope</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IDbContextTypeMatcher</span><span class="p">&gt;().</span><span class="n">Populate</span><span class="p">(</span><span class="n">dbContextTypes</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>方法很简单，注释已经说的很清楚了，就是遍历实体，通过 <code>EfGenericRepositoryRegistrar</code> 与 <code>EfCoreBasedSecondaryOrmRegistrar</code> 来注册仓储。</p>
+<p>来看一下具体的注册操作：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">void</span> <span class="n">RegisterForDbContext</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Type</span> <span class="n">dbContextType</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">    <span class="n">IIocManager</span> <span class="n">iocManager</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Type</span> <span class="n">repositoryInterface</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Type</span> <span class="n">repositoryInterfaceWithPrimaryKey</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Type</span> <span class="n">repositoryImplementation</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Type</span> <span class="n">repositoryImplementationWithPrimaryKey</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">entityTypeInfo</span> <span class="k">in</span> <span class="n">_dbContextEntityFinder</span><span class="p">.</span><span class="n">GetEntityTypeInfos</span><span class="p">(</span><span class="n">dbContextType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 获取主键类型</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">primaryKeyType</span> <span class="p">=</span> <span class="n">EntityHelper</span><span class="p">.</span><span class="n">GetPrimaryKeyType</span><span class="p">(</span><span class="n">entityTypeInfo</span><span class="p">.</span><span class="n">EntityType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">primaryKeyType</span> <span class="p">==</span> <span class="k">typeof</span><span class="p">(</span><span class="kt">int</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 建立仓储的封闭类型</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">genericRepositoryType</span> <span class="p">=</span> <span class="n">repositoryInterface</span><span class="p">.</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">entityTypeInfo</span><span class="p">.</span><span class="n">EntityType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(!</span><span class="n">iocManager</span><span class="p">.</span><span class="n">IsRegistered</span><span class="p">(</span><span class="n">genericRepositoryType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 构建具体的仓储实现类型</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">var</span> <span class="n">implType</span> <span class="p">=</span> <span class="n">repositoryImplementation</span><span class="p">.</span><span class="n">GetGenericArguments</span><span class="p">().</span><span class="n">Length</span> <span class="p">==</span> <span class="m">1</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">?</span> <span class="n">repositoryImplementation</span><span class="p">.</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">entityTypeInfo</span><span class="p">.</span><span class="n">EntityType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">:</span> <span class="n">repositoryImplementation</span><span class="p">.</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">entityTypeInfo</span><span class="p">.</span><span class="n">DeclaringType</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                                                               <span class="n">entityTypeInfo</span><span class="p">.</span><span class="n">EntityType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="c1">// 注入</span>
+</span></span><span class="line"><span class="cl">                <span class="n">iocManager</span><span class="p">.</span><span class="n">IocContainer</span><span class="p">.</span><span class="n">Register</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">Component</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">.</span><span class="n">For</span><span class="p">(</span><span class="n">genericRepositoryType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">.</span><span class="n">ImplementedBy</span><span class="p">(</span><span class="n">implType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">.</span><span class="n">Named</span><span class="p">(</span><span class="n">Guid</span><span class="p">.</span><span class="n">NewGuid</span><span class="p">().</span><span class="n">ToString</span><span class="p">(</span><span class="s">&#34;N&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">                    <span class="p">.</span><span class="n">LifestyleTransient</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">                <span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果主键类型为 int 之外的类型</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">genericRepositoryTypeWithPrimaryKey</span> <span class="p">=</span> <span class="n">repositoryInterfaceWithPrimaryKey</span><span class="p">.</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">entityTypeInfo</span><span class="p">.</span><span class="n">EntityType</span><span class="p">,</span><span class="n">primaryKeyType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="n">iocManager</span><span class="p">.</span><span class="n">IsRegistered</span><span class="p">(</span><span class="n">genericRepositoryTypeWithPrimaryKey</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 操作跟上面一样</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">implType</span> <span class="p">=</span> <span class="n">repositoryImplementationWithPrimaryKey</span><span class="p">.</span><span class="n">GetGenericArguments</span><span class="p">().</span><span class="n">Length</span> <span class="p">==</span> <span class="m">2</span>
+</span></span><span class="line"><span class="cl">                <span class="p">?</span> <span class="n">repositoryImplementationWithPrimaryKey</span><span class="p">.</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">entityTypeInfo</span><span class="p">.</span><span class="n">EntityType</span><span class="p">,</span> <span class="n">primaryKeyType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">:</span> <span class="n">repositoryImplementationWithPrimaryKey</span><span class="p">.</span><span class="n">MakeGenericType</span><span class="p">(</span><span class="n">entityTypeInfo</span><span class="p">.</span><span class="n">DeclaringType</span><span class="p">,</span> <span class="n">entityTypeInfo</span><span class="p">.</span><span class="n">EntityType</span><span class="p">,</span> <span class="n">primaryKeyType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="n">iocManager</span><span class="p">.</span><span class="n">IocContainer</span><span class="p">.</span><span class="n">Register</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">Component</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">For</span><span class="p">(</span><span class="n">genericRepositoryTypeWithPrimaryKey</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">ImplementedBy</span><span class="p">(</span><span class="n">implType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">Named</span><span class="p">(</span><span class="n">Guid</span><span class="p">.</span><span class="n">NewGuid</span><span class="p">().</span><span class="n">ToString</span><span class="p">(</span><span class="s">&#34;N&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">LifestyleTransient</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里 <code>RegisterForDbContext()</code> 方法传入的这些开放类型其实是通过 <code>EfCoreAutoRepositoryTypes.Default</code> 属性指定，其定义：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">EfCoreAutoRepositoryTypes</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="n">AutoRepositoryTypesAttribute</span> <span class="n">Default</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">static</span> <span class="n">EfCoreAutoRepositoryTypes</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Default</span> <span class="p">=</span> <span class="k">new</span> <span class="n">AutoRepositoryTypesAttribute</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="k">typeof</span><span class="p">(</span><span class="n">IRepository</span><span class="p">&lt;&gt;),</span>
+</span></span><span class="line"><span class="cl">            <span class="k">typeof</span><span class="p">(</span><span class="n">IRepository</span><span class="p">&lt;,&gt;),</span>
+</span></span><span class="line"><span class="cl">            <span class="k">typeof</span><span class="p">(</span><span class="n">EfCoreRepositoryBase</span><span class="p">&lt;,&gt;),</span>
+</span></span><span class="line"><span class="cl">            <span class="k">typeof</span><span class="p">(</span><span class="n">EfCoreRepositoryBase</span><span class="p">&lt;,,&gt;)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="14-自定义仓储">1.4 自定义仓储</h3>
+<p>当你觉得 Abp 所提供的通用仓储无法满足你的需求，你可以通过自定义仓储来操作。在 Abp 中,仓储类要实现 <code>IRepository</code> 接口。最好的方式是针对不同仓储对象定义各自不同的接口。</p>
+<p>针对 <code>Person</code> 实体的仓储接口声明的示例如下所示：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IPersonRepository</span> <span class="p">:</span> <span class="n">IRepository</span><span class="p">&lt;</span><span class="n">Person</span><span class="p">&gt;</span> 
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">void</span> <span class="n">CustomMethod</span><span class="p">(</span><span class="n">Person</span> <span class="n">input</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>IPersonRepository</code> 继承自 <code>IRepository</code>，用来定义 Id 的类型为 int(Int32) 的实体。如果你的实体 Id 数据类型不是 <code>int</code> ,你可以继承 <code>IRepository</code> 接口，如下所示:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IPersonRepository</span> <span class="p">:</span> <span class="n">IRepository</span><span class="p">&lt;</span><span class="n">Person</span><span class="p">,</span> <span class="kt">long</span><span class="p">&gt;</span> 
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">void</span> <span class="n">CustomMethod</span><span class="p">(</span><span class="n">Person</span> <span class="n">input</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="2entity-framework-core">2.Entity Framework Core</h2>
+<h3 id="21-工作单元">2.1 工作单元</h3>
+<p>在之前的文章里面说过，Abp 本身只实现了一个抽象工作单元基类 <code>UnitOfWorkBase</code> ，而具体的事务处理是存放在具体的持久化模块里面进行实现的，在 EF Core 这里则是通过 <code>EfCoreUnitOfWork</code> 实现的。</p>
+<p>首先看一下 <code>EfCoreUnitOfWork</code> 注入了哪些东西：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">EfCoreUnitOfWork</span> <span class="p">:</span> <span class="n">UnitOfWorkBase</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">DbContext</span><span class="p">&gt;</span> <span class="n">ActiveDbContexts</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IIocResolver</span> <span class="n">IocResolver</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IDbContextResolver</span> <span class="n">_dbContextResolver</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IDbContextTypeMatcher</span> <span class="n">_dbContextTypeMatcher</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IEfCoreTransactionStrategy</span> <span class="n">_transactionStrategy</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 创建一个新的 EF UOW 对象</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">EfCoreUnitOfWork</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IIocResolver</span> <span class="n">iocResolver</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IConnectionStringResolver</span> <span class="n">connectionStringResolver</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IUnitOfWorkFilterExecuter</span> <span class="n">filterExecuter</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IDbContextResolver</span> <span class="n">dbContextResolver</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IUnitOfWorkDefaultOptions</span> <span class="n">defaultOptions</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IDbContextTypeMatcher</span> <span class="n">dbContextTypeMatcher</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IEfCoreTransactionStrategy</span> <span class="n">transactionStrategy</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">:</span> <span class="k">base</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">connectionStringResolver</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">defaultOptions</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">filterExecuter</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IocResolver</span> <span class="p">=</span> <span class="n">iocResolver</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_dbContextResolver</span> <span class="p">=</span> <span class="n">dbContextResolver</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_dbContextTypeMatcher</span> <span class="p">=</span> <span class="n">dbContextTypeMatcher</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_transactionStrategy</span> <span class="p">=</span> <span class="n">transactionStrategy</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">ActiveDbContexts</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">DbContext</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>emmm，他注入的基本上都是与 EfCore 有关的东西。</p>
+<p>第一个字典是存放处在激活状态的 <code>DbContext</code> 集合，第二个是 <code>IIocResolver</code> 用于解析组件所需要的解析器，第三个是数据库上下文的解析器用于创建 <code>DbContext</code> 的，第四个是用于查找 <code>DbContext</code> 的 Matcher，最后一个就是用于 EF Core 事物处理的东东。</p>
+<p>根据 <code>UnitOfWork</code> 的调用顺序，首先看查看 <code>BeginUow()</code> 方法：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="n">Options</span><span class="p">.</span><span class="n">IsTransactional</span> <span class="p">==</span> <span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">_transactionStrategy</span><span class="p">.</span><span class="n">InitOptions</span><span class="p">(</span><span class="n">Options</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>没什么特殊操作，就拿着 UOW 对象的 Options 去初始化事物策略。</p>
+<p>之后按照 UOW 的调用顺序(PS：如果看的一头雾水可以去看一下之前文章针对 UOW 的讲解)，会调用基类的 <code>CompleteAsync()</code> 方法，在其内部则是会调用 EF Core UOW 实现的 <code>CompleteUowAsync()</code> 方法，其定义如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">CompleteUowAsync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 保存所有 DbContext 的更改</span>
+</span></span><span class="line"><span class="cl">    <span class="k">await</span> <span class="n">SaveChangesAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 提交事务</span>
+</span></span><span class="line"><span class="cl">    <span class="n">CommitTransaction</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">SaveChangesAsync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">dbContext</span> <span class="k">in</span> <span class="n">GetAllActiveDbContexts</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">SaveChangesInDbContextAsync</span><span class="p">(</span><span class="n">dbContext</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">void</span> <span class="n">CommitTransaction</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">Options</span><span class="p">.</span><span class="n">IsTransactional</span> <span class="p">==</span> <span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_transactionStrategy</span><span class="p">.</span><span class="n">Commit</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>内部很简单，两句话，第一句话遍历所有激活的 <code>DbContext</code> ，然后调用其 <code>SaveChanges()</code> 提交更改到数据库当中。</p>
+<p>之后呢，第二句话就是使用 <code>DbContext</code> 的 <code>dbContext.Database.CommitTransaction();</code> 方法来提交一个事务咯。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">Commit</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">activeTransaction</span> <span class="k">in</span> <span class="n">ActiveTransactions</span><span class="p">.</span><span class="n">Values</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">activeTransaction</span><span class="p">.</span><span class="n">DbContextTransaction</span><span class="p">.</span><span class="n">Commit</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">dbContext</span> <span class="k">in</span> <span class="n">activeTransaction</span><span class="p">.</span><span class="n">AttendedDbContexts</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">dbContext</span><span class="p">.</span><span class="n">HasRelationalTransactionManager</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">continue</span><span class="p">;</span> <span class="c1">//Relational databases use the shared transaction</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="n">dbContext</span><span class="p">.</span><span class="n">Database</span><span class="p">.</span><span class="n">CommitTransaction</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-数据库上下文提供器">2.2 数据库上下文提供器</h3>
+<p>这个玩意儿的定义如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IDbContextProvider</span><span class="p">&lt;</span><span class="k">out</span> <span class="n">TDbContext</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">where</span> <span class="n">TDbContext</span> <span class="p">:</span> <span class="n">DbContext</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">TDbContext</span> <span class="n">GetDbContext</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">TDbContext</span> <span class="n">GetDbContext</span><span class="p">(</span><span class="n">MultiTenancySides</span><span class="p">?</span> <span class="n">multiTenancySide</span> <span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>很简单的作用，获取指定类型的数据库上下文，他的标准实现是 <code>UnitOfWorkDbContextProvider&lt;TDbContext&gt;</code>，它依赖于 UOW ，使用 UOW 的 <code>GetDbContext&lt;TDbContext&gt;()</code> 方法来取得数据库上下文。</p>
+<p>整个关系如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">st1=&gt;start: IDbContextProvider&lt;TDbContext&gt;：GetDbContext()
+</span></span><span class="line"><span class="cl">op1=&gt;operation: UnitOfWorkExtensions：GetDbContext&lt;TDbContext&gt;()
+</span></span><span class="line"><span class="cl">op2=&gt;operation: EfCoreUnitOfWork：GetOrCreateDbContext&lt;TDbContext&gt;()
+</span></span><span class="line"><span class="cl">pd1=&gt;condition: 工作单元是否是事务性的
+</span></span><span class="line"><span class="cl">op3=&gt;operation: DbContextEfCoreTransactionStrategy：CreateDbContext&lt;TDbContext&gt;();
+</span></span><span class="line"><span class="cl">op4=&gt;operation: IDbContextResolver：Resolve&lt;TDbContext&gt;()
+</span></span><span class="line"><span class="cl">e=&gt;end: end
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">st1-&gt;op1-&gt;op2-&gt;pd1
+</span></span><span class="line"><span class="cl">pd1(yes)-&gt;op3-&gt;e
+</span></span><span class="line"><span class="cl">pd1(no)-&gt;op4-&gt;e
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="23-多数据库支持">2.3 多数据库支持</h3>
+<p>在 Abp 内部针对多数据库支持是通过覆写 <code>IConnectionStringResolver</code> 来实现的，这个操作在之前的文章里面已经讲过，这里仅讲解它如何在 Abp 内部实现解析的。</p>
+<p><code>IConnectionStringResolver</code> 是在 EF 的 Uow 才会用到，也就是创建 <code>DbContext</code> 的时候：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">virtual</span> <span class="n">TDbContext</span> <span class="n">GetOrCreateDbContext</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;(</span><span class="n">MultiTenancySides</span><span class="p">?</span> <span class="n">multiTenancySide</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">where</span> <span class="n">TDbContext</span> <span class="p">:</span> <span class="n">DbContext</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">concreteDbContextType</span> <span class="p">=</span> <span class="n">_dbContextTypeMatcher</span><span class="p">.</span><span class="n">GetConcreteType</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TDbContext</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">connectionStringResolveArgs</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ConnectionStringResolveArgs</span><span class="p">(</span><span class="n">multiTenancySide</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">connectionStringResolveArgs</span><span class="p">[</span><span class="s">&#34;DbContextType&#34;</span><span class="p">]</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">TDbContext</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">connectionStringResolveArgs</span><span class="p">[</span><span class="s">&#34;DbContextConcreteType&#34;</span><span class="p">]</span> <span class="p">=</span> <span class="n">concreteDbContextType</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 这里调用了 Resolver</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">connectionString</span> <span class="p">=</span> <span class="n">ResolveConnectionString</span><span class="p">(</span><span class="n">connectionStringResolveArgs</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 创建 DbContext</span>
+</span></span><span class="line"><span class="cl">    <span class="n">dbContext</span> <span class="p">=</span> <span class="n">_transactionStrategy</span><span class="p">.</span><span class="n">CreateDbContext</span><span class="p">&lt;</span><span class="n">TDbContext</span><span class="p">&gt;(</span><span class="n">connectionString</span><span class="p">,</span> <span class="n">_dbContextResolver</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="p">(</span><span class="n">TDbContext</span><span class="p">)</span><span class="n">dbContext</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 传入了 ConnectionStringResolveArgs 里面包含了实体类型信息哦</span>
+</span></span><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="kt">string</span> <span class="n">ResolveConnectionString</span><span class="p">(</span><span class="n">ConnectionStringResolveArgs</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">ConnectionStringResolver</span><span class="p">.</span><span class="n">GetNameOrConnectionString</span><span class="p">(</span><span class="n">args</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>他这里的默认实现叫做 <code>DefaultConnectionStringResolver</code> ，就是从 <code>IAbpStartupConfiguration</code> 里面拿去用户在启动模块配置的 <code>DefaultNameOrConnectionString</code> 字段作为自己的默认数据库连接字符串。</p>
+<p>在之前的 <strong><a class="link" href="https://www.cnblogs.com/myzony/p/9230565.html#_label2_2"  target="_blank" rel="noopener"
+    >文章</a></strong> 的思路也是通过传入的 <code>ConnectionStringResolveArgs</code> 参数来判断传入的 Type，从而来根据不同的 <code>DbContext</code> 返回不同的连接串。</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/aspnetboilerplate/">AspNetBoilerplate</a>
+        
+            <a href="/tags/%E5%B7%A5%E4%BD%9C%E5%8D%95%E5%85%83/">工作单元</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-source-code-analysis-6-implementation-of-work-unit/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp 源码分析：六、工作单元的实现</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/why-does-abp-vnext-throw-an-exception-if-it-does-not-use-the-unit-of-work/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">ABP vNext 不使用工作单元为什么会抛出异常</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---4-unit-of-work/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 4. 工作单元</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/why-not-use-async-void/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">为什么不要使用 async void ？</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-mongodb-retrofits-the-default-audit-log-storage-location/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp &#43; MongoDb 改造默认的审计日志存储位置</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#0简介">0.简介</a></li>
+    <li><a href="#1通用仓储定义与实现">1.通用仓储定义与实现</a>
+      <ol>
+        <li><a href="#11-通用仓储定义">1.1 通用仓储定义</a></li>
+        <li><a href="#12-通用仓储的实现">1.2 通用仓储的实现</a></li>
+        <li><a href="#13-通用仓储的注入">1.3 通用仓储的注入</a></li>
+        <li><a href="#14-自定义仓储">1.4 自定义仓储</a></li>
+      </ol>
+    </li>
+    <li><a href="#2entity-framework-core">2.Entity Framework Core</a>
+      <ol>
+        <li><a href="#21-工作单元">2.1 工作单元</a></li>
+        <li><a href="#22-数据库上下文提供器">2.2 数据库上下文提供器</a></li>
+        <li><a href="#23-多数据库支持">2.3 多数据库支持</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

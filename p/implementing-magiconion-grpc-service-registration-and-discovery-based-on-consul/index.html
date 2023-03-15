@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='0.简介 0.1 什么是 Consul Consul是HashiCorp公司推出的开源工具，用于实现分布式系统的服务发现与配置。
+这里所谓的服务，不仅仅包括常用的 Api 这些服务，也包括软件开发过程当中所需要的诸如 Rpc、Redis、Mysql 等需要调用的资源。
+简而言之 Consul 就是根据 Key/Value 存储了一套所有服务的 IP/Port 集合，当你 Grpc 客户端需要请求某种服务的时候，具体的 IP 与端口不需要你自己来进行指定，而是通过与 Consul Agent 通信获得某个服务下面可用的 IP/Port 集合。
+而 Consul 还提供了健康检查等附加的功能，你可以通过对可用服务节点的遍历来自己进行负载均衡或者服务选择。
+0.2 为什么要用 Consul 没用 Consul 之前的情况是，我 new 一个 Channel 的话，需要指定 Grpc Server 的地址与端口，一单服务挂掉或者 Grpc Server 的 IP 地址或者端口有变更，那么我还得重新更改 setting 才能够使用我的服务。
+使用了 Consul 之后我只需要去 Consul Agent 里面查询我指定的服务有哪些节点可用，返回给我对应的 IP 地址和端口，我就可以进行连接了。
+1.准备工作 1.1 Consul 集群安装与配置 Consul 我是直接使用 Docker 的官方 Consul 镜像来进行安装的，直接执行以下命令 pull 到最新的镜像：
+1 docker pull consul 拿到之后我们先运行一个服务：'><title>基于 Consul 实现 MagicOnion(GRpc) 服务注册与发现</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='基于 Consul 实现 MagicOnion(GRpc) 服务注册与发现'>
+<meta property='og:description' content='0.简介 0.1 什么是 Consul Consul是HashiCorp公司推出的开源工具，用于实现分布式系统的服务发现与配置。
+这里所谓的服务，不仅仅包括常用的 Api 这些服务，也包括软件开发过程当中所需要的诸如 Rpc、Redis、Mysql 等需要调用的资源。
+简而言之 Consul 就是根据 Key/Value 存储了一套所有服务的 IP/Port 集合，当你 Grpc 客户端需要请求某种服务的时候，具体的 IP 与端口不需要你自己来进行指定，而是通过与 Consul Agent 通信获得某个服务下面可用的 IP/Port 集合。
+而 Consul 还提供了健康检查等附加的功能，你可以通过对可用服务节点的遍历来自己进行负载均衡或者服务选择。
+0.2 为什么要用 Consul 没用 Consul 之前的情况是，我 new 一个 Channel 的话，需要指定 Grpc Server 的地址与端口，一单服务挂掉或者 Grpc Server 的 IP 地址或者端口有变更，那么我还得重新更改 setting 才能够使用我的服务。
+使用了 Consul 之后我只需要去 Consul Agent 里面查询我指定的服务有哪些节点可用，返回给我对应的 IP 地址和端口，我就可以进行连接了。
+1.准备工作 1.1 Consul 集群安装与配置 Consul 我是直接使用 Docker 的官方 Consul 镜像来进行安装的，直接执行以下命令 pull 到最新的镜像：
+1 docker pull consul 拿到之后我们先运行一个服务：'>
+<meta property='og:url' content='https://real-zony.github.io/p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Consul' /><meta property='article:tag' content='gRPC' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='MagicOnion' /><meta property='article:published_time' content='2018-06-11T11:34:00&#43;00:00'/><meta property='article:modified_time' content='2018-06-11T11:34:00&#43;00:00'/>
+<meta name="twitter:title" content="基于 Consul 实现 MagicOnion(GRpc) 服务注册与发现">
+<meta name="twitter:description" content="0.简介 0.1 什么是 Consul Consul是HashiCorp公司推出的开源工具，用于实现分布式系统的服务发现与配置。
+这里所谓的服务，不仅仅包括常用的 Api 这些服务，也包括软件开发过程当中所需要的诸如 Rpc、Redis、Mysql 等需要调用的资源。
+简而言之 Consul 就是根据 Key/Value 存储了一套所有服务的 IP/Port 集合，当你 Grpc 客户端需要请求某种服务的时候，具体的 IP 与端口不需要你自己来进行指定，而是通过与 Consul Agent 通信获得某个服务下面可用的 IP/Port 集合。
+而 Consul 还提供了健康检查等附加的功能，你可以通过对可用服务节点的遍历来自己进行负载均衡或者服务选择。
+0.2 为什么要用 Consul 没用 Consul 之前的情况是，我 new 一个 Channel 的话，需要指定 Grpc Server 的地址与端口，一单服务挂掉或者 Grpc Server 的 IP 地址或者端口有变更，那么我还得重新更改 setting 才能够使用我的服务。
+使用了 Consul 之后我只需要去 Consul Agent 里面查询我指定的服务有哪些节点可用，返回给我对应的 IP 地址和端口，我就可以进行连接了。
+1.准备工作 1.1 Consul 集群安装与配置 Consul 我是直接使用 Docker 的官方 Consul 镜像来进行安装的，直接执行以下命令 pull 到最新的镜像：
+1 docker pull consul 拿到之后我们先运行一个服务：">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/">基于 Consul 实现 MagicOnion(GRpc) 服务注册与发现</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jun 11, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 7 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="0简介">0.简介</h2>
+<h3 id="01-什么是-consul">0.1 什么是 Consul</h3>
+<blockquote>
+<p>Consul是HashiCorp公司推出的开源工具，用于实现分布式系统的服务发现与配置。</p>
+</blockquote>
+<p>这里所谓的服务，不仅仅包括常用的 Api 这些服务，也包括软件开发过程当中所需要的诸如 Rpc、Redis、Mysql 等需要调用的资源。</p>
+<p>简而言之 Consul 就是根据 Key/Value 存储了一套所有服务的 IP/Port 集合，当你 Grpc 客户端需要请求某种服务的时候，具体的 IP 与端口不需要你自己来进行指定，而是通过与 Consul Agent 通信获得某个服务下面可用的 IP/Port 集合。</p>
+<p>而 Consul 还提供了健康检查等附加的功能，你可以通过对可用服务节点的遍历来自己进行负载均衡或者服务选择。</p>
+<h3 id="02-为什么要用-consul">0.2 为什么要用 Consul</h3>
+<p>没用 Consul 之前的情况是，我 new 一个 Channel 的话，需要指定 Grpc Server 的地址与端口，一单服务挂掉或者 Grpc Server 的 IP 地址或者端口有变更，那么我还得重新更改 setting 才能够使用我的服务。</p>
+<p>使用了 Consul 之后我只需要去 Consul Agent 里面查询我指定的服务有哪些节点可用，返回给我对应的 IP 地址和端口，我就可以进行连接了。</p>
+<h2 id="1准备工作">1.准备工作</h2>
+<h3 id="11-consul-集群安装与配置">1.1 Consul 集群安装与配置</h3>
+<p>Consul 我是直接使用 Docker 的官方 Consul 镜像来进行安装的，直接执行以下命令 pull 到最新的镜像：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker pull consul
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>拿到之后我们先运行一个服务：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker run -d --name<span class="o">=</span>dev-consul-server1 -e <span class="nv">CONSUL_BIND_INTERFACE</span><span class="o">=</span>eth0 consul agent -server -bootstrap
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>之后我们再运行两个 Consul Server:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker run -d --name<span class="o">=</span>dev-consul-server2 -e <span class="nv">CONSUL_BIND_INTERFACE</span><span class="o">=</span>eth0 consul agent -server -retry-join 172.17.0.20
+</span></span></code></pre></td></tr></table>
+</div>
+</div><blockquote>
+<p>这里 172.17.0.20 是之前 dev-consul-server1 的 IP 地址。</p>
+</blockquote>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker run -d --name<span class="o">=</span>dev-consul-server3 -e <span class="nv">CONSUL_BIND_INTERFACE</span><span class="o">=</span>eth0 consul agent -server -retry-join 172.17.0.20
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>我们可以运行 <code>consul members</code> 命令来查看 Consul 集群信息：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker <span class="nb">exec</span> -t dev-consul-server1 consul members 
+</span></span><span class="line"><span class="cl">Node          Address          Status  Type    Build  Protocol  DC   Segment
+</span></span><span class="line"><span class="cl">5019b941791a  172.17.0.20:8301  alive   server  1.1.0  <span class="m">2</span>         dc1  &lt;all&gt;
+</span></span><span class="line"><span class="cl">ac53858f8c34  172.17.0.21:8301  alive   server  1.1.0  <span class="m">2</span>         dc1  &lt;all&gt;
+</span></span><span class="line"><span class="cl">fc3aba2ddc25  172.17.0.22:8301  alive   server  1.1.0  <span class="m">2</span>         dc1  &lt;all&gt;
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到已经有 3 个 Consul Server 启动了。</p>
+<p>下面我们再来运行一个 Consul Client 作为服务注册与发现的端口：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker run -d -p 8500:8500 --name<span class="o">=</span>dev-consul-client -e <span class="nv">CONSUL_BIND_INTERFACE</span><span class="o">=</span>eth0 -e <span class="nv">CONSUL_UI_BETA</span><span class="o">=</span><span class="nb">true</span> consul agent -retry-join 172.17.0.20 -bind 0.0.0.0 -ui -client 0.0.0.0
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里注意 <code>-bind</code> 与 <code>-client</code> 命令是你绑定的 IP 地址，这里我直接将其与 0.0.0.0 绑定，而 <code>-e CONSUL_UI_BETA=true </code>则是用于启动新版本的 WebUI 界面，<code>-ui</code> 是启用 WebUI 界面。</p>
+<p>启动完成之后我们可以访问已经启动的 Client Agent 了：</p>
+<p><img src="/p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/5b2f4775cfe2a.png"
+	width="1606"
+	height="442"
+	srcset="/p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/5b2f4775cfe2a_hua191d5528fa463507cf01313e0fe887c_23381_480x0_resize_box_3.png 480w, /p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/5b2f4775cfe2a_hua191d5528fa463507cf01313e0fe887c_23381_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="363"
+		data-flex-basis="872px"
+	
+></p>
+<h2 id="2客户端与服务端编写">2.客户端与服务端编写</h2>
+<p>在这里我以 Abp 框架作为演示，如何编写一个支持 Consul 的 Grpc 服务端与 Grpc 客户端，在演示当中所使用到的 <code>Abp.Grpc.Server</code> 包与 <code>Abp.Grpc.Client</code> 包可以从 NuGet 站点当中搜索安装，其源代码我托管到 GitHub 上面的，地址为：https://github.com/GameBelial/Abp.Grpc，欢迎 Star。</p>
+<h3 id="21-grpc-服务端编写">2.1 Grpc 服务端编写</h3>
+<h4 id="211-abp-集成">2.1.1 Abp 集成</h4>
+<p>首先建立一个标准的 ASP.NET Core Web Application 程序，引入 <code>Abp</code>、<code>Abp.AspNetCore</code>、<code>Abp.Grpc.Server</code> 包，项目取名为 <strong>Abp.Grpc.Server.Demo</strong>，类型选择空项目，在我们的 Startup 类当中编写如下代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Abp.AspNetCore</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.AspNetCore.Builder</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.AspNetCore.Hosting</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.Extensions.DependencyInjection</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">System</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">Abp.Grpc.Server.Demo</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">Startup</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// This method gets called by the runtime. Use this method to add services to the container.</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="n">IServiceProvider</span> <span class="n">ConfigureServices</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 添加 MVC</span>
+</span></span><span class="line"><span class="cl">            <span class="n">services</span><span class="p">.</span><span class="n">AddMvc</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 添加 ABP 框架，注意更改 ConfigureServices 返回值为 IServiceProvider</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">services</span><span class="p">.</span><span class="n">AddAbp</span><span class="p">&lt;</span><span class="n">AbpGrpcServerDemoModule</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">void</span> <span class="n">Configure</span><span class="p">(</span><span class="n">IApplicationBuilder</span> <span class="n">app</span><span class="p">,</span> <span class="n">IHostingEnvironment</span> <span class="n">env</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 启用 ABP 框架中间件</span>
+</span></span><span class="line"><span class="cl">            <span class="n">app</span><span class="p">.</span><span class="n">UseAbp</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 启用 MVC 中间件</span>
+</span></span><span class="line"><span class="cl">            <span class="n">app</span><span class="p">.</span><span class="n">UseMvc</span><span class="p">(</span><span class="n">routes</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">routes</span><span class="p">.</span><span class="n">MapRoute</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">name</span><span class="p">:</span> <span class="s">&#34;defaultWithArea&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">template</span><span class="p">:</span> <span class="s">&#34;{area}/{controller=Home}/{action=Index}/{id?}&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="n">routes</span><span class="p">.</span><span class="n">MapRoute</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">name</span><span class="p">:</span> <span class="s">&#34;default&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">template</span><span class="p">:</span> <span class="s">&#34;{controller=Home}/{action=Index}/{id?}&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">});</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="212-建立项目启动模块">2.1.2 建立项目启动模块</h4>
+<p>新建一个 <code>AbpGrpcServerDemoModule</code> 类，并编写以下代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Abp.AspNetCore</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Abp.Grpc.Server.Extensions</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Abp.Modules</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">Abp.Grpc.Server.Demo</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 此处依赖 ABP 的 AspNetCore 模块与我们的 GRPC 服务模块</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [DependsOn(typeof(AbpAspNetCoreModule),
+</span></span></span><span class="line"><span class="cl"><span class="na">        typeof(AbpGrpcServerModule))]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">AbpGrpcServerDemoModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">PreInitialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Configuration</span><span class="p">.</span><span class="n">Modules</span><span class="p">.</span><span class="n">UseGrpcService</span><span class="p">(</span><span class="n">option</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// GRPC 服务绑定的 IP 地址</span>
+</span></span><span class="line"><span class="cl">                <span class="n">option</span><span class="p">.</span><span class="n">GrpcBindAddress</span> <span class="p">=</span> <span class="s">&#34;0.0.0.0&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// GRPC 服务绑定的 端口号</span>
+</span></span><span class="line"><span class="cl">                <span class="n">option</span><span class="p">.</span><span class="n">GrpcBindPort</span> <span class="p">=</span> <span class="m">5001</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 启用 Consul 服务注册</span>
+</span></span><span class="line"><span class="cl">                <span class="n">option</span><span class="p">.</span><span class="n">UseConsul</span><span class="p">(</span><span class="n">consulOption</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                    <span class="c1">// Consul 服务注册地址</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">consulOption</span><span class="p">.</span><span class="n">ConsulAddress</span> <span class="p">=</span> <span class="s">&#34;10.0.75.1&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                    <span class="c1">// Consul 服务注册端口号</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">consulOption</span><span class="p">.</span><span class="n">ConsulPort</span> <span class="p">=</span> <span class="m">8500</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                    <span class="c1">// 注册到 Consul 的服务名称</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">consulOption</span><span class="p">.</span><span class="n">RegistrationServiceName</span> <span class="p">=</span> <span class="s">&#34;TestGrpcService&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                    <span class="c1">// 健康检查接口的端口号</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">consulOption</span><span class="p">.</span><span class="n">ConsulHealthCheckPort</span> <span class="p">=</span> <span class="m">5000</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                <span class="p">});</span>
+</span></span><span class="line"><span class="cl">            <span class="p">})</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">AddRpcServiceAssembly</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpGrpcServerDemoModule</span><span class="p">).</span><span class="n">Assembly</span><span class="p">);</span> <span class="c1">// 扫描当前程序集的所有 GRPC 服务</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">Initialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">IocManager</span><span class="p">.</span><span class="n">RegisterAssemblyByConvention</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpGrpcServerDemoModule</span><span class="p">).</span><span class="n">Assembly</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="213-编写健康检查控制器">2.1.3 编写健康检查控制器</h4>
+<p><img src="/p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/5b2f479ae0e68.png"
+	width="371"
+	height="178"
+	srcset="/p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/5b2f479ae0e68_hu5ea50c08640586f339c5ce36145864ec_6588_480x0_resize_box_3.png 480w, /p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/5b2f479ae0e68_hu5ea50c08640586f339c5ce36145864ec_6588_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="208"
+		data-flex-basis="500px"
+	
+></p>
+<p>新建一个文件夹叫做 Controllers ，并且新建一个 <code>HealthController</code> 类，其内容如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Abp.AspNetCore.Mvc.Controllers</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Microsoft.AspNetCore.Mvc</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">Abp.Grpc.Server.Demo.Controllers</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">HealthController</span> <span class="p">:</span> <span class="n">AbpController</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="cs">/// 健康检查接口</span>
+</span></span><span class="line"><span class="cl">        <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="n">IActionResult</span> <span class="n">Check</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">Ok</span><span class="p">(</span><span class="s">&#34;OJBK&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><blockquote>
+<p>注意：此处应该继承自 <code>AbpController</code> 基类</p>
+</blockquote>
+<h4 id="214-编写-rpc-服务">2.1.4 编写 RPC 服务</h4>
+<p><img src="/p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/5b2f47af87e66.png"
+	width="363"
+	height="198"
+	srcset="/p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/5b2f47af87e66_hu3c5a12eb5b3557d13bd993108623e8fa_5919_480x0_resize_box_3.png 480w, /p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/5b2f47af87e66_hu3c5a12eb5b3557d13bd993108623e8fa_5919_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="183"
+		data-flex-basis="440px"
+	
+></p>
+<p>新建一个 RpcServices 文件夹，并且新建一个 TestGrpcService 文件，其内容如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">MagicOnion</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">MagicOnion.Server</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">Abp.Grpc.Server.Demo.RpcServices</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">interface</span> <span class="nc">ITestGrpcService</span> <span class="p">:</span> <span class="n">IService</span><span class="p">&lt;</span><span class="n">ITestGrpcService</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">UnaryResult</span><span class="p">&lt;</span><span class="kt">int</span><span class="p">&gt;</span> <span class="n">Sum</span><span class="p">(</span><span class="kt">int</span> <span class="n">x</span><span class="p">,</span> <span class="kt">int</span> <span class="n">y</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">TestGrpcService</span> <span class="p">:</span> <span class="n">ServiceBase</span><span class="p">&lt;</span><span class="n">ITestGrpcService</span><span class="p">&gt;,</span> <span class="n">ITestGrpcService</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="n">UnaryResult</span><span class="p">&lt;</span><span class="kt">int</span><span class="p">&gt;</span> <span class="n">Sum</span><span class="p">(</span><span class="kt">int</span> <span class="n">x</span><span class="p">,</span> <span class="kt">int</span> <span class="n">y</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">UnaryResult</span><span class="p">(</span><span class="n">x</span> <span class="p">+</span> <span class="n">y</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到我们编写了一个简单的 <code>Sum</code> 方法，该方法接收两个 <code>int</code> 类型的参数，计算其和并返回。</p>
+<h4 id="215-编写-dockerfile-文件">2.1.5 编写 Dockerfile 文件</h4>
+<p>因为我们的 Consul 是放在 Docker 容器当中的，所以我们将我们的站点发布出去，并且编写一个 Dockerfile 文件，内容如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-dockerfile" data-lang="dockerfile"><span class="line"><span class="cl"><span class="k">FROM</span><span class="s"> microsoft/dotnet</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENV</span> ASPNETCORE_URLS http://+:5000<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c">## 开放 5000 网站端口</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">EXPOSE</span><span class="s"> 5000</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="c">## 开放 5001 RPC 端口</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">EXPOSE</span><span class="s"> 5001</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">WORKDIR</span><span class="s"> /app</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">COPY</span> ./ .<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENTRYPOINT</span> <span class="p">[</span> <span class="s2">&#34;dotnet&#34;</span><span class="p">,</span><span class="s2">&#34;Abp.Grpc.Server.Demo.dll&#34;</span> <span class="p">]</span><span class="err">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>将其拷贝到发布好的站点，并且执行 docker build 命令：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">PS D:<span class="se">\P</span>roject<span class="se">\D</span>EMO<span class="se">\A</span>bp.Grpc.Server.Demo<span class="se">\A</span>bp.Grpc.Server.Demo<span class="se">\b</span>in<span class="se">\R</span>elease<span class="se">\n</span>etcoreapp2.1<span class="se">\p</span>ublish&gt; docker build -t grpc-server-demo .
+</span></span><span class="line"><span class="cl">Sending build context to Docker daemon   29.9MB
+</span></span><span class="line"><span class="cl">Step 1/7 : FROM microsoft/dotnet
+</span></span><span class="line"><span class="cl"> ---&gt; d8381e1175a1
+</span></span><span class="line"><span class="cl">Step 2/7 : ENV ASPNETCORE_URLS http://+:5000
+</span></span><span class="line"><span class="cl"> ---&gt; Using cache
+</span></span><span class="line"><span class="cl"> ---&gt; da7659cff6d2
+</span></span><span class="line"><span class="cl">Step 3/7 : EXPOSE <span class="m">5000</span>
+</span></span><span class="line"><span class="cl"> ---&gt; Using cache
+</span></span><span class="line"><span class="cl"> ---&gt; 7ecfc480ad43
+</span></span><span class="line"><span class="cl">Step 4/7 : EXPOSE <span class="m">5001</span>
+</span></span><span class="line"><span class="cl"> ---&gt; Using cache
+</span></span><span class="line"><span class="cl"> ---&gt; 75f10934ad1e
+</span></span><span class="line"><span class="cl">Step 5/7 : WORKDIR /app
+</span></span><span class="line"><span class="cl"> ---&gt; Using cache
+</span></span><span class="line"><span class="cl"> ---&gt; dee9739da4cd
+</span></span><span class="line"><span class="cl">Step 6/7 : COPY ./ .
+</span></span><span class="line"><span class="cl"> ---&gt; 1a5acc1f0298
+</span></span><span class="line"><span class="cl">Step 7/7 : ENTRYPOINT <span class="o">[</span> <span class="s2">&#34;dotnet&#34;</span>,<span class="s2">&#34;Abp.Grpc.Server.Demo.dll&#34;</span> <span class="o">]</span>
+</span></span><span class="line"><span class="cl"> ---&gt; Running in a46efbabc7fc
+</span></span><span class="line"><span class="cl">Removing intermediate container a46efbabc7fc
+</span></span><span class="line"><span class="cl"> ---&gt; 321201373ecf
+</span></span><span class="line"><span class="cl">Successfully built 321201373ecf
+</span></span><span class="line"><span class="cl">Successfully tagged grpc-server-demo:latest
+</span></span><span class="line"><span class="cl">SECURITY WARNING: You are building a Docker image from Windows against a non-Windows Docker host. All files and directories added to build context will have <span class="s1">&#39;-rwxr-xr-x&#39;</span> permissions. It is recommended to double check and reset permissions <span class="k">for</span> sensitive files and directories
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>构建完镜像之后，我们运行该镜像：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker run -d -p 5000:5000 -p 5001:5001 --name<span class="o">=</span>grpc-server-demo grpc-server-demo
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="216-查看-consul">2.1.6 查看 Consul</h4>
+<p>来到 Consul 的 UI 界面查看效果：</p>
+<p><img src="/p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/5b2f47ccaff70.png"
+	width="1166"
+	height="376"
+	srcset="/p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/5b2f47ccaff70_hu8cb87ecce2e6ae144cf50debcc2454af_15423_480x0_resize_box_3.png 480w, /p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/5b2f47ccaff70_hu8cb87ecce2e6ae144cf50debcc2454af_15423_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="310"
+		data-flex-basis="744px"
+	
+></p>
+<p>可以看到已经成功注册，说明已经成功了。</p>
+<h3 id="22-grpc-客户端编写">2.2 Grpc 客户端编写</h3>
+<h4 id="221-abp-集成">2.2.1 Abp 集成</h4>
+<p>首先建立一个标准的 .Net Console 程序，引入 <code>Abp.Grpc.Client</code> 包，在我们的 Program 类当中编写如下代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Abp.Grpc.Client.Demo.RpcServices</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Abp.Grpc.Client.Utility</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">System</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">Abp.Grpc.Client.Demo</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">class</span> <span class="nc">Program</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">bootstrapper</span> <span class="p">=</span> <span class="n">AbpBootstrapper</span><span class="p">.</span><span class="n">Create</span><span class="p">&lt;</span><span class="n">AbpGrpcClientDemoModule</span><span class="p">&gt;())</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">bootstrapper</span><span class="p">.</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;Press enter to stop application...&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">                <span class="n">Console</span><span class="p">.</span><span class="n">ReadLine</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;Hello World!&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="222-建立项目启动模块">2.2.2 建立项目启动模块</h4>
+<p>然后我们新建一个 <code>AbpGrpcClientDemoModule</code> 类，该类一样是一个启动模块，用于配置连接信息：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Abp.Grpc.Client.Configuration</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Abp.Grpc.Client.Extensions</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Abp.Modules</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">Abp.Grpc.Client.Demo</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [DependsOn(typeof(AbpGrpcClientModule))]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">AbpGrpcClientDemoModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">PreInitialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Configuration</span><span class="p">.</span><span class="n">Modules</span><span class="p">.</span><span class="n">UseGrpcClient</span><span class="p">(</span><span class="k">new</span> <span class="n">ConsulRegistryConfiguration</span><span class="p">(</span><span class="s">&#34;10.0.75.1&#34;</span><span class="p">,</span> <span class="m">8500</span><span class="p">,</span> <span class="k">null</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>很简单，直接配置 Consul 注册的 IP 与端口号即可。</p>
+<h4 id="223-建立-rpc-接口定义">2.2.3 建立 RPC 接口定义</h4>
+<p>要调用我们 Server 提供的 RPC 端口的话，得编写一个接口定义，就是我们在 Server 项目里面写的那个，新建一个 <code>ITestGrpcService</code> 接口，内容如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">MagicOnion</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">Abp.Grpc.Client.Demo.RpcServices</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">interface</span> <span class="nc">ITestGrpcService</span> <span class="p">:</span> <span class="n">IService</span><span class="p">&lt;</span><span class="n">ITestGrpcService</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">UnaryResult</span><span class="p">&lt;</span><span class="kt">int</span><span class="p">&gt;</span> <span class="n">Sum</span><span class="p">(</span><span class="kt">int</span> <span class="n">x</span><span class="p">,</span> <span class="kt">int</span> <span class="n">y</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="224-调用-rpc-接口">2.2.4 调用 RPC 接口</h4>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Abp.Grpc.Client.Demo.RpcServices</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Abp.Grpc.Client.Utility</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">System</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">Abp.Grpc.Client.Demo</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">class</span> <span class="nc">Program</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">bootstrapper</span> <span class="p">=</span> <span class="n">AbpBootstrapper</span><span class="p">.</span><span class="n">Create</span><span class="p">&lt;</span><span class="n">AbpGrpcClientDemoModule</span><span class="p">&gt;())</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">bootstrapper</span><span class="p">.</span><span class="n">Initialize</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">                
+</span></span><span class="line"><span class="cl">                <span class="c1">// 调用接口</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">var</span> <span class="n">connectionUtility</span> <span class="p">=</span> <span class="n">bootstrapper</span><span class="p">.</span><span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IGRpcConnectionUtility</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="n">connectionUtility</span><span class="p">.</span><span class="n">GetRemoteService</span><span class="p">&lt;</span><span class="n">ITestGrpcService</span><span class="p">&gt;(</span><span class="s">&#34;TestGrpcService&#34;</span><span class="p">).</span><span class="n">Sum</span><span class="p">(</span><span class="m">10</span><span class="p">,</span> <span class="m">5</span><span class="p">).</span><span class="n">ResponseAsync</span><span class="p">.</span><span class="n">Result</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 展示结果</span>
+</span></span><span class="line"><span class="cl">                <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;Result:&#34;</span> <span class="p">+</span> <span class="n">result</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">                <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;Press enter to stop application...&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">                <span class="n">Console</span><span class="p">.</span><span class="n">ReadLine</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;Hello World!&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>调用接口的话，需要注入 <code>IGRpcConnectionUtility</code> 工具类，使用其 <code>GetRemoteService</code> 方法就可以调用你的远程方法，记住一定要传入有效的服务名称。</p>
+<h4 id="225-编写-dockerfile-文件">2.2.5 编写 Dockerfile 文件</h4>
+<p>一样的，我们新建一个 Dockerfile 文件，将我们的 client 也打包成镜像：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">FROM</span> <span class="n">microsoft</span><span class="p">/</span><span class="n">dotnet</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">WORKDIR</span> <span class="p">/</span><span class="n">app</span>
+</span></span><span class="line"><span class="cl"><span class="n">COPY</span> <span class="p">./</span> <span class="p">.</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">ENTRYPOINT</span> <span class="p">[</span> <span class="s">&#34;dotnet&#34;</span><span class="p">,</span><span class="s">&#34;Abp.Grpc.Client.Demo.dll&#34;</span> <span class="p">]</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>内容很简单，一样的复制到发布成功的文件夹，构建镜像：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker build -t grpc-client-demo .
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>构建之后运行：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">docker run grpc-client-demo
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>不出意外的话会看到如下输出：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">PS D:<span class="se">\P</span>roject<span class="se">\D</span>EMO<span class="se">\A</span>bp.Grpc.Client.Demo<span class="se">\A</span>bp.Grpc.Client.Demo<span class="se">\b</span>in<span class="se">\R</span>elease<span class="se">\n</span>etcoreapp2.1<span class="se">\p</span>ublish&gt; docker run grpc-client-demo
+</span></span><span class="line"><span class="cl">Result:15
+</span></span><span class="line"><span class="cl">Press enter to stop application...
+</span></span><span class="line"><span class="cl">Hello World!
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><img src="/p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/5b2f47e3942bd.png"
+	width="1029"
+	height="97"
+	srcset="/p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/5b2f47e3942bd_hu1f343f25337d879de5dae765ea64003c_2886_480x0_resize_box_3.png 480w, /p/implementing-magiconion-grpc-service-registration-and-discovery-based-on-consul/5b2f47e3942bd_hu1f343f25337d879de5dae765ea64003c_2886_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="1060"
+		data-flex-basis="2545px"
+	
+></p>
+<h2 id="3代码分析">3.代码分析</h2>
+<blockquote>
+<p>抛开 ABP 框架部分的代码，其实要实现服务注册很简单，核心就是 ConsulClient 这个类，下面就来分析一下 Abp.Grpc 库里面的代码。</p>
+</blockquote>
+<h3 id="31-注册服务">3.1 注册服务</h3>
+<p>注册服务其核心就在于 <code>ConsulClient.Agent.ServiceRegister()</code> 方法，通过传入一个构造好的 <code>AgentServiceRegistration</code> 对象就可以成功注册一个服务到 Consul。</p>
+<p>例如：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">_agentServiceRegistration</span> <span class="p">=</span> <span class="k">new</span> <span class="n">AgentServiceRegistration</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">ID</span> <span class="p">=</span> <span class="n">Guid</span><span class="p">.</span><span class="n">NewGuid</span><span class="p">().</span><span class="n">ToString</span><span class="p">(),</span><span class="c1">// 唯一ID</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Name</span> <span class="p">=</span> <span class="n">config</span><span class="p">.</span><span class="n">RegistrationServiceName</span><span class="p">,</span><span class="c1">// 注册的服务名称</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Address</span> <span class="p">=</span> <span class="n">currentIpAddress</span><span class="p">,</span> <span class="c1">// 服务提供者地址</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Port</span> <span class="p">=</span> <span class="n">config</span><span class="p">.</span><span class="n">GrpcBindPort</span><span class="p">,</span> <span class="c1">// 服务提供者端口</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Tags</span> <span class="p">=</span> <span class="k">new</span><span class="p">[]</span> <span class="p">{</span> <span class="s">&#34;Grpc&#34;</span><span class="p">,</span> <span class="s">$&#34;urlprefix-/{config.RegistrationServiceName}&#34;</span> <span class="p">},</span> <span class="c1">// 注册的服务标签</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Check</span> <span class="p">=</span> <span class="k">new</span> <span class="n">AgentServiceCheck</span> <span class="c1">// 健康检查</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">DeregisterCriticalServiceAfter</span> <span class="p">=</span> <span class="n">TimeSpan</span><span class="p">.</span><span class="n">FromSeconds</span><span class="p">(</span><span class="m">5</span><span class="p">),</span> <span class="c1">// 取消注册时间</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Interval</span> <span class="p">=</span> <span class="n">TimeSpan</span><span class="p">.</span><span class="n">FromSeconds</span><span class="p">(</span><span class="m">10</span><span class="p">),</span> <span class="c1">// 检查间隔</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Status</span> <span class="p">=</span> <span class="n">HealthStatus</span><span class="p">.</span><span class="n">Passing</span><span class="p">,</span> <span class="c1">// 检查通过的状态</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Timeout</span> <span class="p">=</span> <span class="n">TimeSpan</span><span class="p">.</span><span class="n">FromSeconds</span><span class="p">(</span><span class="m">5</span><span class="p">),</span> <span class="c1">// 超时时间</span>
+</span></span><span class="line"><span class="cl">		<span class="n">HTTP</span> <span class="p">=</span> <span class="s">$&#34;http://{currentIpAddress}:{config.ConsulHealthCheckPort}/health/check&#34;</span> <span class="c1">// 健康检查接口地址</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>构建成功后通过 <code>ConsulClient.Agent.ServiceRegister()</code> 方法即可注册到 Consul。</p>
+<p>取消注册则是通过 <code>ConsulClient.Agent.ServiceDeregister</code> 方法。</p>
+<h3 id="32-发现服务">3.2 发现服务</h3>
+<p>服务发现相较于服务注册简单得多，只需要通过 <code>ConsulClient.Catalog.Services</code> 遍历其结果即可获得所有节点，并且通过 LINQ 来筛选出指定 tag 的服务。</p>
+<h2 id="4其他相关参考资料">4.其他相关参考资料</h2>
+<p><a class="link" href="http://www.cnblogs.com/xishuai/p/ubuntu-docker-consul-fabio-aspnet-core.html"  target="_blank" rel="noopener"
+    >田园里的蟋蟀:Docker &amp; Consul &amp; Fabio &amp; ASP.NET Core 2.0 微服务跨平台实践)</a></p>
+<p><a class="link" href="https://www.cnblogs.com/edisonchou/p/9124985.html"  target="_blank" rel="noopener"
+    >Edison Chou:.NET Core微服务之基于Consul实现服务治理</a></p>
+<p><a class="link" href="https://cecilphillip.com/using-consul-for-service-discovery-with-asp-net-core/"  target="_blank" rel="noopener"
+    >Cecilphillip:Using Consul for Service Discovery with ASP.NET Core</a></p>
+<h2 id="5所使用到的代码">5.所使用到的代码</h2>
+<p>Abp.Grpc 库代码：https://github.com/GameBelial/Abp.Grpc</p>
+<p>DEMO 代码：</p>
+<p><a class="link" href="https://github.com/GameBelial/Abp.Grpc.Server.Demo"  target="_blank" rel="noopener"
+    >https://github.com/GameBelial/Abp.Grpc.Server.Demo</a></p>
+<p><a class="link" href="https://github.com/GameBelial/Abp.Grpc.Client.Demo"  target="_blank" rel="noopener"
+    >https://github.com/GameBelial/Abp.Grpc.Client.Demo</a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/consul/">Consul</a>
+        
+            <a href="/tags/grpc/">gRPC</a>
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/magiconion/">MagicOnion</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/how-abp-grpc-implements-user-session-state-transfer/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp &#43; Grpc 如何实现用户会话状态传递</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#0简介">0.简介</a>
+      <ol>
+        <li><a href="#01-什么是-consul">0.1 什么是 Consul</a></li>
+        <li><a href="#02-为什么要用-consul">0.2 为什么要用 Consul</a></li>
+      </ol>
+    </li>
+    <li><a href="#1准备工作">1.准备工作</a>
+      <ol>
+        <li><a href="#11-consul-集群安装与配置">1.1 Consul 集群安装与配置</a></li>
+      </ol>
+    </li>
+    <li><a href="#2客户端与服务端编写">2.客户端与服务端编写</a>
+      <ol>
+        <li><a href="#21-grpc-服务端编写">2.1 Grpc 服务端编写</a>
+          <ol>
+            <li><a href="#211-abp-集成">2.1.1 Abp 集成</a></li>
+            <li><a href="#212-建立项目启动模块">2.1.2 建立项目启动模块</a></li>
+            <li><a href="#213-编写健康检查控制器">2.1.3 编写健康检查控制器</a></li>
+            <li><a href="#214-编写-rpc-服务">2.1.4 编写 RPC 服务</a></li>
+            <li><a href="#215-编写-dockerfile-文件">2.1.5 编写 Dockerfile 文件</a></li>
+            <li><a href="#216-查看-consul">2.1.6 查看 Consul</a></li>
+          </ol>
+        </li>
+        <li><a href="#22-grpc-客户端编写">2.2 Grpc 客户端编写</a>
+          <ol>
+            <li><a href="#221-abp-集成">2.2.1 Abp 集成</a></li>
+            <li><a href="#222-建立项目启动模块">2.2.2 建立项目启动模块</a></li>
+            <li><a href="#223-建立-rpc-接口定义">2.2.3 建立 RPC 接口定义</a></li>
+            <li><a href="#224-调用-rpc-接口">2.2.4 调用 RPC 接口</a></li>
+            <li><a href="#225-编写-dockerfile-文件">2.2.5 编写 Dockerfile 文件</a></li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+    <li><a href="#3代码分析">3.代码分析</a>
+      <ol>
+        <li><a href="#31-注册服务">3.1 注册服务</a></li>
+        <li><a href="#32-发现服务">3.2 发现服务</a></li>
+      </ol>
+    </li>
+    <li><a href="#4其他相关参考资料">4.其他相关参考资料</a></li>
+    <li><a href="#5所使用到的代码">5.所使用到的代码</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

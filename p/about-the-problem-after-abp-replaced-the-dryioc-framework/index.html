@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='在之前有些过一篇文章 《使用 DryIoc 替换 Abp 的 DI 框架》 ，在该文章里面我尝试通过以替换 IocManager 内部的 IContainer 来实现使用我们自己的 DI 框架。替换了之后我们基本上是可以正常使用了，不过仍然还存在有以下两个比较显著的问题。
+拦截器功能无法正常使用，需要重复递归查找真实类型，消耗性能。 针对于通过 IServiceCollection.AddScoped() 方法添加的 Scoped 类型的解析存在问题。 下面我们就来针对于上述问题进行问题的分析与解决。
+1. 问题 1 1.1 现象与原因 首先，来看一下问题 1 ，针对于问题 1 我在 Github 上面向作者请教了一下，造成嵌套注册的原因很简单。因为之所以我们解析的时候，原来的注册类型会解析出来代理类。
+关于上述原因可以参考 DryIoc 的 Github 问题 #50 。
+这是因为 DryIoc 是通过替换了原有注册类型的实现，而如果按照之前我们那篇文章的方法，每次注册事件被触发的时候就会针对注册类型嵌套一层代理类。这样如果某个类型有多个拦截器，这样就会造成一个类型嵌套的问题，在外层的拦截器被拦截到的时候无法获取到当前代理的真实类型。
+'><title>关于 Abp 替换了 DryIoc 框架之后的问题</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/about-the-problem-after-abp-replaced-the-dryioc-framework/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='关于 Abp 替换了 DryIoc 框架之后的问题'>
+<meta property='og:description' content='在之前有些过一篇文章 《使用 DryIoc 替换 Abp 的 DI 框架》 ，在该文章里面我尝试通过以替换 IocManager 内部的 IContainer 来实现使用我们自己的 DI 框架。替换了之后我们基本上是可以正常使用了，不过仍然还存在有以下两个比较显著的问题。
+拦截器功能无法正常使用，需要重复递归查找真实类型，消耗性能。 针对于通过 IServiceCollection.AddScoped() 方法添加的 Scoped 类型的解析存在问题。 下面我们就来针对于上述问题进行问题的分析与解决。
+1. 问题 1 1.1 现象与原因 首先，来看一下问题 1 ，针对于问题 1 我在 Github 上面向作者请教了一下，造成嵌套注册的原因很简单。因为之所以我们解析的时候，原来的注册类型会解析出来代理类。
+关于上述原因可以参考 DryIoc 的 Github 问题 #50 。
+这是因为 DryIoc 是通过替换了原有注册类型的实现，而如果按照之前我们那篇文章的方法，每次注册事件被触发的时候就会针对注册类型嵌套一层代理类。这样如果某个类型有多个拦截器，这样就会造成一个类型嵌套的问题，在外层的拦截器被拦截到的时候无法获取到当前代理的真实类型。
+'>
+<meta property='og:url' content='https://real-zony.github.io/p/about-the-problem-after-abp-replaced-the-dryioc-framework/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='DryIoC' /><meta property='article:tag' content='依赖注入' /><meta property='article:published_time' content='2018-12-09T13:55:56&#43;00:00'/><meta property='article:modified_time' content='2018-12-09T13:55:56&#43;00:00'/>
+<meta name="twitter:title" content="关于 Abp 替换了 DryIoc 框架之后的问题">
+<meta name="twitter:description" content="在之前有些过一篇文章 《使用 DryIoc 替换 Abp 的 DI 框架》 ，在该文章里面我尝试通过以替换 IocManager 内部的 IContainer 来实现使用我们自己的 DI 框架。替换了之后我们基本上是可以正常使用了，不过仍然还存在有以下两个比较显著的问题。
+拦截器功能无法正常使用，需要重复递归查找真实类型，消耗性能。 针对于通过 IServiceCollection.AddScoped() 方法添加的 Scoped 类型的解析存在问题。 下面我们就来针对于上述问题进行问题的分析与解决。
+1. 问题 1 1.1 现象与原因 首先，来看一下问题 1 ，针对于问题 1 我在 Github 上面向作者请教了一下，造成嵌套注册的原因很简单。因为之所以我们解析的时候，原来的注册类型会解析出来代理类。
+关于上述原因可以参考 DryIoc 的 Github 问题 #50 。
+这是因为 DryIoc 是通过替换了原有注册类型的实现，而如果按照之前我们那篇文章的方法，每次注册事件被触发的时候就会针对注册类型嵌套一层代理类。这样如果某个类型有多个拦截器，这样就会造成一个类型嵌套的问题，在外层的拦截器被拦截到的时候无法获取到当前代理的真实类型。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/about-the-problem-after-abp-replaced-the-dryioc-framework/">关于 Abp 替换了 DryIoc 框架之后的问题</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Dec 09, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 6 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>在之前有些过一篇文章 <a class="link" href="https://blog.myzony.com/use-dryioc-replace-abp-di-framework/"  target="_blank" rel="noopener"
+    >《使用 DryIoc 替换 Abp 的 DI 框架》</a> ，在该文章里面我尝试通过以替换 <code>IocManager</code> 内部的 <code>IContainer</code> 来实现使用我们自己的 DI 框架。替换了之后我们基本上是可以正常使用了，不过仍然还存在有以下两个比较显著的问题。</p>
+<ol>
+<li>拦截器功能无法正常使用，需要重复递归查找真实类型，消耗性能。</li>
+<li>针对于通过 <code>IServiceCollection.AddScoped()</code> 方法添加的 Scoped 类型的解析存在问题。</li>
+</ol>
+<p>下面我们就来针对于上述问题进行问题的分析与解决。</p>
+<h3 id="1-问题-1">1. 问题 1</h3>
+<h4 id="11-现象与原因">1.1 现象与原因</h4>
+<p>首先，来看一下问题 1 ，针对于问题 1 我在 Github 上面向作者请教了一下，造成嵌套注册的原因很简单。因为之所以我们解析的时候，原来的注册类型会解析出来代理类。</p>
+<blockquote>
+<p>关于上述原因可以参考 DryIoc 的 Github 问题 <a class="link" href="https://github.com/dadhi/DryIoc/issues/50"  target="_blank" rel="noopener"
+    >#50</a> 。</p>
+</blockquote>
+<p>这是因为 DryIoc 是通过替换了原有注册类型的实现，而如果按照之前我们那篇文章的方法，每次注册事件被触发的时候就会针对注册类型嵌套一层代理类。这样如果某个类型有多个拦截器，这样就会造成一个类型嵌套的问题，在外层的拦截器被拦截到的时候无法获取到当前代理的真实类型。</p>
+<h4 id="12-思路与解决方法">1.2 思路与解决方法</h4>
+<p>解决思路也比较简单，就是我们在注册某个类型的时候，触发了拦截器注入事件。在这个时候，我们并不真正的执行代理类的一个操作。而是将需要代理的类型与它的拦截器类型通过字典存储起来，然后在类型完全注册完成之后，通过遍历这个字典，我们来一次性地为每一个注册类型进行拦截器代理。</p>
+<p>思路清晰了，那么我们就可以编写代码来进行实现了，首先我们先为 IocManager 增加一个内部的字典，用于存储注册类-拦截器。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">IocManager</span> <span class="p">:</span> <span class="n">IIocManager</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">IConventionalDependencyRegistrar</span><span class="p">&gt;</span> <span class="n">_conventionalRegistrars</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">ConcurrentDictionary</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">,</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;&gt;</span> <span class="n">_waitRegisterInterceptor</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">IocManager</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_conventionalRegistrars</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">IConventionalDependencyRegistrar</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_waitRegisterInterceptor</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ConcurrentDictionary</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">,</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;&gt;();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>之后我们需要开放两个方法用于为指定的注册类型添加对应的拦截器，而不是在类型注册事件被触发的时候直接生成代理类。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IIocRegistrar</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 为指定的类型添加拦截器</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;typeparam name=&#34;TService&#34;&gt;注册类型&lt;/typeparam&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;typeparam name=&#34;TInterceptor&#34;&gt;拦截器类型&lt;/typeparam&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">void</span> <span class="n">AddInterceptor</span><span class="p">&lt;</span><span class="n">TService</span><span class="p">,</span> <span class="n">TInterceptor</span><span class="p">&gt;()</span> <span class="k">where</span> <span class="n">TInterceptor</span> <span class="p">:</span> <span class="n">IInterceptor</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 为指定的类型添加拦截器</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;serviceType&#34;&gt;注册类型&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;interceptor&#34;&gt;拦截器类型&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">void</span> <span class="n">AddInterceptor</span><span class="p">(</span><span class="n">Type</span> <span class="n">serviceType</span><span class="p">,</span><span class="n">Type</span> <span class="n">interceptor</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">IocManager</span> <span class="p">:</span> <span class="n">IIocManager</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;inheritdoc /&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">AddInterceptor</span><span class="p">&lt;</span><span class="n">TService</span><span class="p">,</span> <span class="n">TInterceptor</span><span class="p">&gt;()</span> <span class="k">where</span> <span class="n">TInterceptor</span> <span class="p">:</span> <span class="n">IInterceptor</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">AddInterceptor</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">TService</span><span class="p">),</span><span class="k">typeof</span><span class="p">(</span><span class="n">TInterceptor</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;inheritdoc /&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">AddInterceptor</span><span class="p">(</span><span class="n">Type</span> <span class="n">serviceType</span><span class="p">,</span> <span class="n">Type</span> <span class="n">interceptorType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">_waitRegisterInterceptor</span><span class="p">.</span><span class="n">ContainsKey</span><span class="p">(</span><span class="n">serviceType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="kt">var</span> <span class="n">interceptors</span> <span class="p">=</span> <span class="n">_waitRegisterInterceptor</span><span class="p">[</span><span class="n">serviceType</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">interceptors</span><span class="p">.</span><span class="n">Contains</span><span class="p">(</span><span class="n">interceptorType</span><span class="p">))</span> <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			
+</span></span><span class="line"><span class="cl">			<span class="n">_waitRegisterInterceptor</span><span class="p">[</span><span class="n">serviceType</span><span class="p">].</span><span class="n">Add</span><span class="p">(</span><span class="n">interceptorType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="k">else</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">_waitRegisterInterceptor</span><span class="p">.</span><span class="n">TryAdd</span><span class="p">(</span><span class="n">serviceType</span><span class="p">,</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;</span> <span class="p">{</span><span class="n">interceptorType</span><span class="p">});</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>然后针对所有拦截器的监听事件进行替换，例如工作单元拦截器：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">internal</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">UnitOfWorkRegistrar</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 注册器初始化方法</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;iocManager&#34;&gt;IOC 管理器&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">static</span> <span class="k">void</span> <span class="n">Initialize</span><span class="p">(</span><span class="n">IIocManager</span> <span class="n">iocManager</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 事件监听处理</span>
+</span></span><span class="line"><span class="cl">		<span class="n">iocManager</span><span class="p">.</span><span class="n">RegisterTypeEventHandler</span> <span class="p">+=</span> <span class="p">(</span><span class="n">manager</span><span class="p">,</span> <span class="n">type</span><span class="p">,</span> <span class="n">implementationType</span><span class="p">)</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">HandleTypesWithUnitOfWorkAttribute</span><span class="p">(</span><span class="n">iocManager</span><span class="p">,</span><span class="n">type</span><span class="p">,</span><span class="n">implementationType</span><span class="p">.</span><span class="n">GetTypeInfo</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">			<span class="n">HandleConventionalUnitOfWorkTypes</span><span class="p">(</span><span class="n">iocManager</span><span class="p">,</span><span class="n">type</span><span class="p">,</span> <span class="n">implementationType</span><span class="p">.</span><span class="n">GetTypeInfo</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">		<span class="p">};</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="c1">// 校验当前注册类型是否带有 UnitOfWork 特性，如果有则注入拦截器</span>
+</span></span><span class="line"><span class="cl">		<span class="k">private</span> <span class="k">static</span> <span class="k">void</span> <span class="n">HandleTypesWithUnitOfWorkAttribute</span><span class="p">(</span><span class="n">IIocManager</span> <span class="n">iocManager</span><span class="p">,</span><span class="n">Type</span> <span class="n">serviceType</span><span class="p">,</span><span class="n">TypeInfo</span> <span class="n">implementationType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">IsUnitOfWorkType</span><span class="p">(</span><span class="n">implementationType</span><span class="p">)</span> <span class="p">||</span> <span class="n">AnyMethodHasUnitOfWork</span><span class="p">(</span><span class="n">implementationType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 添加拦截器</span>
+</span></span><span class="line"><span class="cl">                <span class="n">iocManager</span><span class="p">.</span><span class="n">AddInterceptor</span><span class="p">(</span><span class="n">serviceType</span><span class="p">,</span><span class="k">typeof</span><span class="p">(</span><span class="n">UnitOfWorkInterceptor</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="c1">// 处理特定类型的工作单元拦截器</span>
+</span></span><span class="line"><span class="cl">		<span class="k">private</span> <span class="k">static</span> <span class="k">void</span> <span class="n">HandleConventionalUnitOfWorkTypes</span><span class="p">(</span><span class="n">IIocManager</span> <span class="n">iocManager</span><span class="p">,</span><span class="n">Type</span> <span class="n">serviceType</span><span class="p">,</span><span class="n">TypeInfo</span> <span class="n">implementationType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">uowOptions</span><span class="p">.</span><span class="n">IsConventionalUowClass</span><span class="p">(</span><span class="n">implementationType</span><span class="p">.</span><span class="n">AsType</span><span class="p">()))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 添加拦截器</span>
+</span></span><span class="line"><span class="cl">                <span class="n">iocManager</span><span class="p">.</span><span class="n">AddInterceptor</span><span class="p">(</span><span class="n">serviceType</span><span class="p">,</span><span class="k">typeof</span><span class="p">(</span><span class="n">UnitOfWorkInterceptor</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>处理完成之后，我们需要在 <code>RegisterAssemblyByConvention()</code> 方法的内部真正地执行拦截器与代理类的生成工作，逻辑很简单，遍历之前的 _waitRegisterInterceptor 字典，依次使用 ProxyUtils 与 DryIoc 进行代理类的生成与绑定。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">IocManager</span> <span class="p">:</span> <span class="n">IIocManager</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 使用已经存在的规约注册器来注册整个程序集内的所有类型。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;assembly&#34;&gt;等待注册的程序集&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;config&#34;&gt;附加的配置项参数&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">RegisterAssemblyByConvention</span><span class="p">(</span><span class="n">Assembly</span> <span class="n">assembly</span><span class="p">,</span> <span class="n">ConventionalRegistrationConfig</span> <span class="n">config</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">context</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ConventionalRegistrationContext</span><span class="p">(</span><span class="n">assembly</span><span class="p">,</span> <span class="k">this</span><span class="p">,</span> <span class="n">config</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">registerer</span> <span class="k">in</span> <span class="n">_conventionalRegistrars</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">registerer</span><span class="p">.</span><span class="n">RegisterAssembly</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">config</span><span class="p">.</span><span class="n">InstallInstallers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">this</span><span class="p">.</span><span class="n">Install</span><span class="p">(</span><span class="n">assembly</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="c1">// 这里使用 TPL 并行库的原因是因为存在大量仓储类型与应用服务需要注册，应最大限度利用 CPU 来进行操作</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Parallel</span><span class="p">.</span><span class="n">ForEach</span><span class="p">(</span><span class="n">_waitRegisterInterceptor</span><span class="p">,</span> <span class="n">keyValue</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="kt">var</span> <span class="n">proxyBuilder</span> <span class="p">=</span> <span class="k">new</span> <span class="n">DefaultProxyBuilder</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="n">Type</span> <span class="n">proxyType</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">keyValue</span><span class="p">.</span><span class="n">Key</span><span class="p">.</span><span class="n">IsInterface</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="n">proxyType</span> <span class="p">=</span> <span class="n">proxyBuilder</span><span class="p">.</span><span class="n">CreateInterfaceProxyTypeWithTargetInterface</span><span class="p">(</span><span class="n">keyValue</span><span class="p">.</span><span class="n">Key</span><span class="p">,</span> <span class="n">ArrayTools</span><span class="p">.</span><span class="n">Empty</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;(),</span> <span class="n">ProxyGenerationOptions</span><span class="p">.</span><span class="n">Default</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">keyValue</span><span class="p">.</span><span class="n">Key</span><span class="p">.</span><span class="n">IsClass</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">				<span class="n">proxyType</span> <span class="p">=</span> <span class="n">proxyBuilder</span><span class="p">.</span><span class="n">CreateClassProxyTypeWithTarget</span><span class="p">(</span><span class="n">keyValue</span><span class="p">.</span><span class="n">Key</span><span class="p">,</span><span class="n">ArrayTools</span><span class="p">.</span><span class="n">Empty</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;(),</span><span class="n">ProxyGenerationOptions</span><span class="p">.</span><span class="n">Default</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">else</span>
+</span></span><span class="line"><span class="cl">				<span class="k">throw</span> <span class="k">new</span> <span class="n">ArgumentException</span><span class="p">(</span><span class="s">$&#34;类型 {keyValue.Value} 不支持进行拦截器服务集成。&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="kt">var</span> <span class="n">decoratorSetup</span> <span class="p">=</span> <span class="n">Setup</span><span class="p">.</span><span class="n">DecoratorWith</span><span class="p">(</span><span class="n">useDecorateeReuse</span><span class="p">:</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			
+</span></span><span class="line"><span class="cl">			<span class="c1">// 使用 ProxyBuilder 创建好的代理类替换原有类型的实现</span>
+</span></span><span class="line"><span class="cl">			<span class="n">IocContainer</span><span class="p">.</span><span class="n">Register</span><span class="p">(</span><span class="n">keyValue</span><span class="p">.</span><span class="n">Key</span><span class="p">,</span><span class="n">proxyType</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">				<span class="n">made</span><span class="p">:</span> <span class="n">Made</span><span class="p">.</span><span class="n">Of</span><span class="p">(</span><span class="n">type</span><span class="p">=&gt;</span><span class="n">type</span><span class="p">.</span><span class="n">GetConstructors</span><span class="p">().</span><span class="n">SingleOrDefault</span><span class="p">(</span><span class="n">c</span><span class="p">=&gt;</span><span class="n">c</span><span class="p">.</span><span class="n">GetParameters</span><span class="p">().</span><span class="n">Length</span> <span class="p">!=</span> <span class="m">0</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">					<span class="n">Parameters</span><span class="p">.</span><span class="n">Of</span><span class="p">.</span><span class="n">Type</span><span class="p">&lt;</span><span class="n">IInterceptor</span><span class="p">[]&gt;(</span><span class="n">request</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">					<span class="p">{</span>
+</span></span><span class="line"><span class="cl">						<span class="kt">var</span> <span class="n">objects</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="kt">object</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">						<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">interceptor</span> <span class="k">in</span> <span class="n">keyValue</span><span class="p">.</span><span class="n">Value</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">						<span class="p">{</span>
+</span></span><span class="line"><span class="cl">							<span class="n">objects</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">request</span><span class="p">.</span><span class="n">Container</span><span class="p">.</span><span class="n">Resolve</span><span class="p">(</span><span class="n">interceptor</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">						<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">						<span class="k">return</span> <span class="n">objects</span><span class="p">.</span><span class="n">Cast</span><span class="p">&lt;</span><span class="n">IInterceptor</span><span class="p">&gt;().</span><span class="n">ToArray</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">					<span class="p">}),</span>
+</span></span><span class="line"><span class="cl">					<span class="n">PropertiesAndFields</span><span class="p">.</span><span class="n">Auto</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">				<span class="n">setup</span><span class="p">:</span> <span class="n">decoratorSetup</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">});</span>
+</span></span><span class="line"><span class="cl">		
+</span></span><span class="line"><span class="cl">		<span class="n">_waitRegisterInterceptor</span><span class="p">.</span><span class="n">Clear</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这样的话，在调用控制器或者应用服务方法的时候能够正确的获取到真实的代理类型。</p>
+<p>图：</p>
+<p><img src="/p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544362315050.png"
+	width="798"
+	height="422"
+	srcset="/p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544362315050_hucfa79ecb4bd4e73ed89499840db70dce_62933_480x0_resize_box_3.png 480w, /p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544362315050_hucfa79ecb4bd4e73ed89499840db70dce_62933_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1544362315050"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="189"
+		data-flex-basis="453px"
+	
+></p>
+<p>可以看到拦截器不像原来那样是多个层级的情况，而是直接注入到代理类当中。</p>
+<p><img src="/p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544362533451.png"
+	width="1278"
+	height="181"
+	srcset="/p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544362533451_hu0148deb60bd7c790574a2ceee590acfe_26287_480x0_resize_box_3.png 480w, /p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544362533451_hu0148deb60bd7c790574a2ceee590acfe_26287_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1544362533451"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="706"
+		data-flex-basis="1694px"
+	
+></p>
+<p>通过 <code>invocation</code> 参数，我们也可以直接获取到被代理对象的真实类型。</p>
+<h3 id="2-问题-2">2. 问题 2</h3>
+<h4 id="21-现象与原因">2.1 现象与原因</h4>
+<p>问题 2 则是由于 DryIoc 的 Adapter 针对于 Scoped 生命周期对象的处理不同而引起的，比较典型的情况就是在 <code>Startup</code> 类当中使用 <code>IServiceCollection.AddDbContxt&lt;TDbContext&gt;()</code> 方法注入了一个 DbContext 类型，因为其方法内部默认是使用 <code>ServiceLifeTime.Scoped</code> 周期来进行注入的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="n">IServiceCollection</span> <span class="n">AddDbContext</span><span class="p">&lt;</span><span class="n">TContextService</span><span class="p">,</span> <span class="n">TContextImplementation</span><span class="p">&gt;(</span>
+</span></span><span class="line"><span class="cl"><span class="na">	[NotNull]</span> <span class="k">this</span> <span class="n">IServiceCollection</span> <span class="n">serviceCollection</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"><span class="na">	[CanBeNull]</span> <span class="n">Action</span><span class="p">&lt;</span><span class="n">DbContextOptionsBuilder</span><span class="p">&gt;</span> <span class="n">optionsAction</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">ServiceLifetime</span> <span class="n">contextLifetime</span> <span class="p">=</span> <span class="n">ServiceLifetime</span><span class="p">.</span><span class="n">Scoped</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">ServiceLifetime</span> <span class="n">optionsLifetime</span> <span class="p">=</span> <span class="n">ServiceLifetime</span><span class="p">.</span><span class="n">Scoped</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">where</span> <span class="n">TContextImplementation</span> <span class="p">:</span> <span class="n">DbContext</span><span class="p">,</span> <span class="n">TContextService</span>
+</span></span><span class="line"><span class="cl">	<span class="p">=&gt;</span> <span class="n">AddDbContext</span><span class="p">&lt;</span><span class="n">TContextService</span><span class="p">,</span> <span class="n">TContextImplementation</span><span class="p">&gt;(</span>
+</span></span><span class="line"><span class="cl">		<span class="n">serviceCollection</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="n">optionsAction</span> <span class="p">==</span> <span class="k">null</span>
+</span></span><span class="line"><span class="cl">			<span class="p">?</span> <span class="p">(</span><span class="n">Action</span><span class="p">&lt;</span><span class="n">IServiceProvider</span><span class="p">,</span> <span class="n">DbContextOptionsBuilder</span><span class="p">&gt;)</span><span class="k">null</span>
+</span></span><span class="line"><span class="cl">			<span class="p">:</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="n">optionsAction</span><span class="p">.</span><span class="n">Invoke</span><span class="p">(</span><span class="n">b</span><span class="p">),</span> <span class="n">contextLifetime</span><span class="p">,</span> <span class="n">optionsLifetime</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>按照正常的逻辑，一个 Scoped 对象的生命周期应该是与一个请求一致的，当请求结束之后该对象被释放，而且在该请求的生命周期范围内，通过 Ioc 容器解析出来的 Scoped 对象应该是同一个。如果有新的请求，则会创建一个新的 Scoped 对象。</p>
+<p>但是使用 DryIoc 替换了原有 Abp 容器之后，现在如果在一个控制器方法当中解析一个 Scoped 周期的对象，不论是几次请求获得的都是同一个对象。因为这种现象的存在，在 Abp 的 <code>UnitOfWorkBase</code> 当中完成一次数据库查询操作之后，会调用 <code>DbContext</code> 的 <code>Dispose()</code> 方法释放掉 <code>DbContext</code>。这样的话，在第二次请求因为获取的是同一个 DbContext，这样的话就会抛出对象已经被关闭的异常信息。</p>
+<p>除了开发人员自己注入的 Scoped 对象，在 Abp 的 Zero 模块内部重写了 Microsoft.Identity 相关组件，而这些组件也是通过 <code>IServiceCollection.AddScoped()</code> 方法与 <code>IServiceCollection.TryAddScoped()</code> 进行注入的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="n">AbpIdentityBuilder</span> <span class="n">AddAbpIdentity</span><span class="p">&lt;</span><span class="n">TTenant</span><span class="p">,</span> <span class="n">TUser</span><span class="p">,</span> <span class="n">TRole</span><span class="p">&gt;(</span><span class="k">this</span> <span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> <span class="n">Action</span><span class="p">&lt;</span><span class="n">IdentityOptions</span><span class="p">&gt;</span> <span class="n">setupAction</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="k">where</span> <span class="n">TTenant</span> <span class="p">:</span> <span class="n">AbpTenant</span><span class="p">&lt;</span><span class="n">TUser</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">where</span> <span class="n">TRole</span> <span class="p">:</span> <span class="n">AbpRole</span><span class="p">&lt;</span><span class="n">TUser</span><span class="p">&gt;,</span> <span class="k">new</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">where</span> <span class="n">TUser</span> <span class="p">:</span> <span class="n">AbpUser</span><span class="p">&lt;</span><span class="n">TUser</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">AddSingleton</span><span class="p">&lt;</span><span class="n">IAbpZeroEntityTypes</span><span class="p">&gt;(</span><span class="k">new</span> <span class="n">AbpZeroEntityTypes</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Tenant</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">TTenant</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Role</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">TRole</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">		<span class="n">User</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">TUser</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">});</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">//AbpTenantManager</span>
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">TryAddScoped</span><span class="p">&lt;</span><span class="n">AbpTenantManager</span><span class="p">&lt;</span><span class="n">TTenant</span><span class="p">,</span> <span class="n">TUser</span><span class="p">&gt;&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">//AbpEditionManager</span>
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">TryAddScoped</span><span class="p">&lt;</span><span class="n">AbpEditionManager</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">//AbpRoleManager</span>
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">TryAddScoped</span><span class="p">&lt;</span><span class="n">AbpRoleManager</span><span class="p">&lt;</span><span class="n">TRole</span><span class="p">,</span> <span class="n">TUser</span><span class="p">&gt;&gt;();</span>
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">TryAddScoped</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">RoleManager</span><span class="p">&lt;</span><span class="n">TRole</span><span class="p">&gt;),</span> <span class="n">provider</span> <span class="p">=&gt;</span> <span class="n">provider</span><span class="p">.</span><span class="n">GetService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpRoleManager</span><span class="p">&lt;</span><span class="n">TRole</span><span class="p">,</span> <span class="n">TUser</span><span class="p">&gt;)));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">//AbpUserManager</span>
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">TryAddScoped</span><span class="p">&lt;</span><span class="n">AbpUserManager</span><span class="p">&lt;</span><span class="n">TRole</span><span class="p">,</span> <span class="n">TUser</span><span class="p">&gt;&gt;();</span>
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">TryAddScoped</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">UserManager</span><span class="p">&lt;</span><span class="n">TUser</span><span class="p">&gt;),</span> <span class="n">provider</span> <span class="p">=&gt;</span> <span class="n">provider</span><span class="p">.</span><span class="n">GetService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpUserManager</span><span class="p">&lt;</span><span class="n">TRole</span><span class="p">,</span> <span class="n">TUser</span><span class="p">&gt;)));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">//SignInManager</span>
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">TryAddScoped</span><span class="p">&lt;</span><span class="n">AbpSignInManager</span><span class="p">&lt;</span><span class="n">TTenant</span><span class="p">,</span> <span class="n">TRole</span><span class="p">,</span> <span class="n">TUser</span><span class="p">&gt;&gt;();</span>
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">TryAddScoped</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">SignInManager</span><span class="p">&lt;</span><span class="n">TUser</span><span class="p">&gt;),</span> <span class="n">provider</span> <span class="p">=&gt;</span> <span class="n">provider</span><span class="p">.</span><span class="n">GetService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpSignInManager</span><span class="p">&lt;</span><span class="n">TTenant</span><span class="p">,</span> <span class="n">TRole</span><span class="p">,</span> <span class="n">TUser</span><span class="p">&gt;)));</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他注入代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="k">new</span> <span class="n">AbpIdentityBuilder</span><span class="p">(</span><span class="n">services</span><span class="p">.</span><span class="n">AddIdentity</span><span class="p">&lt;</span><span class="n">TUser</span><span class="p">,</span> <span class="n">TRole</span><span class="p">&gt;(</span><span class="n">setupAction</span><span class="p">),</span> <span class="k">typeof</span><span class="p">(</span><span class="n">TTenant</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>以上代码与 DbContext 产生的异常现象一致，都会导致每次请求获取的都是同一个对象，而 Abp 在底层会在每次请求结束后进行释放，这样也会造成后续请求访问到已经被释放的对象。</p>
+<p>上面这些仅仅是替换 DryIoc 框架后产生的异常现象，具体的原因在于 DryIoc 官方编写的 DryIoc.Microsoft.DependencyInjection 扩展。这是针对于 ASP.NET Core 自带的 DI 框架进行替换的 Adapter 适配器，大体原理就是通过实现 <code>IServiceScopeFactory</code> 接口与 <code>IServiceScope</code> 接口替换掉原有 DI 框架的实现。以实现接管容器注册与生命周期的管理。</p>
+<p>这里的重点就是 <code>IServiceScopeFactory</code> 接口，通过名字我们可以得知这是一个工厂，他拥有一个 <code>CreateScope()</code> 方法以创建一个 Scoped 范围。在 MVC 处理请求的时候，通过 <code>CreateScope()</code> 方法获得一个子容器，请求结束之后调用子容器的 <code>Dispose()</code> 方法进行释放。</p>
+<p>伪代码大概如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">Request</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">factory</span> <span class="p">=</span> <span class="n">serviceProvider</span><span class="p">.</span><span class="n">GetService</span><span class="p">&lt;</span><span class="n">IServiceScopeFactory</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">using</span><span class="p">(</span><span class="kt">var</span> <span class="n">scoped</span> <span class="p">=</span> <span class="n">factory</span><span class="p">.</span><span class="n">CreateScope</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">scoped</span><span class="p">.</span><span class="n">Resove</span><span class="p">&lt;</span><span class="n">HomeController</span><span class="p">&gt;().</span><span class="n">Index</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">scoped</span><span class="p">.</span><span class="n">Resove</span><span class="p">&lt;</span><span class="n">TestDbContext</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">HomeController</span> <span class="p">:</span> <span class="n">Controller</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">HomeController</span><span class="p">(</span><span class="n">TestDbContext</span> <span class="n">t1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="c1">// 这里的 t1 在 scoped 子容器释放之后会被释放</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IActionResult</span> <span class="n">Index</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="kt">var</span> <span class="n">t2</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Instance</span><span class="p">.</span><span class="n">Resove</span><span class="p">&lt;</span><span class="n">TestDbContext</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到它通过 using 语句块包裹了 <code>CreateScope()</code> 方法，在 <code>HomeController</code> 解析的时候，其内部的 t1 对象是通过子容器进行解析创建出来的，那么它的生命周期跟随子容器的销毁而被销毁。子容器销毁的时间则是在一次 Http 请求结束之后，那么我们每次请求的时候 t1 的值都会不一样。</p>
+<p>而 t2 则有点特殊，因为我们重写 <code>IocManager</code> 类的时候就已经知道这个 <code>Instance</code> 是一个静态实例，而我们在这里通过 Instance 进行解析出来的对象是从这个静态实例的容器当中解析的。这个静态容器是不会随着请求的结束而被释放，因此每次请求得到的 t2 值都是一样的。</p>
+<h4 id="21-思路与解决方法">2.1 思路与解决方法</h4>
+<p>思路比较简单，只需要在 <code>IocManager</code> 的 <code>Resolve()</code> 方法进行解析的时候，通过静态容器 <code>IContainer</code> 同样创建一个子容器即可。</p>
+<p>更改原来的解析方法 <code>Resolve()</code> ，在解析的时候通过 <code>IocContainer</code> 的 <code>OpenScope()</code> 创建一个新的子容器，然后通过这个子容器进行实例解析。下面是针对 <code>TestApplicationService</code> 的 <code>GetScopedObject()</code> 方法进行测试的结果。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">子容器：
+</span></span><span class="line"><span class="cl">351e8576-6f70-4c9b-8cda-02d46a22455d
+</span></span><span class="line"><span class="cl">a4af414b-103e-4972-b7e2-8b8b067c1ce1
+</span></span><span class="line"><span class="cl">04bd79d5-33a2-4e2c-87ae-e72f345c4232
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Ioc 静态容器：
+</span></span><span class="line"><span class="cl">2e5dfd1f-36d9-4d62-94cd-c6cc66e316ef
+</span></span><span class="line"><span class="cl">2e5dfd1f-36d9-4d62-94cd-c6cc66e316ef
+</span></span><span class="line"><span class="cl">2e5dfd1f-36d9-4d62-94cd-c6cc66e316ef
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>虽然直接通过 <code>OpenScope()</code> 来构建子容器是可以解决 Scope 对象每次请求都为一个对象的 BUG，但是解析出来的子容器没有调用 <code>Dispose()</code> 方法进行释放。</p>
+<p>目前有一个临时的解决思路，即在 <code>IIocManager</code> 增加一个属性字段 <code>ChildContainer</code> ，用于存储每次请求创建的临时 Scope 对象，之后 IocManager 内部优先使用 ChildContainer 进行对象解析。</p>
+<p>首先我们来到 <code>IIocManager</code> 接口，为其添加一个 ChildContainer 只读属性与 <code>InitializeChildContainer()</code> 的初始化方法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IIocManager</span> <span class="p">:</span> <span class="n">IIocRegistrar</span><span class="p">,</span> <span class="n">IIocResolver</span><span class="p">,</span> <span class="n">IDisposable</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 子容器</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;remarks&gt;本属性的值一般是由 DryIocAdapter 当中创建，而不应该在其他地方进行赋值。&lt;/remarks&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IResolverContext</span> <span class="n">ChildContainer</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 初始化子容器</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;param name=&#34;container&#34;&gt;用于初始化 IocManager 内部的子容器&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">void</span> <span class="n">InitializeChildContainer</span><span class="p">(</span><span class="n">IResolverContext</span> <span class="n">container</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在 <code>IocManager</code> 类型当中实现这两个新增的方法和属性，并且更改一个 <code>Resolve()</code> 方法的内部逻辑，优先使用子容器进行对象解析。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">IocManager</span> <span class="p">:</span> <span class="n">IIocManager</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;inheritdoc /&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">IResolverContext</span> <span class="n">ChildContainer</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">private</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;inheritdoc /&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">InitializeChildContainer</span><span class="p">(</span><span class="n">IResolverContext</span> <span class="n">container</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">ChildContainer</span> <span class="p">=</span> <span class="n">container</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 从 Ioc 容器当中获取一个对象</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// 返回的对象必须通过 (see &lt;see cref=&#34;IIocResolver.Release&#34;/&gt;) 进行释放。</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;/summary&gt; </span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;typeparam name=&#34;T&#34;&gt;需要解析的目标类型&lt;/typeparam&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="cs">/// &lt;returns&gt;解析出来的实例对象&lt;/returns&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">T</span> <span class="n">Resolve</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">ChildContainer</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span> <span class="k">return</span> <span class="n">IocContainer</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(!</span><span class="n">ChildContainer</span><span class="p">.</span><span class="n">IsDisposed</span><span class="p">)</span> <span class="k">return</span> <span class="n">ChildContainer</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">IocContainer</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里仅更改了其中一个解析方法作为示范，如果正式使用的时候，请将 <code>IocManager</code> 的所有 <code>Resolve()</code> 实现都进行相应的更改。</p>
+<p>效果图：</p>
+<p><img src="/p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544363333430.png"
+	width="1209"
+	height="261"
+	srcset="/p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544363333430_hu9dfe0c3311cb2b488c0e2251309fdc8f_35124_480x0_resize_box_3.png 480w, /p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544363333430_hu9dfe0c3311cb2b488c0e2251309fdc8f_35124_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1544363333430"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="463"
+		data-flex-basis="1111px"
+	
+></p>
+<p><img src="/p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544363347865.png"
+	width="1071"
+	height="313"
+	srcset="/p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544363347865_hu0feac354fce3b0f341b8bb927e559f4f_28970_480x0_resize_box_3.png 480w, /p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544363347865_hu0feac354fce3b0f341b8bb927e559f4f_28970_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1544363347865"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="342"
+		data-flex-basis="821px"
+	
+></p>
+<p>因为是同一个请求，所以 Scope 生命周期的对象在这个请求的生存周期内应该解析的都是同一个对象。下面是第二次请求时的情况：</p>
+<p><img src="/p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544363413269.png"
+	width="1440"
+	height="379"
+	srcset="/p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544363413269_hu5c1be745718321acb254251c462319e3_43242_480x0_resize_box_3.png 480w, /p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544363413269_hu5c1be745718321acb254251c462319e3_43242_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1544363413269"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="379"
+		data-flex-basis="911px"
+	
+></p>
+<p><img src="/p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544363423666.png"
+	width="1141"
+	height="283"
+	srcset="/p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544363423666_hu4c42e4fe750f2fa00b6e2fe913afe0aa_29296_480x0_resize_box_3.png 480w, /p/about-the-problem-after-abp-replaced-the-dryioc-framework/1544363423666_hu4c42e4fe750f2fa00b6e2fe913afe0aa_29296_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1544363423666"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="403"
+		data-flex-basis="967px"
+	
+></p>
+<p>可以看到，第二次请求的时候解析出来的 <code>ScopeClass</code> 类型实例都是同一个对象，其 Guid 值都变成 <code>abd004e0-3792-4e6d-85b3-e721d8dde009</code> 。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/dryioc/">DryIoC</a>
+        
+            <a href="/tags/%E4%BE%9D%E8%B5%96%E6%B3%A8%E5%85%A5/">依赖注入</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/replace-abps-di-framework-with-dryioc/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">使用 DryIoc 替换 Abp 的 DI 框架</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---3-dependency-injection-and-interceptor/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 3. 依赖注入与拦截器</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-source-code-analysis-3-dependency-injection/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp 源码分析：三、依赖注入</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li>
+      <ol>
+        <li><a href="#1-问题-1">1. 问题 1</a>
+          <ol>
+            <li><a href="#11-现象与原因">1.1 现象与原因</a></li>
+            <li><a href="#12-思路与解决方法">1.2 思路与解决方法</a></li>
+          </ol>
+        </li>
+        <li><a href="#2-问题-2">2. 问题 2</a>
+          <ol>
+            <li><a href="#21-现象与原因">2.1 现象与原因</a></li>
+            <li><a href="#21-思路与解决方法">2.1 思路与解决方法</a></li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

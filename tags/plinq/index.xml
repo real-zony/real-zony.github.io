@@ -1,0 +1,416 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+    <channel>
+        <title>PLINQ on Zony 的博客</title>
+        <link>https://real-zony.github.io/tags/plinq/</link>
+        <description>Recent content in PLINQ on Zony 的博客</description>
+        <generator>Hugo -- gohugo.io</generator>
+        <language>zh-cn</language>
+        <lastBuildDate>Wed, 07 Nov 2018 04:27:08 +0000</lastBuildDate><atom:link href="https://real-zony.github.io/tags/plinq/index.xml" rel="self" type="application/rss+xml" /><item>
+        <title>《CLR Via C#》读书笔记：27.计算限制的异步操作</title>
+        <link>https://real-zony.github.io/p/clr-via-csharp-reading-notes-27-asynchronous-operation-of-calculation-limit/</link>
+        <pubDate>Wed, 07 Nov 2018 04:27:08 +0000</pubDate>
+        
+        <guid>https://real-zony.github.io/p/clr-via-csharp-reading-notes-27-asynchronous-operation-of-calculation-limit/</guid>
+        <description>&lt;h2 id=&#34;一clr-线程池基础&#34;&gt;一、CLR 线程池基础&lt;/h2&gt;
+&lt;p&gt;一般来说如果计算机的 CPU 利用率没有 100% ，那么说明很多进程的部分线程没有运行。可能在等待 文件/网络/数据库等设备读取或者写入数据，又可能是等待按键、鼠标移动等事件。&lt;/p&gt;
+&lt;p&gt;执行 I/O 限制的操作时，操作系统通过设备驱动程序通知硬件干活，而 CPU 处于一种空闲状态。而在现代应用程序当中，使用线程池来执行计算限制的操作，而不是手动创建线程。&lt;/p&gt;
+&lt;p&gt;每个 CLR 都有自己独立的线程池，并且由各自 CLR 控制的所有 AppDomain 所共享。&lt;/p&gt;
+&lt;p&gt;线程池本身维护了一个请求队列，当程序需要执行一个异步操作的时候，会将一个记录项追加到队列之中，然后由线程池将该记录项分派给线程池线程，如果没有线程则创建一个新的线程。线程任务处理完整之后，将该线程放入线程池中等待以后进行复用。&lt;/p&gt;
+&lt;p&gt;线程池本身是启发式的，结合程序负载，他会自己根据当前线程池内线程的状态销毁/新增线程。&lt;/p&gt;
+&lt;h2 id=&#34;二执行简单的计算限制操作&#34;&gt;二、执行简单的计算限制操作&lt;/h2&gt;
+&lt;p&gt;通过 &lt;code&gt;ThreadPool&lt;/code&gt; 静态类，我们可以方便地使用线程池中的线程为我们执行一些计算限制的异步操作。只需要调用 &lt;code&gt;ThreadPool&lt;/code&gt; 的 &lt;code&gt;QueueUserWorkItem(WaitCallBack callback)&lt;/code&gt; 方法，或者是他的另一个重载方法，接收一个 state 值作为参数。&lt;/p&gt;
+&lt;p&gt;他的两个方法都是非阻塞的，调用之后会立即返回。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;WaitCallBack&lt;/code&gt; 的方法签名如下：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-csharp&#34; data-lang=&#34;csharp&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;k&#34;&gt;delegate&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;void&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;WaitCallBack&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Object&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;state&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;在 CLR 的线程池中，将 callback 委托作为工作项添加到队列当中，然后由线程池分发线程进行处理。&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;【注意】&lt;/p&gt;
+&lt;p&gt;一旦回调方法抛出了未处理的异常，CLR 会立即终止进程。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h2 id=&#34;三执行上下文&#34;&gt;三、执行上下文&lt;/h2&gt;
+&lt;p&gt;每个线程都有一个执行上下文的数据结构，包含由安全设置，宿主设置和逻辑调用上下文数据(AsyncLocal 与 CallContext)。&lt;/p&gt;
+&lt;p&gt;当在某个线程(例如主线程)使用了另外一个线程(辅助线程)，就会产生执行上下文由调用者线程流向被调用线程。这会对性能造成一定的影响，这是因为执行上下文包含有大量地信息。而如果辅助线程又调用了更多的辅助线程，这个时候执行上下问的复制开销就非常大。&lt;/p&gt;
+&lt;p&gt;我们可以通过 &lt;code&gt;ExecutionContext&lt;/code&gt; 类控制线程的执行上下文是否流向辅助线程，只有辅助线程不需要访问执行上下文时可以阻止执行上下文流动。当阻止了执行上下文流动时，辅助线程会使用最后一次与其关联的任意执行上下文，这个时候对于安全设置等就不可信，不应执行任何依赖于执行上下文的操作。&lt;/p&gt;
+&lt;p&gt;一般来说在主线程，可以通过 &lt;code&gt;ExecutionContext.SuppressFlow();&lt;/code&gt; 方法阻止执行上下文流动，然后再通过 &lt;code&gt;ExecutionContext.RestoreFlow();&lt;/code&gt; 恢复流动。&lt;/p&gt;
+&lt;h2 id=&#34;四协作式取消和超时&#34;&gt;四、协作式取消和超时&lt;/h2&gt;
+&lt;p&gt;.NET 提供了标准的取消操作模式，这个模式是协作式的，也就是你要取消的操作必须显式声明自己可以被取消。这是因为用户在执行某些长耗时的计算限制操作的时候，可能会因为等待时间太长或者其他原因需要取消这个操作。&lt;/p&gt;
+&lt;p&gt;首先我们通过 &lt;code&gt;System.Threading.CancellationTokenSource&lt;/code&gt; 对象管理或者取消对象状态，使用时直接 new 一个即可，而该对象拥有一个 &lt;code&gt;CancellationToken&lt;/code&gt; 对象。&lt;/p&gt;
+&lt;p&gt;这个 Token 对象用于传递给执行计算限制操作的方法，通过该 Token 的 &lt;code&gt;IsCancellationRequested&lt;/code&gt; 属性你可以在方法内部确认任务是否被取消，如果被取消你就可以进行返回操作。&lt;/p&gt;
+&lt;p&gt;例子如下：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt; 1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 5
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 6
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 7
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 8
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 9
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;10
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;11
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;12
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;13
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;14
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;15
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;16
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;17
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;18
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;19
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;20
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;21
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;22
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;23
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;24
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;25
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;26
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;27
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;28
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-csharp&#34; data-lang=&#34;csharp&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;k&#34;&gt;static&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;void&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;Main&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;kt&#34;&gt;string&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;[]&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;args&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;kt&#34;&gt;var&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;tokenSource&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;new&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;CancellationTokenSource&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;();&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;ThreadPool&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;QueueUserWorkItem&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;z&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;Calculate&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;CancellationToken&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;None&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;m&#34;&gt;10000&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;));&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;Console&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;ReadKey&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;();&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;tokenSource&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Cancel&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;();&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;Console&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;ReadLine&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;();&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;k&#34;&gt;private&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;static&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;void&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;Calculate&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;CancellationToken&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;token&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;kt&#34;&gt;int&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;count&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;k&#34;&gt;for&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;kt&#34;&gt;int&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;i&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;m&#34;&gt;0&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;i&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;count&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;i&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;++)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;k&#34;&gt;if&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;token&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;IsCancellationRequested&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;n&#34;&gt;Console&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;WriteLine&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;用户提前终止操作，退出线程..&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;k&#34;&gt;break&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;n&#34;&gt;Console&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;WriteLine&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;count&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;n&#34;&gt;Thread&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Sleep&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;m&#34;&gt;200&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;Console&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;WriteLine&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;计数完成.&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;blockquote&gt;
+&lt;p&gt;【注意】&lt;/p&gt;
+&lt;p&gt;如果你要执行一个不允许被取消的操作，可以为方法传递一个 &lt;code&gt;CancellationToken.None&lt;/code&gt; 对象，因为该对象没有 Source 源，则不可能会被调用 &lt;code&gt;Cancel()&lt;/code&gt; 进行取消。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h3 id=&#34;注册取消事件&#34;&gt;注册取消事件&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;CancellationToken&lt;/code&gt; 允许我们通过 &lt;code&gt;Register()&lt;/code&gt; 方法注册多个委托，这些被注册了的委托会在 TokenSource 调用 &lt;code&gt;Cancel&lt;/code&gt; 取消的时候优先调用，其调用的先后顺序为注册时的顺序。&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;【注意】&lt;/p&gt;
+&lt;p&gt;调用 &lt;code&gt;Register()&lt;/code&gt; 方法的时候，他有两个 &lt;code&gt;bool&lt;/code&gt; 类型的参数，分别是 &lt;code&gt;useSyncContext&lt;/code&gt; 与 &lt;code&gt;useExecutionContext&lt;/code&gt;。这两个参数用于指定，是否要用调用线程的同步上下文或者执行上下文来调用回调函数。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;同时在注册成功之后会返回一个 &lt;code&gt;CancellationTokenRegistration&lt;/code&gt; 对象，通过调用该对象的 &lt;code&gt;Dispose&lt;/code&gt; 方法可以删除已经注册的委托回调，这样在取消时就不会调用该回调。&lt;/p&gt;
+&lt;h3 id=&#34;tokensource-链接&#34;&gt;TokenSource 链接&lt;/h3&gt;
+&lt;p&gt;可以通过 &lt;code&gt;CancellationTokenSource.CreateLinkedTokenSource()&lt;/code&gt; 链接两个或多个对象，链接成功后会返回一个单独的 TokenSource 对象。&lt;/p&gt;
+&lt;p&gt;一旦这个新对象链接的任何一个 TokenSource 对象被取消的时候，该对象也会被取消掉。&lt;/p&gt;
+&lt;h3 id=&#34;cancel-的异常处理&#34;&gt;Cancel 的异常处理&lt;/h3&gt;
+&lt;p&gt;在调用 TokenSource 的 &lt;code&gt;Cancel()&lt;/code&gt; 方法时(默认为 false)，该方法还有另外一个重载传入 &lt;code&gt;bool&lt;/code&gt; 值，如果为 true 的时候，有多个注册的回调委托，一旦某个出现异常直接会被抛出该异常，不会等待其他回调执行完毕。&lt;/p&gt;
+&lt;p&gt;如果为 false，则会等到所有回调方法执行完成时，抛出一个 &lt;code&gt;AggregateException&lt;/code&gt; 异常，内部的 &lt;code&gt;InnerExceptions&lt;/code&gt; 包含有所有在执行过程中产生的异常信息集合。&lt;/p&gt;
+&lt;h3 id=&#34;超时取消&#34;&gt;超时取消&lt;/h3&gt;
+&lt;p&gt;除了直接调用 &lt;code&gt;Cancel()&lt;/code&gt; 立即取消操作之外，还有一个延迟取消的方法 &lt;code&gt;CancelAfter()&lt;/code&gt;，通过传递具体的延迟时间，我们可以在指定的之间之后取消某个任务。(PS：有点像 Polly 的 TimeOut )&lt;/p&gt;
+&lt;h2 id=&#34;五任务&#34;&gt;五、任务&lt;/h2&gt;
+&lt;p&gt;为啥使用任务，虽然通过 &lt;code&gt;ThreadPool&lt;/code&gt; 可以很方便地发起一次计算限制的操作，但是你不知道你的方法啥时候执行完成，也无法在操作完成之后获得返回值。&lt;/p&gt;
+&lt;p&gt;使用任务执行一个计算限制操作有两种方式，两者也一样的可以传递 &lt;code&gt;CancellationToken&lt;/code&gt; 进行取消操作：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;new Task(Sum,20).Start();&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;Task.Run(()=&amp;gt;Sum(20));&lt;/code&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;除此之外还可以在构造 &lt;code&gt;Task&lt;/code&gt; 时 传递一些标志位，用于任务调度器进行一些特殊处理。&lt;/p&gt;
+&lt;h3 id=&#34;等待任务完成并获取结果&#34;&gt;等待任务完成并获取结果&lt;/h3&gt;
+&lt;p&gt;任务除了标准的无返回值的 &lt;code&gt;Task&lt;/code&gt; 类型之外，还有一个包含有泛型参数的 &lt;code&gt;Task&amp;lt;TResult&amp;gt;&lt;/code&gt; 类型，其中 TResult 参数就是任务的返回值类型。&lt;/p&gt;
+&lt;p&gt;在创建好 &lt;code&gt;Task&amp;lt;TResult&amp;gt;&lt;/code&gt; 对象之后，可以通过 &lt;code&gt;Task.Wait()&lt;/code&gt; 等待任务执行完成，Task 的 &lt;code&gt;Wait()&lt;/code&gt; 方法会阻塞调用者线程直到任务执行完成。执行完成之后，可以通过 &lt;code&gt;Task.Reuslt &lt;/code&gt;获取任务执行之后的返回值。&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;PS:&lt;/p&gt;
+&lt;p&gt;这里获取 &lt;code&gt;Result&lt;/code&gt; 属性值时，其内部也会调用 &lt;code&gt;Wait()&lt;/code&gt; 方法。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;如果该 Task 内的计算限制操作抛出了未经处理的异常，这个异常会被吞噬掉，调用 &lt;code&gt;Wait()&lt;/code&gt; 方法或者使用 &lt;code&gt;Result&lt;/code&gt; 属性的时候，这些异常信息会被包裹在 &lt;code&gt;AggregateException&lt;/code&gt; 内部并返回给调用者线程。&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;【注意】&lt;/p&gt;
+&lt;p&gt;不推荐直接调用 &lt;code&gt;Wait()&lt;/code&gt; ，如果 Task 已经开始执行，该方法会阻塞调用者线程，直到执行完成。第二种情况是任务还没有开始执行的时候，调用者线程不会被阻塞，Task 立即执行并返回。而调度器可能会使用调用者线程来执行这些操作，这个时候，如果调用者线程获取了一个线程同步锁，而 Task 因为也是在调用者线程执行，尝试获取锁的时候，就会产生死锁。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;code&gt;AggregateException&lt;/code&gt; 可能会包含有多个异常，这个时候可以使用该对象的 &lt;code&gt;Handle(Func&amp;lt;Exception,bool&amp;gt; predicate)&lt;/code&gt; 方法来为每一个异常进行处理，处理返回 true，未处理返回 false。&lt;/p&gt;
+&lt;p&gt;在调用了 Handle 方法之后，仍然有异常没有处理，这些没有处理的异常又会造成一个新的 &lt;code&gt;AggregateException&lt;/code&gt; 被抛出。&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;【注意】&lt;/p&gt;
+&lt;p&gt;如果不知道有哪些 Task 内部未处理的异常，可以通过象任务调度器的 &lt;code&gt;UnobservedTaskException&lt;/code&gt; 事件登记一个回调方法，如果存在一个没有处理到的异常，则会调用你的回调方法，并将异常传递给你。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;除了 &lt;code&gt;Task.Wait()&lt;/code&gt; 方法，还有等待一组任务的 &lt;code&gt;Task.WaitAny()&lt;/code&gt; 和 &lt;code&gt;Task.WaitAll()&lt;/code&gt;。几个方法都会阻塞调用者线程，前者当传递的一组任务有任意一个完成则立即返回该任务的索引，后者则是要等待这一组任务全部完成之后才会唤醒调用线程。&lt;/p&gt;
+&lt;p&gt;这两个方法一旦被取消，都会抛出 &lt;code&gt;OperationCanceledException&lt;/code&gt; 异常。&lt;/p&gt;
+&lt;h3 id=&#34;取消任务&#34;&gt;取消任务&lt;/h3&gt;
+&lt;p&gt;可以通过一个 &lt;code&gt;CancellationTokenSource&lt;/code&gt; 来取消 Task，一样的需要传入的计算限制方法添加 &lt;code&gt;CancellationToken&lt;/code&gt; 参数。&lt;/p&gt;
+&lt;p&gt;只不过呢，在 Task 任务内部我们不通过 &lt;code&gt;IsCancellationRequested&lt;/code&gt; 来判断任务是否取消，而是通过调用 Token 的 &lt;code&gt;ThrowIfCancellationRequested()&lt;/code&gt; 方法来抛出异常。&lt;/p&gt;
+&lt;p&gt;该方法会判断当前任务是否被取消，如果被取消了，则抛出异常。这是因为与直接通过线程池添加任务不同，线程池无法知道任务何时完成，而任务则可以表示是否完成，并且还能返回值。&lt;/p&gt;
+&lt;h3 id=&#34;任务完成时启动新任务&#34;&gt;任务完成时启动新任务&lt;/h3&gt;
+&lt;p&gt;之前说过通过调用 &lt;code&gt;Task.Wait()&lt;/code&gt; 或者在任务尚未完成的时候调用 &lt;code&gt;Task.Result&lt;/code&gt; 属性，都会造成线程池创建新的线程。而我们可以通过在任务完成之后，立即开启一个新的任务，这样我们就可以通过新的任务知道前一个任务是否已经完成了。&lt;/p&gt;
+&lt;p&gt;创建一个的计算限制任务对象，我们在启动了该任务对象之后，调用 &lt;code&gt;Task.ContinueWith()&lt;/code&gt; 方法来创建一个延续任务，新的延续性任务会有一个 Task 参数，该参数就是最开始的任务。&lt;/p&gt;
+&lt;p&gt;而在使用 &lt;code&gt;Task.ContinueWith()&lt;/code&gt; 时，他还可以传递一个标识位。这个标识位用于表明这个延续性任务是在第一个任务什么情况下才会执行，一般有三种：OnlyOnCanceled(第一个任务取消时才被执行)、OnlyOnFaulted(第一个任务抛出未处理异常时执行)、OnlyOnRanToCompletion(第一个任务顺利完成时执行)。&lt;/p&gt;
+&lt;h3 id=&#34;启动子任务&#34;&gt;启动子任务&lt;/h3&gt;
+&lt;p&gt;一个任务在其内部可以创建其子任务，只需要在内部构造 Task 对象的时候，传递一个标识位 &lt;code&gt;TaskCreationOptions.AttachedToParent&lt;/code&gt; 将其与父任务关联。这样的话，除非其所有子任务执行完成，父任务不会被认为已经完成。&lt;/p&gt;
+&lt;p&gt;延续性任务也可以作为第一个任务的子任务，指定对应的标识位即可。&lt;/p&gt;
+&lt;h3 id=&#34;任务的内部构造&#34;&gt;任务的内部构造&lt;/h3&gt;
+&lt;p&gt;任务主要由以下几部分构成：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;任务唯一的 Task Id。&lt;/li&gt;
+&lt;li&gt;调度器的引用。&lt;/li&gt;
+&lt;li&gt;回调方法的引用。&lt;/li&gt;
+&lt;li&gt;执行上下文的引用。&lt;/li&gt;
+&lt;li&gt;其他&amp;hellip;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;可以看到构造一个 Task 还是需要比较大的开销的，如果你不需要 Task 的附加特性，完全可以使用 &lt;code&gt;TaskPool.QueueUserworkItem&lt;/code&gt; 来获得更好的性能与效率。&lt;/p&gt;
+&lt;p&gt;通过 Task 的只读属性 &lt;code&gt;Task.Status&lt;/code&gt;，我们可以知道任务目前处于哪种状态，其最终的状态主要有 3 种，分别是：RanToCompletion(已完成)、Canceled(被取消)、Faulted(出现异常失败)，这三种状态都属于任务完成状态。&lt;/p&gt;
+&lt;p&gt;另外值得注意的是，通过 &lt;code&gt;ContinueWith()&lt;/code&gt;、&lt;code&gt;ContinueWhenAll()&lt;/code&gt;、&lt;code&gt;ContinueWhenAny()&lt;/code&gt; 等方法创建的任务状态都为 &lt;code&gt;WaitingForActivation&lt;/code&gt;，这个状态代表任务会自动开始。&lt;/p&gt;
+&lt;h3 id=&#34;任务工厂&#34;&gt;任务工厂&lt;/h3&gt;
+&lt;p&gt;如果你需要在执行多个相同配置的 Task 对象，可以通过 &lt;code&gt;TaskFactory&lt;/code&gt; 和 &lt;code&gt;TaskFactory&amp;lt;TResult&amp;gt;&lt;/code&gt;，其大概含义与 &lt;code&gt;Task&lt;/code&gt; 的含义相同。&lt;/p&gt;
+&lt;p&gt;在创建工厂时，可以传递一些常用的配置标识位和 CancellationToken 对象，之后我们可以通过 &lt;code&gt;StartNew()&lt;/code&gt; 方法来统一执行一堆任务。&lt;/p&gt;
+&lt;h3 id=&#34;任务调度器&#34;&gt;任务调度器&lt;/h3&gt;
+&lt;p&gt;任务调度器一般有两种，第一种是线程池任务调度器，一般用于服务端程序。还有一种是同步上下文任务调度器，一般用于 GUI 程序。&lt;/p&gt;
+&lt;h2 id=&#34;六parallel-的-forforeachinvoke&#34;&gt;六、Parallel 的 For、Foreach、Invoke&lt;/h2&gt;
+&lt;p&gt;For 与 Foreach 基本用于操作一个集合，然后循环处理其值。而如果在某个方法内部需要执行多个方法，则可以通过 Invoke 来进行执行。使用 Parallel 类可以让 CPU 最大化地利用起来而不会阻塞主线程。&lt;/p&gt;
+&lt;p&gt;不过一般不会将所有 For 与 Foreach 都替换为并行化的查询，这是因为某些循环会修改共享数据，这个时候使用 Parallel 的操作则会破坏数据，虽然可以通过增加线程同步锁来解决，不过这样会造成单线程访问，无法享受并行处理的好处。&lt;/p&gt;
+&lt;p&gt;同时 Parallel 方法本身也会有开销，当然在大量重复性任务中这种开销可以忽略不计，但是如果仅为几十个短耗时的计算限制任务启用 Parallel 就会得不偿失。&lt;/p&gt;
+&lt;p&gt;这三种操作都接受一个&lt;code&gt;ParallelOptions&lt;/code&gt; 对象用于配置最大并行的工作项数目与调度器。&lt;/p&gt;
+&lt;p&gt;Parallel 的 For 与 Foreach 的一个重载方法允许传入 3 个委托，他们分别是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;任务局部初始化委托(localInit)：该委托是在每次工作项处理之前被调用。&lt;/li&gt;
+&lt;li&gt;任务主体委托(body)：具体的工作项处理逻辑，参与工作的各个线程都会调用一次。&lt;/li&gt;
+&lt;li&gt;任务局部终结器委托(localFinally)：本委托是在每个工作项处理完成之后都会被调用。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;从上述逻辑来看，可以看作局部初始化委托为一个父任务，后面两个为子级连续任务的构造。&lt;/p&gt;
+&lt;p&gt;实例：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt; 1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 5
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 6
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 7
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 8
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 9
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;10
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;11
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;12
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;13
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;14
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;15
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;16
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;17
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;18
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;19
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;20
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;21
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;22
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;23
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;24
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;25
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;26
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;27
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;28
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;29
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;30
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;31
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;32
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;33
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;34
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;35
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;36
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;37
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;38
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;39
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;40
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;41
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;42
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;43
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;44
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;45
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;46
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;47
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;48
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;49
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;50
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;51
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;52
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;53
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;54
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;55
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;56
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;57
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;58
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;59
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;60
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;61
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;62
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;63
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;64
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;65
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;66
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;67
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;68
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;69
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;70
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;71
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;72
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;73
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-csharp&#34; data-lang=&#34;csharp&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;k&#34;&gt;static&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;void&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;Main&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;kt&#34;&gt;string&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;[]&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;args&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;kt&#34;&gt;var&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;files&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;new&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;List&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;kt&#34;&gt;string&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;();&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;files&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;AddRange&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Directory&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;GetFiles&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;@&amp;#34;E:\Program Files&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;*.*&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;SearchOption&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;AllDirectories&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;));&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;files&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;AddRange&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Directory&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;GetFiles&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;@&amp;#34;E:\Program Files (x86)&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;*.*&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;SearchOption&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;AllDirectories&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;));&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;files&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;AddRange&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Directory&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;GetFiles&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;@&amp;#34;E:\Project&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;*.*&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;SearchOption&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;AllDirectories&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;));&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;files&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;AddRange&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Directory&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;GetFiles&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;@&amp;#34;E:\Cache&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;*.*&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;SearchOption&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;AllDirectories&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;));&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;files&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;AddRange&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Directory&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;GetFiles&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;@&amp;#34;E:\Windows Kits&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;*.*&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;SearchOption&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;AllDirectories&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;));&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;files&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;AddRange&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Directory&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;GetFiles&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;@&amp;#34;C:\Program Files\dotnet&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;&amp;#34;*.*&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;SearchOption&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;AllDirectories&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;));&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;Console&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;WriteLine&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;$&amp;#34;总文件数量：{files.Count}&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;kt&#34;&gt;long&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;allFileCount&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;m&#34;&gt;0&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;kt&#34;&gt;var&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;watch&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;new&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;Stopwatch&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;();&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;watch&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Start&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;();&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;Parallel&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;ForEach&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&#34;kt&#34;&gt;string&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;kt&#34;&gt;long&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;&amp;gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;files&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;n&#34;&gt;localInit&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;()&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&amp;gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;c1&#34;&gt;// 初始化文件大小为 0，&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;c1&#34;&gt;// 这里的参数类型取决于任务返回的参数&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;k&#34;&gt;return&lt;/span&gt; &lt;span class=&#34;m&#34;&gt;0&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;p&#34;&gt;},&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;n&#34;&gt;body&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;fileName&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;parallelStatus&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;index&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;fileCount&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&amp;gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;c1&#34;&gt;// 计算文件大小并返回&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;kt&#34;&gt;long&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;count&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;m&#34;&gt;0&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;k&#34;&gt;try&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;                &lt;span class=&#34;kt&#34;&gt;var&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;info&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;new&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;FileInfo&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;fileName&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;                &lt;span class=&#34;n&#34;&gt;count&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;info&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Length&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;k&#34;&gt;catch&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Exception&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;e&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;c1&#34;&gt;// 这里因为该任务会被线程池复用，所以要进行累加&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;k&#34;&gt;return&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;count&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;+&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;fileCount&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;p&#34;&gt;},&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;n&#34;&gt;localFinally&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;fileCount&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;Interlocked&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Add&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;ref&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;allFileCount&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;fileCount&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;);&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;p&#34;&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;watch&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Stop&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;();&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;Console&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;WriteLine&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;$&amp;#34;并行效率:{watch.ElapsedMilliseconds} ms&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;Console&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;WriteLine&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;$&amp;#34;文件总大小:{allFileCount / 1024 / 1024 / 1024} Gb&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;allFileCount&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;m&#34;&gt;0&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;watch&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Reset&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;();&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;watch&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Start&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;();&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;k&#34;&gt;foreach&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;kt&#34;&gt;var&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;file&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;in&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;files&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;kt&#34;&gt;long&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;count&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;m&#34;&gt;0&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;k&#34;&gt;try&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;kt&#34;&gt;var&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;info&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;k&#34;&gt;new&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;FileInfo&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;file&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;            &lt;span class=&#34;n&#34;&gt;count&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;info&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Length&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;k&#34;&gt;catch&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Exception&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;e&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;n&#34;&gt;allFileCount&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;+=&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;count&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;watch&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Stop&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;();&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;Console&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;WriteLine&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;$&amp;#34;单线程效率:{watch.ElapsedMilliseconds} ms&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;Console&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;WriteLine&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s&#34;&gt;$&amp;#34;文件总大小:{allFileCount / 1024 / 1024 / 1024} Gb&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;n&#34;&gt;Console&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;ReadLine&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;();&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;p&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;性能提升：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://real-zony.github.io/p/clr-via-csharp-reading-notes-27-asynchronous-operation-of-calculation-limit/1541471325527.png&#34;
+	width=&#34;272&#34;
+	height=&#34;140&#34;
+	srcset=&#34;https://real-zony.github.io/p/clr-via-csharp-reading-notes-27-asynchronous-operation-of-calculation-limit/1541471325527_hu49c6e992b0adce0b5da29dfc933fb877_4187_480x0_resize_box_3.png 480w, https://real-zony.github.io/p/clr-via-csharp-reading-notes-27-asynchronous-operation-of-calculation-limit/1541471325527_hu49c6e992b0adce0b5da29dfc933fb877_4187_1024x0_resize_box_3.png 1024w&#34;
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;1541471325527&#34;
+	
+	
+		class=&#34;gallery-image&#34; 
+		data-flex-grow=&#34;194&#34;
+		data-flex-basis=&#34;466px&#34;
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;通过 Parallel 的 Foreach 与普通的 foreach 遍历计算，性能总体提升了约 56%，越耗时的操作提升的效果就越明显。&lt;/p&gt;
+&lt;p&gt;在 Body 的主体委托当中，传入了一个 &lt;code&gt;ParallelLoopState&lt;/code&gt; 对象，该对象用于每个线程与其他任务进行交互。主要有两个方法 &lt;code&gt;Stop()&lt;/code&gt; 与 &lt;code&gt;Break()&lt;/code&gt;，前者用于停止循环，后者用于跳出循环，并且跳出循环之后，其 &lt;code&gt;LowestBreakIteration&lt;/code&gt; 会返回调用过 &lt;code&gt;Break()&lt;/code&gt; 方法的最低项。&lt;/p&gt;
+&lt;p&gt;并且 Parallel 还会返回一个 &lt;code&gt;ParallelLoopResult&lt;/code&gt; 对象，该通过该对象我们可以得知这些循环是否正常完成。&lt;/p&gt;
+&lt;h2 id=&#34;七并行语言集成查询-plinq&#34;&gt;七、并行语言集成查询 PLINQ&lt;/h2&gt;
+&lt;p&gt;LINQ 默认查询的方式是一个线程顺序处理数据集合中的所有项，称之为顺序查询。而 PLINQ 就是将这些操作分散到各个 CPU 并行执行，通过 &lt;code&gt;AsParallel()&lt;/code&gt; 扩展方法可以将 &lt;code&gt;IEnumerable&amp;lt;TSource&amp;gt;&lt;/code&gt; 转换为 &lt;code&gt;ParallelQuery&amp;lt;TSource&amp;gt;&lt;/code&gt;。&lt;/p&gt;
+&lt;p&gt;而从并行操作切换回顺序操作，只需要调用 &lt;code&gt;ParallelEnumable&lt;/code&gt; 的 &lt;code&gt;AsSequential()&lt;/code&gt; 方法即可。&lt;/p&gt;
+&lt;p&gt;经过 PLINQ 处理后的数据项其结果是无序的，如果需要有序结果，可以调用 &lt;code&gt;AsOrdered()&lt;/code&gt; 方法。但是该方法比较损耗性能，一般不推荐使用，如果需要排序应该直接使用与 LINQ 同名的 PLINQ 扩展方法。&lt;/p&gt;
+&lt;p&gt;PLINQ 一般会自己分析使用最好的查询方式进行查询，有时候使用顺序查询性能更好。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;WithCancellation()&lt;/code&gt; ：允许取消某个 PLINQ 查询。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;WithExecutionMode()&lt;/code&gt;：允许配置 PLINQ 执行模式，是否强制并行查询。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;WithMergeOptions()&lt;/code&gt;：允许配置结果的缓冲与合并方式。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;WithDegreeOfParallelism()&lt;/code&gt;：允许配置查询的最大并行数。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;blockquote&gt;
+&lt;p&gt;PS：&lt;/p&gt;
+&lt;p&gt;不建议在多线程环镜中使用 &lt;code&gt;Console.Write()&lt;/code&gt; 进行输出，因为 Console 类内部会对线程进行同步，确保只有一个线程可以访问控制台窗口，这样会损害性能。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h2 id=&#34;八定时计算限制操作&#34;&gt;八、定时计算限制操作&lt;/h2&gt;
+&lt;p&gt;通过 CLR 提供的 &lt;code&gt;Timer&lt;/code&gt; 定时器，我们可以传入一个回调方法。这样的话计时器会可以根据传入的周期，来定时将我们的回调方法通过线程池线程进行调用。&lt;/p&gt;
+&lt;p&gt;同时计时器还允许传入一个 &lt;code&gt;dueTime&lt;/code&gt; 参数来指定这个计时器首次调用回调方法时需要等待多久（立即执行可以传入 0），而 &lt;code&gt;period&lt;/code&gt; 可以指定 &lt;code&gt;Timer&lt;/code&gt; 调用回调方法的周期。&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;【原理】&lt;/p&gt;
+&lt;p&gt;在线程池内部所有的 &lt;code&gt;Timer&lt;/code&gt; 对象只使用了一个线程，当某个 &lt;code&gt;Timer&lt;/code&gt; 到期的时候，这个线程就会被唤醒。该线程通过 &lt;code&gt;ThreadPool.QueueUserWorkItem()&lt;/code&gt; 方法将一个工作项添加到线程池队列，这样你的回调方法就会得到执行。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;blockquote&gt;
+&lt;p&gt;【注意】&lt;/p&gt;
+&lt;p&gt;如果回调方法执行的时常超过了你设置的周期时常，这样会造成多个线程都在执行你的回调。因为 &lt;code&gt;Timer&lt;/code&gt; 不知道你的回调执行完成没有，他只会到期执行你的回调方法。&lt;/p&gt;
+&lt;p&gt;解决措施是构造一个 &lt;code&gt;Timer&lt;/code&gt; 的时候，为 &lt;code&gt;period&lt;/code&gt; 指定一个 &lt;code&gt;Timeout.Infinite&lt;/code&gt; 常量，这样计时器只会触发一次。之后在你的回调方法执行完成之后，在其内部通过 &lt;code&gt;Timer.Change()&lt;/code&gt; 方法指定一个执行周期，并且设置其 dueTime 为立即执行。&lt;/p&gt;
+&lt;p&gt;这样做了之后，你的 &lt;code&gt;Timer&lt;/code&gt; 就会确保你的回调被执行完成之后再开始下一个周期。&lt;/p&gt;
+&lt;p&gt;这一点可以参考 Abp 实现的 &lt;code&gt;AbpTimer&lt;/code&gt; 对象。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h2 id=&#34;九线程池如何管理线程&#34;&gt;九、线程池如何管理线程&lt;/h2&gt;
+&lt;p&gt;CLR 允许开发人员设置线程池最大工作者线程数，但是一般不要轻易设置该值，但你可以通过 &lt;code&gt;ThreadPool.GetMaxThreads()&lt;/code&gt;、&lt;code&gt;ThreadPool.GetMinThreads()&lt;/code&gt;、&lt;code&gt;GetAvailableThreads()&lt;/code&gt; 方法来获取一些相关信息。&lt;/p&gt;
+&lt;p&gt;通过 &lt;code&gt;ThreadPool.QueueUserWorkItem()&lt;/code&gt; 方法和 &lt;code&gt;Timer&lt;/code&gt; 类处理的工作项总是存储到 CLR 线程池的 &lt;strong&gt;全局队列&lt;/strong&gt; 中。工作者线程采用一个 FIFO 算法将工作项从 &lt;strong&gt;全局队列&lt;/strong&gt; 取出，因为所有工作者线程都有可能去这个队列拿去工作项，这个时候会使用 &lt;strong&gt;线程同步锁&lt;/strong&gt; 以确保工作项只会被工作者线程处理一次。这可能会造成性能瓶颈，对伸缩性和性能会造成某些限制。&lt;/p&gt;
+&lt;p&gt;默认的任务调度器中，非工作者线程调度 Task 时都是存放在全局队列，而工作者线程调度 Task 则是存放在他自己的本地队列。&lt;/p&gt;
+&lt;p&gt;工作者线程处理 Task 的步骤：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先从本地队列采用 LIFO 算法取得一个 Task 进行处理。&lt;/li&gt;
+&lt;li&gt;如果本地队列没有 Task，则从其他的工作者线程本地队列拿一个 Task 自己来处理。（会使用线程同步锁）&lt;/li&gt;
+&lt;li&gt;所有本地队列都为空，则工作者线程会使用 FIFO 算法去全局队列拿一个 Task 进行处理。&lt;/li&gt;
+&lt;li&gt;如果全局队列为空，则线程处于休眠状态，时间过长则销毁自身。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;blockquote&gt;
+&lt;p&gt;PS:&lt;/p&gt;
+&lt;p&gt;结合上下文，说明工作项首先被添加到了全局队列，然后由工作者线程取到自己的本地队列进行处理。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;线程池会动态地根据工作项的多少动态地调整工作者线程的数量，一般不需要开发人员进行管控。&lt;/p&gt;</description>
+        </item>
+        
+    </channel>
+</rss>

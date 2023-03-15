@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、CLR 线程池基础 一般来说如果计算机的 CPU 利用率没有 100% ，那么说明很多进程的部分线程没有运行。可能在等待 文件/网络/数据库等设备读取或者写入数据，又可能是等待按键、鼠标移动等事件。
+执行 I/O 限制的操作时，操作系统通过设备驱动程序通知硬件干活，而 CPU 处于一种空闲状态。而在现代应用程序当中，使用线程池来执行计算限制的操作，而不是手动创建线程。
+每个 CLR 都有自己独立的线程池，并且由各自 CLR 控制的所有 AppDomain 所共享。
+线程池本身维护了一个请求队列，当程序需要执行一个异步操作的时候，会将一个记录项追加到队列之中，然后由线程池将该记录项分派给线程池线程，如果没有线程则创建一个新的线程。线程任务处理完整之后，将该线程放入线程池中等待以后进行复用。
+线程池本身是启发式的，结合程序负载，他会自己根据当前线程池内线程的状态销毁/新增线程。
+'><title>《CLR Via C#》读书笔记：27.计算限制的异步操作</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/clr-via-csharp-reading-notes-27-asynchronous-operation-of-calculation-limit/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='《CLR Via C#》读书笔记：27.计算限制的异步操作'>
+<meta property='og:description' content='一、CLR 线程池基础 一般来说如果计算机的 CPU 利用率没有 100% ，那么说明很多进程的部分线程没有运行。可能在等待 文件/网络/数据库等设备读取或者写入数据，又可能是等待按键、鼠标移动等事件。
+执行 I/O 限制的操作时，操作系统通过设备驱动程序通知硬件干活，而 CPU 处于一种空闲状态。而在现代应用程序当中，使用线程池来执行计算限制的操作，而不是手动创建线程。
+每个 CLR 都有自己独立的线程池，并且由各自 CLR 控制的所有 AppDomain 所共享。
+线程池本身维护了一个请求队列，当程序需要执行一个异步操作的时候，会将一个记录项追加到队列之中，然后由线程池将该记录项分派给线程池线程，如果没有线程则创建一个新的线程。线程任务处理完整之后，将该线程放入线程池中等待以后进行复用。
+线程池本身是启发式的，结合程序负载，他会自己根据当前线程池内线程的状态销毁/新增线程。
+'>
+<meta property='og:url' content='https://real-zony.github.io/p/clr-via-csharp-reading-notes-27-asynchronous-operation-of-calculation-limit/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书笔记' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='多线程' /><meta property='article:tag' content='异步' /><meta property='article:tag' content='Task' /><meta property='article:tag' content='TPL' /><meta property='article:tag' content='PLINQ' /><meta property='article:tag' content='并行化' /><meta property='article:tag' content='Parallel' /><meta property='article:tag' content='并行计算' /><meta property='article:published_time' content='2018-11-07T04:27:08&#43;00:00'/><meta property='article:modified_time' content='2018-11-07T04:27:08&#43;00:00'/>
+<meta name="twitter:title" content="《CLR Via C#》读书笔记：27.计算限制的异步操作">
+<meta name="twitter:description" content="一、CLR 线程池基础 一般来说如果计算机的 CPU 利用率没有 100% ，那么说明很多进程的部分线程没有运行。可能在等待 文件/网络/数据库等设备读取或者写入数据，又可能是等待按键、鼠标移动等事件。
+执行 I/O 限制的操作时，操作系统通过设备驱动程序通知硬件干活，而 CPU 处于一种空闲状态。而在现代应用程序当中，使用线程池来执行计算限制的操作，而不是手动创建线程。
+每个 CLR 都有自己独立的线程池，并且由各自 CLR 控制的所有 AppDomain 所共享。
+线程池本身维护了一个请求队列，当程序需要执行一个异步操作的时候，会将一个记录项追加到队列之中，然后由线程池将该记录项分派给线程池线程，如果没有线程则创建一个新的线程。线程任务处理完整之后，将该线程放入线程池中等待以后进行复用。
+线程池本身是启发式的，结合程序负载，他会自己根据当前线程池内线程的状态销毁/新增线程。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/clr-via-csharp-reading-notes-27-asynchronous-operation-of-calculation-limit/">《CLR Via C#》读书笔记：27.计算限制的异步操作</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Nov 07, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 4 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一clr-线程池基础">一、CLR 线程池基础</h2>
+<p>一般来说如果计算机的 CPU 利用率没有 100% ，那么说明很多进程的部分线程没有运行。可能在等待 文件/网络/数据库等设备读取或者写入数据，又可能是等待按键、鼠标移动等事件。</p>
+<p>执行 I/O 限制的操作时，操作系统通过设备驱动程序通知硬件干活，而 CPU 处于一种空闲状态。而在现代应用程序当中，使用线程池来执行计算限制的操作，而不是手动创建线程。</p>
+<p>每个 CLR 都有自己独立的线程池，并且由各自 CLR 控制的所有 AppDomain 所共享。</p>
+<p>线程池本身维护了一个请求队列，当程序需要执行一个异步操作的时候，会将一个记录项追加到队列之中，然后由线程池将该记录项分派给线程池线程，如果没有线程则创建一个新的线程。线程任务处理完整之后，将该线程放入线程池中等待以后进行复用。</p>
+<p>线程池本身是启发式的，结合程序负载，他会自己根据当前线程池内线程的状态销毁/新增线程。</p>
+<h2 id="二执行简单的计算限制操作">二、执行简单的计算限制操作</h2>
+<p>通过 <code>ThreadPool</code> 静态类，我们可以方便地使用线程池中的线程为我们执行一些计算限制的异步操作。只需要调用 <code>ThreadPool</code> 的 <code>QueueUserWorkItem(WaitCallBack callback)</code> 方法，或者是他的另一个重载方法，接收一个 state 值作为参数。</p>
+<p>他的两个方法都是非阻塞的，调用之后会立即返回。</p>
+<p><code>WaitCallBack</code> 的方法签名如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">delegate</span> <span class="k">void</span> <span class="n">WaitCallBack</span><span class="p">(</span><span class="n">Object</span> <span class="n">state</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在 CLR 的线程池中，将 callback 委托作为工作项添加到队列当中，然后由线程池分发线程进行处理。</p>
+<blockquote>
+<p>【注意】</p>
+<p>一旦回调方法抛出了未处理的异常，CLR 会立即终止进程。</p>
+</blockquote>
+<h2 id="三执行上下文">三、执行上下文</h2>
+<p>每个线程都有一个执行上下文的数据结构，包含由安全设置，宿主设置和逻辑调用上下文数据(AsyncLocal 与 CallContext)。</p>
+<p>当在某个线程(例如主线程)使用了另外一个线程(辅助线程)，就会产生执行上下文由调用者线程流向被调用线程。这会对性能造成一定的影响，这是因为执行上下文包含有大量地信息。而如果辅助线程又调用了更多的辅助线程，这个时候执行上下问的复制开销就非常大。</p>
+<p>我们可以通过 <code>ExecutionContext</code> 类控制线程的执行上下文是否流向辅助线程，只有辅助线程不需要访问执行上下文时可以阻止执行上下文流动。当阻止了执行上下文流动时，辅助线程会使用最后一次与其关联的任意执行上下文，这个时候对于安全设置等就不可信，不应执行任何依赖于执行上下文的操作。</p>
+<p>一般来说在主线程，可以通过 <code>ExecutionContext.SuppressFlow();</code> 方法阻止执行上下文流动，然后再通过 <code>ExecutionContext.RestoreFlow();</code> 恢复流动。</p>
+<h2 id="四协作式取消和超时">四、协作式取消和超时</h2>
+<p>.NET 提供了标准的取消操作模式，这个模式是协作式的，也就是你要取消的操作必须显式声明自己可以被取消。这是因为用户在执行某些长耗时的计算限制操作的时候，可能会因为等待时间太长或者其他原因需要取消这个操作。</p>
+<p>首先我们通过 <code>System.Threading.CancellationTokenSource</code> 对象管理或者取消对象状态，使用时直接 new 一个即可，而该对象拥有一个 <code>CancellationToken</code> 对象。</p>
+<p>这个 Token 对象用于传递给执行计算限制操作的方法，通过该 Token 的 <code>IsCancellationRequested</code> 属性你可以在方法内部确认任务是否被取消，如果被取消你就可以进行返回操作。</p>
+<p>例子如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">tokenSource</span> <span class="p">=</span> <span class="k">new</span> <span class="n">CancellationTokenSource</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">ThreadPool</span><span class="p">.</span><span class="n">QueueUserWorkItem</span><span class="p">(</span><span class="n">z</span> <span class="p">=&gt;</span> <span class="n">Calculate</span><span class="p">(</span><span class="n">CancellationToken</span><span class="p">.</span><span class="n">None</span><span class="p">,</span> <span class="m">10000</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">Console</span><span class="p">.</span><span class="n">ReadKey</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">tokenSource</span><span class="p">.</span><span class="n">Cancel</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">Console</span><span class="p">.</span><span class="n">ReadLine</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">static</span> <span class="k">void</span> <span class="n">Calculate</span><span class="p">(</span><span class="n">CancellationToken</span> <span class="n">token</span><span class="p">,</span> <span class="kt">int</span> <span class="n">count</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span> <span class="n">i</span> <span class="p">&lt;</span> <span class="n">count</span><span class="p">;</span> <span class="n">i</span><span class="p">++)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">token</span><span class="p">.</span><span class="n">IsCancellationRequested</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;用户提前终止操作，退出线程..&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="n">count</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Thread</span><span class="p">.</span><span class="n">Sleep</span><span class="p">(</span><span class="m">200</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;计数完成.&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><blockquote>
+<p>【注意】</p>
+<p>如果你要执行一个不允许被取消的操作，可以为方法传递一个 <code>CancellationToken.None</code> 对象，因为该对象没有 Source 源，则不可能会被调用 <code>Cancel()</code> 进行取消。</p>
+</blockquote>
+<h3 id="注册取消事件">注册取消事件</h3>
+<p><code>CancellationToken</code> 允许我们通过 <code>Register()</code> 方法注册多个委托，这些被注册了的委托会在 TokenSource 调用 <code>Cancel</code> 取消的时候优先调用，其调用的先后顺序为注册时的顺序。</p>
+<blockquote>
+<p>【注意】</p>
+<p>调用 <code>Register()</code> 方法的时候，他有两个 <code>bool</code> 类型的参数，分别是 <code>useSyncContext</code> 与 <code>useExecutionContext</code>。这两个参数用于指定，是否要用调用线程的同步上下文或者执行上下文来调用回调函数。</p>
+</blockquote>
+<p>同时在注册成功之后会返回一个 <code>CancellationTokenRegistration</code> 对象，通过调用该对象的 <code>Dispose</code> 方法可以删除已经注册的委托回调，这样在取消时就不会调用该回调。</p>
+<h3 id="tokensource-链接">TokenSource 链接</h3>
+<p>可以通过 <code>CancellationTokenSource.CreateLinkedTokenSource()</code> 链接两个或多个对象，链接成功后会返回一个单独的 TokenSource 对象。</p>
+<p>一旦这个新对象链接的任何一个 TokenSource 对象被取消的时候，该对象也会被取消掉。</p>
+<h3 id="cancel-的异常处理">Cancel 的异常处理</h3>
+<p>在调用 TokenSource 的 <code>Cancel()</code> 方法时(默认为 false)，该方法还有另外一个重载传入 <code>bool</code> 值，如果为 true 的时候，有多个注册的回调委托，一旦某个出现异常直接会被抛出该异常，不会等待其他回调执行完毕。</p>
+<p>如果为 false，则会等到所有回调方法执行完成时，抛出一个 <code>AggregateException</code> 异常，内部的 <code>InnerExceptions</code> 包含有所有在执行过程中产生的异常信息集合。</p>
+<h3 id="超时取消">超时取消</h3>
+<p>除了直接调用 <code>Cancel()</code> 立即取消操作之外，还有一个延迟取消的方法 <code>CancelAfter()</code>，通过传递具体的延迟时间，我们可以在指定的之间之后取消某个任务。(PS：有点像 Polly 的 TimeOut )</p>
+<h2 id="五任务">五、任务</h2>
+<p>为啥使用任务，虽然通过 <code>ThreadPool</code> 可以很方便地发起一次计算限制的操作，但是你不知道你的方法啥时候执行完成，也无法在操作完成之后获得返回值。</p>
+<p>使用任务执行一个计算限制操作有两种方式，两者也一样的可以传递 <code>CancellationToken</code> 进行取消操作：</p>
+<ol>
+<li><code>new Task(Sum,20).Start();</code></li>
+<li><code>Task.Run(()=&gt;Sum(20));</code></li>
+</ol>
+<p>除此之外还可以在构造 <code>Task</code> 时 传递一些标志位，用于任务调度器进行一些特殊处理。</p>
+<h3 id="等待任务完成并获取结果">等待任务完成并获取结果</h3>
+<p>任务除了标准的无返回值的 <code>Task</code> 类型之外，还有一个包含有泛型参数的 <code>Task&lt;TResult&gt;</code> 类型，其中 TResult 参数就是任务的返回值类型。</p>
+<p>在创建好 <code>Task&lt;TResult&gt;</code> 对象之后，可以通过 <code>Task.Wait()</code> 等待任务执行完成，Task 的 <code>Wait()</code> 方法会阻塞调用者线程直到任务执行完成。执行完成之后，可以通过 <code>Task.Reuslt </code>获取任务执行之后的返回值。</p>
+<blockquote>
+<p>PS:</p>
+<p>这里获取 <code>Result</code> 属性值时，其内部也会调用 <code>Wait()</code> 方法。</p>
+</blockquote>
+<p>如果该 Task 内的计算限制操作抛出了未经处理的异常，这个异常会被吞噬掉，调用 <code>Wait()</code> 方法或者使用 <code>Result</code> 属性的时候，这些异常信息会被包裹在 <code>AggregateException</code> 内部并返回给调用者线程。</p>
+<blockquote>
+<p>【注意】</p>
+<p>不推荐直接调用 <code>Wait()</code> ，如果 Task 已经开始执行，该方法会阻塞调用者线程，直到执行完成。第二种情况是任务还没有开始执行的时候，调用者线程不会被阻塞，Task 立即执行并返回。而调度器可能会使用调用者线程来执行这些操作，这个时候，如果调用者线程获取了一个线程同步锁，而 Task 因为也是在调用者线程执行，尝试获取锁的时候，就会产生死锁。</p>
+</blockquote>
+<p><code>AggregateException</code> 可能会包含有多个异常，这个时候可以使用该对象的 <code>Handle(Func&lt;Exception,bool&gt; predicate)</code> 方法来为每一个异常进行处理，处理返回 true，未处理返回 false。</p>
+<p>在调用了 Handle 方法之后，仍然有异常没有处理，这些没有处理的异常又会造成一个新的 <code>AggregateException</code> 被抛出。</p>
+<blockquote>
+<p>【注意】</p>
+<p>如果不知道有哪些 Task 内部未处理的异常，可以通过象任务调度器的 <code>UnobservedTaskException</code> 事件登记一个回调方法，如果存在一个没有处理到的异常，则会调用你的回调方法，并将异常传递给你。</p>
+</blockquote>
+<p>除了 <code>Task.Wait()</code> 方法，还有等待一组任务的 <code>Task.WaitAny()</code> 和 <code>Task.WaitAll()</code>。几个方法都会阻塞调用者线程，前者当传递的一组任务有任意一个完成则立即返回该任务的索引，后者则是要等待这一组任务全部完成之后才会唤醒调用线程。</p>
+<p>这两个方法一旦被取消，都会抛出 <code>OperationCanceledException</code> 异常。</p>
+<h3 id="取消任务">取消任务</h3>
+<p>可以通过一个 <code>CancellationTokenSource</code> 来取消 Task，一样的需要传入的计算限制方法添加 <code>CancellationToken</code> 参数。</p>
+<p>只不过呢，在 Task 任务内部我们不通过 <code>IsCancellationRequested</code> 来判断任务是否取消，而是通过调用 Token 的 <code>ThrowIfCancellationRequested()</code> 方法来抛出异常。</p>
+<p>该方法会判断当前任务是否被取消，如果被取消了，则抛出异常。这是因为与直接通过线程池添加任务不同，线程池无法知道任务何时完成，而任务则可以表示是否完成，并且还能返回值。</p>
+<h3 id="任务完成时启动新任务">任务完成时启动新任务</h3>
+<p>之前说过通过调用 <code>Task.Wait()</code> 或者在任务尚未完成的时候调用 <code>Task.Result</code> 属性，都会造成线程池创建新的线程。而我们可以通过在任务完成之后，立即开启一个新的任务，这样我们就可以通过新的任务知道前一个任务是否已经完成了。</p>
+<p>创建一个的计算限制任务对象，我们在启动了该任务对象之后，调用 <code>Task.ContinueWith()</code> 方法来创建一个延续任务，新的延续性任务会有一个 Task 参数，该参数就是最开始的任务。</p>
+<p>而在使用 <code>Task.ContinueWith()</code> 时，他还可以传递一个标识位。这个标识位用于表明这个延续性任务是在第一个任务什么情况下才会执行，一般有三种：OnlyOnCanceled(第一个任务取消时才被执行)、OnlyOnFaulted(第一个任务抛出未处理异常时执行)、OnlyOnRanToCompletion(第一个任务顺利完成时执行)。</p>
+<h3 id="启动子任务">启动子任务</h3>
+<p>一个任务在其内部可以创建其子任务，只需要在内部构造 Task 对象的时候，传递一个标识位 <code>TaskCreationOptions.AttachedToParent</code> 将其与父任务关联。这样的话，除非其所有子任务执行完成，父任务不会被认为已经完成。</p>
+<p>延续性任务也可以作为第一个任务的子任务，指定对应的标识位即可。</p>
+<h3 id="任务的内部构造">任务的内部构造</h3>
+<p>任务主要由以下几部分构成：</p>
+<ol>
+<li>任务唯一的 Task Id。</li>
+<li>调度器的引用。</li>
+<li>回调方法的引用。</li>
+<li>执行上下文的引用。</li>
+<li>其他&hellip;</li>
+</ol>
+<p>可以看到构造一个 Task 还是需要比较大的开销的，如果你不需要 Task 的附加特性，完全可以使用 <code>TaskPool.QueueUserworkItem</code> 来获得更好的性能与效率。</p>
+<p>通过 Task 的只读属性 <code>Task.Status</code>，我们可以知道任务目前处于哪种状态，其最终的状态主要有 3 种，分别是：RanToCompletion(已完成)、Canceled(被取消)、Faulted(出现异常失败)，这三种状态都属于任务完成状态。</p>
+<p>另外值得注意的是，通过 <code>ContinueWith()</code>、<code>ContinueWhenAll()</code>、<code>ContinueWhenAny()</code> 等方法创建的任务状态都为 <code>WaitingForActivation</code>，这个状态代表任务会自动开始。</p>
+<h3 id="任务工厂">任务工厂</h3>
+<p>如果你需要在执行多个相同配置的 Task 对象，可以通过 <code>TaskFactory</code> 和 <code>TaskFactory&lt;TResult&gt;</code>，其大概含义与 <code>Task</code> 的含义相同。</p>
+<p>在创建工厂时，可以传递一些常用的配置标识位和 CancellationToken 对象，之后我们可以通过 <code>StartNew()</code> 方法来统一执行一堆任务。</p>
+<h3 id="任务调度器">任务调度器</h3>
+<p>任务调度器一般有两种，第一种是线程池任务调度器，一般用于服务端程序。还有一种是同步上下文任务调度器，一般用于 GUI 程序。</p>
+<h2 id="六parallel-的-forforeachinvoke">六、Parallel 的 For、Foreach、Invoke</h2>
+<p>For 与 Foreach 基本用于操作一个集合，然后循环处理其值。而如果在某个方法内部需要执行多个方法，则可以通过 Invoke 来进行执行。使用 Parallel 类可以让 CPU 最大化地利用起来而不会阻塞主线程。</p>
+<p>不过一般不会将所有 For 与 Foreach 都替换为并行化的查询，这是因为某些循环会修改共享数据，这个时候使用 Parallel 的操作则会破坏数据，虽然可以通过增加线程同步锁来解决，不过这样会造成单线程访问，无法享受并行处理的好处。</p>
+<p>同时 Parallel 方法本身也会有开销，当然在大量重复性任务中这种开销可以忽略不计，但是如果仅为几十个短耗时的计算限制任务启用 Parallel 就会得不偿失。</p>
+<p>这三种操作都接受一个<code>ParallelOptions</code> 对象用于配置最大并行的工作项数目与调度器。</p>
+<p>Parallel 的 For 与 Foreach 的一个重载方法允许传入 3 个委托，他们分别是：</p>
+<ul>
+<li>任务局部初始化委托(localInit)：该委托是在每次工作项处理之前被调用。</li>
+<li>任务主体委托(body)：具体的工作项处理逻辑，参与工作的各个线程都会调用一次。</li>
+<li>任务局部终结器委托(localFinally)：本委托是在每个工作项处理完成之后都会被调用。</li>
+</ul>
+<p>从上述逻辑来看，可以看作局部初始化委托为一个父任务，后面两个为子级连续任务的构造。</p>
+<p>实例：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">files</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">files</span><span class="p">.</span><span class="n">AddRange</span><span class="p">(</span><span class="n">Directory</span><span class="p">.</span><span class="n">GetFiles</span><span class="p">(</span><span class="s">@&#34;E:\Program Files&#34;</span><span class="p">,</span><span class="s">&#34;*.*&#34;</span><span class="p">,</span><span class="n">SearchOption</span><span class="p">.</span><span class="n">AllDirectories</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="n">files</span><span class="p">.</span><span class="n">AddRange</span><span class="p">(</span><span class="n">Directory</span><span class="p">.</span><span class="n">GetFiles</span><span class="p">(</span><span class="s">@&#34;E:\Program Files (x86)&#34;</span><span class="p">,</span><span class="s">&#34;*.*&#34;</span><span class="p">,</span><span class="n">SearchOption</span><span class="p">.</span><span class="n">AllDirectories</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="n">files</span><span class="p">.</span><span class="n">AddRange</span><span class="p">(</span><span class="n">Directory</span><span class="p">.</span><span class="n">GetFiles</span><span class="p">(</span><span class="s">@&#34;E:\Project&#34;</span><span class="p">,</span><span class="s">&#34;*.*&#34;</span><span class="p">,</span><span class="n">SearchOption</span><span class="p">.</span><span class="n">AllDirectories</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="n">files</span><span class="p">.</span><span class="n">AddRange</span><span class="p">(</span><span class="n">Directory</span><span class="p">.</span><span class="n">GetFiles</span><span class="p">(</span><span class="s">@&#34;E:\Cache&#34;</span><span class="p">,</span><span class="s">&#34;*.*&#34;</span><span class="p">,</span><span class="n">SearchOption</span><span class="p">.</span><span class="n">AllDirectories</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="n">files</span><span class="p">.</span><span class="n">AddRange</span><span class="p">(</span><span class="n">Directory</span><span class="p">.</span><span class="n">GetFiles</span><span class="p">(</span><span class="s">@&#34;E:\Windows Kits&#34;</span><span class="p">,</span><span class="s">&#34;*.*&#34;</span><span class="p">,</span><span class="n">SearchOption</span><span class="p">.</span><span class="n">AllDirectories</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="n">files</span><span class="p">.</span><span class="n">AddRange</span><span class="p">(</span><span class="n">Directory</span><span class="p">.</span><span class="n">GetFiles</span><span class="p">(</span><span class="s">@&#34;C:\Program Files\dotnet&#34;</span><span class="p">,</span><span class="s">&#34;*.*&#34;</span><span class="p">,</span><span class="n">SearchOption</span><span class="p">.</span><span class="n">AllDirectories</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;总文件数量：{files.Count}&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">long</span> <span class="n">allFileCount</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">watch</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Stopwatch</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">watch</span><span class="p">.</span><span class="n">Start</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Parallel</span><span class="p">.</span><span class="n">ForEach</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">long</span><span class="p">&gt;(</span><span class="n">files</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">localInit</span><span class="p">:</span> <span class="p">()</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 初始化文件大小为 0，</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 这里的参数类型取决于任务返回的参数</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">},</span>
+</span></span><span class="line"><span class="cl">        <span class="n">body</span><span class="p">:</span> <span class="p">(</span><span class="n">fileName</span><span class="p">,</span> <span class="n">parallelStatus</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">fileCount</span><span class="p">)</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 计算文件大小并返回</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">long</span> <span class="n">count</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="k">try</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">var</span> <span class="n">info</span> <span class="p">=</span> <span class="k">new</span> <span class="n">FileInfo</span><span class="p">(</span><span class="n">fileName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">                <span class="n">count</span> <span class="p">=</span> <span class="n">info</span><span class="p">.</span><span class="n">Length</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">e</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            
+</span></span><span class="line"><span class="cl">            <span class="c1">// 这里因为该任务会被线程池复用，所以要进行累加</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">count</span> <span class="p">+</span> <span class="n">fileCount</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">},</span>
+</span></span><span class="line"><span class="cl">        <span class="n">localFinally</span><span class="p">:</span> <span class="n">fileCount</span> <span class="p">=&gt;</span> <span class="p">{</span> <span class="n">Interlocked</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="k">ref</span> <span class="n">allFileCount</span><span class="p">,</span> <span class="n">fileCount</span><span class="p">);</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="n">watch</span><span class="p">.</span><span class="n">Stop</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;并行效率:{watch.ElapsedMilliseconds} ms&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;文件总大小:{allFileCount / 1024 / 1024 / 1024} Gb&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">allFileCount</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">watch</span><span class="p">.</span><span class="n">Reset</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="n">watch</span><span class="p">.</span><span class="n">Start</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">file</span> <span class="k">in</span> <span class="n">files</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">long</span> <span class="n">count</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="k">try</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">info</span> <span class="p">=</span> <span class="k">new</span> <span class="n">FileInfo</span><span class="p">(</span><span class="n">file</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="n">count</span> <span class="p">=</span> <span class="n">info</span><span class="p">.</span><span class="n">Length</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">e</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="n">allFileCount</span><span class="p">+=</span><span class="n">count</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="n">watch</span><span class="p">.</span><span class="n">Stop</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;单线程效率:{watch.ElapsedMilliseconds} ms&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;文件总大小:{allFileCount / 1024 / 1024 / 1024} Gb&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">Console</span><span class="p">.</span><span class="n">ReadLine</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>性能提升：</p>
+<p><img src="/p/clr-via-csharp-reading-notes-27-asynchronous-operation-of-calculation-limit/1541471325527.png"
+	width="272"
+	height="140"
+	srcset="/p/clr-via-csharp-reading-notes-27-asynchronous-operation-of-calculation-limit/1541471325527_hu49c6e992b0adce0b5da29dfc933fb877_4187_480x0_resize_box_3.png 480w, /p/clr-via-csharp-reading-notes-27-asynchronous-operation-of-calculation-limit/1541471325527_hu49c6e992b0adce0b5da29dfc933fb877_4187_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1541471325527"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="194"
+		data-flex-basis="466px"
+	
+></p>
+<p>通过 Parallel 的 Foreach 与普通的 foreach 遍历计算，性能总体提升了约 56%，越耗时的操作提升的效果就越明显。</p>
+<p>在 Body 的主体委托当中，传入了一个 <code>ParallelLoopState</code> 对象，该对象用于每个线程与其他任务进行交互。主要有两个方法 <code>Stop()</code> 与 <code>Break()</code>，前者用于停止循环，后者用于跳出循环，并且跳出循环之后，其 <code>LowestBreakIteration</code> 会返回调用过 <code>Break()</code> 方法的最低项。</p>
+<p>并且 Parallel 还会返回一个 <code>ParallelLoopResult</code> 对象，该通过该对象我们可以得知这些循环是否正常完成。</p>
+<h2 id="七并行语言集成查询-plinq">七、并行语言集成查询 PLINQ</h2>
+<p>LINQ 默认查询的方式是一个线程顺序处理数据集合中的所有项，称之为顺序查询。而 PLINQ 就是将这些操作分散到各个 CPU 并行执行，通过 <code>AsParallel()</code> 扩展方法可以将 <code>IEnumerable&lt;TSource&gt;</code> 转换为 <code>ParallelQuery&lt;TSource&gt;</code>。</p>
+<p>而从并行操作切换回顺序操作，只需要调用 <code>ParallelEnumable</code> 的 <code>AsSequential()</code> 方法即可。</p>
+<p>经过 PLINQ 处理后的数据项其结果是无序的，如果需要有序结果，可以调用 <code>AsOrdered()</code> 方法。但是该方法比较损耗性能，一般不推荐使用，如果需要排序应该直接使用与 LINQ 同名的 PLINQ 扩展方法。</p>
+<p>PLINQ 一般会自己分析使用最好的查询方式进行查询，有时候使用顺序查询性能更好。</p>
+<ul>
+<li><code>WithCancellation()</code> ：允许取消某个 PLINQ 查询。</li>
+<li><code>WithExecutionMode()</code>：允许配置 PLINQ 执行模式，是否强制并行查询。</li>
+<li><code>WithMergeOptions()</code>：允许配置结果的缓冲与合并方式。</li>
+<li><code>WithDegreeOfParallelism()</code>：允许配置查询的最大并行数。</li>
+</ul>
+<blockquote>
+<p>PS：</p>
+<p>不建议在多线程环镜中使用 <code>Console.Write()</code> 进行输出，因为 Console 类内部会对线程进行同步，确保只有一个线程可以访问控制台窗口，这样会损害性能。</p>
+</blockquote>
+<h2 id="八定时计算限制操作">八、定时计算限制操作</h2>
+<p>通过 CLR 提供的 <code>Timer</code> 定时器，我们可以传入一个回调方法。这样的话计时器会可以根据传入的周期，来定时将我们的回调方法通过线程池线程进行调用。</p>
+<p>同时计时器还允许传入一个 <code>dueTime</code> 参数来指定这个计时器首次调用回调方法时需要等待多久（立即执行可以传入 0），而 <code>period</code> 可以指定 <code>Timer</code> 调用回调方法的周期。</p>
+<blockquote>
+<p>【原理】</p>
+<p>在线程池内部所有的 <code>Timer</code> 对象只使用了一个线程，当某个 <code>Timer</code> 到期的时候，这个线程就会被唤醒。该线程通过 <code>ThreadPool.QueueUserWorkItem()</code> 方法将一个工作项添加到线程池队列，这样你的回调方法就会得到执行。</p>
+</blockquote>
+<blockquote>
+<p>【注意】</p>
+<p>如果回调方法执行的时常超过了你设置的周期时常，这样会造成多个线程都在执行你的回调。因为 <code>Timer</code> 不知道你的回调执行完成没有，他只会到期执行你的回调方法。</p>
+<p>解决措施是构造一个 <code>Timer</code> 的时候，为 <code>period</code> 指定一个 <code>Timeout.Infinite</code> 常量，这样计时器只会触发一次。之后在你的回调方法执行完成之后，在其内部通过 <code>Timer.Change()</code> 方法指定一个执行周期，并且设置其 dueTime 为立即执行。</p>
+<p>这样做了之后，你的 <code>Timer</code> 就会确保你的回调被执行完成之后再开始下一个周期。</p>
+<p>这一点可以参考 Abp 实现的 <code>AbpTimer</code> 对象。</p>
+</blockquote>
+<h2 id="九线程池如何管理线程">九、线程池如何管理线程</h2>
+<p>CLR 允许开发人员设置线程池最大工作者线程数，但是一般不要轻易设置该值，但你可以通过 <code>ThreadPool.GetMaxThreads()</code>、<code>ThreadPool.GetMinThreads()</code>、<code>GetAvailableThreads()</code> 方法来获取一些相关信息。</p>
+<p>通过 <code>ThreadPool.QueueUserWorkItem()</code> 方法和 <code>Timer</code> 类处理的工作项总是存储到 CLR 线程池的 <strong>全局队列</strong> 中。工作者线程采用一个 FIFO 算法将工作项从 <strong>全局队列</strong> 取出，因为所有工作者线程都有可能去这个队列拿去工作项，这个时候会使用 <strong>线程同步锁</strong> 以确保工作项只会被工作者线程处理一次。这可能会造成性能瓶颈，对伸缩性和性能会造成某些限制。</p>
+<p>默认的任务调度器中，非工作者线程调度 Task 时都是存放在全局队列，而工作者线程调度 Task 则是存放在他自己的本地队列。</p>
+<p>工作者线程处理 Task 的步骤：</p>
+<ul>
+<li>首先从本地队列采用 LIFO 算法取得一个 Task 进行处理。</li>
+<li>如果本地队列没有 Task，则从其他的工作者线程本地队列拿一个 Task 自己来处理。（会使用线程同步锁）</li>
+<li>所有本地队列都为空，则工作者线程会使用 FIFO 算法去全局队列拿一个 Task 进行处理。</li>
+<li>如果全局队列为空，则线程处于休眠状态，时间过长则销毁自身。</li>
+</ul>
+<blockquote>
+<p>PS:</p>
+<p>结合上下文，说明工作项首先被添加到了全局队列，然后由工作者线程取到自己的本地队列进行处理。</p>
+</blockquote>
+<p>线程池会动态地根据工作项的多少动态地调整工作者线程的数量，一般不需要开发人员进行管控。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/%E5%A4%9A%E7%BA%BF%E7%A8%8B/">多线程</a>
+        
+            <a href="/tags/%E5%BC%82%E6%AD%A5/">异步</a>
+        
+            <a href="/tags/task/">Task</a>
+        
+            <a href="/tags/tpl/">TPL</a>
+        
+            <a href="/tags/plinq/">PLINQ</a>
+        
+            <a href="/tags/%E5%B9%B6%E8%A1%8C%E5%8C%96/">并行化</a>
+        
+            <a href="/tags/parallel/">Parallel</a>
+        
+            <a href="/tags/%E5%B9%B6%E8%A1%8C%E8%AE%A1%E7%AE%97/">并行计算</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/implementing-synchronous-requests-in-dotnetty/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">在 DotNetty 中实现同步请求</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/clr-via-csharp-reading-notes-thread-basics/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">《CLR Via C#》读书笔记：26.线程基础</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/why-not-use-async-void/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">为什么不要使用 async void ？</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/csharp-multi-threaded-study-notes---3/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">C# 多线程学习笔记 - 3</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/csharp-multi-threaded-study-notes---2/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">C# 多线程学习笔记 - 2</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一clr-线程池基础">一、CLR 线程池基础</a></li>
+    <li><a href="#二执行简单的计算限制操作">二、执行简单的计算限制操作</a></li>
+    <li><a href="#三执行上下文">三、执行上下文</a></li>
+    <li><a href="#四协作式取消和超时">四、协作式取消和超时</a>
+      <ol>
+        <li><a href="#注册取消事件">注册取消事件</a></li>
+        <li><a href="#tokensource-链接">TokenSource 链接</a></li>
+        <li><a href="#cancel-的异常处理">Cancel 的异常处理</a></li>
+        <li><a href="#超时取消">超时取消</a></li>
+      </ol>
+    </li>
+    <li><a href="#五任务">五、任务</a>
+      <ol>
+        <li><a href="#等待任务完成并获取结果">等待任务完成并获取结果</a></li>
+        <li><a href="#取消任务">取消任务</a></li>
+        <li><a href="#任务完成时启动新任务">任务完成时启动新任务</a></li>
+        <li><a href="#启动子任务">启动子任务</a></li>
+        <li><a href="#任务的内部构造">任务的内部构造</a></li>
+        <li><a href="#任务工厂">任务工厂</a></li>
+        <li><a href="#任务调度器">任务调度器</a></li>
+      </ol>
+    </li>
+    <li><a href="#六parallel-的-forforeachinvoke">六、Parallel 的 For、Foreach、Invoke</a></li>
+    <li><a href="#七并行语言集成查询-plinq">七、并行语言集成查询 PLINQ</a></li>
+    <li><a href="#八定时计算限制操作">八、定时计算限制操作</a></li>
+    <li><a href="#九线程池如何管理线程">九、线程池如何管理线程</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='背景 在 CI/CD 流程当中，测试是 CI 中很重要的部分。跟开发人员关系最大的就是单元测试，单元测试编写完成之后，我们可以使用 IDE 或者 dot cover 等工具获得单元测试对于业务代码的覆盖率。不过我们需要一个独立的 CLI 工具，这样我们才能够在 Jenkins 的 CI 流程集成。
+端到端测试(End to End Test) 是在 Preview 版本部署完成之后，需要对 Preview 版本进行自动化测试，测试完成之后输出对应的覆盖率报告。根据代码覆盖率报告，我们可以了解 QA 编写的测试用例，是否完整覆盖了所有分支流程。
+实现 工具选型 单元测试框架我选择的是 xUnit，它对于 .NET Core 与 .NET Framework 的支持都不错，并且也提供了独立于 IDE 之外的 Console Runner，可以很方便地同 Jenkins 集成。
+覆盖率收集工具我选择的是 AltCover，因为它能够收集到部署在 IIS 的 ASP.NET MVC 程序覆盖率指标，这样我们就能够对一些 .NET Framework 老项目进行测试覆盖率汇总计算。AltCover 可以生成多种格式的覆盖率报告，默认格式是 OpenCover。
+AltCover 生成的覆盖率报告并不是直接可读的，我们需要一个工具来生成人类可以阅读理解的报告。这里我选择的是 ReportGenerator ，它支持 OpenCover 格式的覆盖率报告，并生成对应的 HTML 文件方便查看。
+'><title>C# 使用 AltCover 获得代码覆盖率 - E2E Test 和 Unit Test</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='C# 使用 AltCover 获得代码覆盖率 - E2E Test 和 Unit Test'>
+<meta property='og:description' content='背景 在 CI/CD 流程当中，测试是 CI 中很重要的部分。跟开发人员关系最大的就是单元测试，单元测试编写完成之后，我们可以使用 IDE 或者 dot cover 等工具获得单元测试对于业务代码的覆盖率。不过我们需要一个独立的 CLI 工具，这样我们才能够在 Jenkins 的 CI 流程集成。
+端到端测试(End to End Test) 是在 Preview 版本部署完成之后，需要对 Preview 版本进行自动化测试，测试完成之后输出对应的覆盖率报告。根据代码覆盖率报告，我们可以了解 QA 编写的测试用例，是否完整覆盖了所有分支流程。
+实现 工具选型 单元测试框架我选择的是 xUnit，它对于 .NET Core 与 .NET Framework 的支持都不错，并且也提供了独立于 IDE 之外的 Console Runner，可以很方便地同 Jenkins 集成。
+覆盖率收集工具我选择的是 AltCover，因为它能够收集到部署在 IIS 的 ASP.NET MVC 程序覆盖率指标，这样我们就能够对一些 .NET Framework 老项目进行测试覆盖率汇总计算。AltCover 可以生成多种格式的覆盖率报告，默认格式是 OpenCover。
+AltCover 生成的覆盖率报告并不是直接可读的，我们需要一个工具来生成人类可以阅读理解的报告。这里我选择的是 ReportGenerator ，它支持 OpenCover 格式的覆盖率报告，并生成对应的 HTML 文件方便查看。
+'>
+<meta property='og:url' content='https://real-zony.github.io/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='ASP.NET Core MVC' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='单元测试' /><meta property='article:tag' content='.NET Framework' /><meta property='article:tag' content='ASP.NET MVC' /><meta property='article:tag' content='集成测试' /><meta property='article:tag' content='E2E 测试' /><meta property='article:tag' content='覆盖率' /><meta property='article:published_time' content='2022-08-12T19:00:00&#43;00:00'/><meta property='article:modified_time' content='2022-08-12T19:00:00&#43;00:00'/>
+<meta name="twitter:title" content="C# 使用 AltCover 获得代码覆盖率 - E2E Test 和 Unit Test">
+<meta name="twitter:description" content="背景 在 CI/CD 流程当中，测试是 CI 中很重要的部分。跟开发人员关系最大的就是单元测试，单元测试编写完成之后，我们可以使用 IDE 或者 dot cover 等工具获得单元测试对于业务代码的覆盖率。不过我们需要一个独立的 CLI 工具，这样我们才能够在 Jenkins 的 CI 流程集成。
+端到端测试(End to End Test) 是在 Preview 版本部署完成之后，需要对 Preview 版本进行自动化测试，测试完成之后输出对应的覆盖率报告。根据代码覆盖率报告，我们可以了解 QA 编写的测试用例，是否完整覆盖了所有分支流程。
+实现 工具选型 单元测试框架我选择的是 xUnit，它对于 .NET Core 与 .NET Framework 的支持都不错，并且也提供了独立于 IDE 之外的 Console Runner，可以很方便地同 Jenkins 集成。
+覆盖率收集工具我选择的是 AltCover，因为它能够收集到部署在 IIS 的 ASP.NET MVC 程序覆盖率指标，这样我们就能够对一些 .NET Framework 老项目进行测试覆盖率汇总计算。AltCover 可以生成多种格式的覆盖率报告，默认格式是 OpenCover。
+AltCover 生成的覆盖率报告并不是直接可读的，我们需要一个工具来生成人类可以阅读理解的报告。这里我选择的是 ReportGenerator ，它支持 OpenCover 格式的覆盖率报告，并生成对应的 HTML 文件方便查看。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/">C# 使用 AltCover 获得代码覆盖率 - E2E Test 和 Unit Test</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Aug 12, 2022</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 3 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h3 id="背景">背景</h3>
+<p>在 CI/CD 流程当中，测试是 CI 中很重要的部分。跟开发人员关系最大的就是单元测试，单元测试编写完成之后，我们可以使用 IDE 或者 dot cover 等工具获得单元测试对于业务代码的覆盖率。不过我们需要一个独立的 CLI 工具，这样我们才能够在 Jenkins 的 CI 流程集成。</p>
+<p>端到端测试(End to End Test) 是在 Preview 版本部署完成之后，需要对 Preview 版本进行自动化测试，测试完成之后输出对应的覆盖率报告。根据代码覆盖率报告，我们可以了解 QA 编写的测试用例，是否完整覆盖了所有分支流程。</p>
+<h3 id="实现">实现</h3>
+<h4 id="工具选型">工具选型</h4>
+<p>单元测试框架我选择的是 xUnit，它对于 .NET Core 与 .NET Framework 的支持都不错，并且也提供了独立于 IDE 之外的 Console Runner，可以很方便地同 Jenkins 集成。</p>
+<p>覆盖率收集工具我选择的是 <a class="link" href="https://github.com/SteveGilham/altcover"  target="_blank" rel="noopener"
+    ><strong>AltCover</strong></a>，因为它能够收集到部署在 IIS 的 ASP.NET MVC 程序覆盖率指标，这样我们就能够对一些 .NET Framework 老项目进行测试覆盖率汇总计算。<strong>AltCover</strong> 可以生成多种格式的覆盖率报告，默认格式是 OpenCover。</p>
+<p><strong>AltCover</strong> 生成的覆盖率报告并不是直接可读的，我们需要一个工具来生成人类可以阅读理解的报告。这里我选择的是 <a class="link" href="https://github.com/danielpalme/ReportGenerator"  target="_blank" rel="noopener"
+    ><strong>ReportGenerator</strong></a> ，它支持 OpenCover 格式的覆盖率报告，并生成对应的 HTML 文件方便查看。</p>
+<h4 id="net-framework-集成">.NET Framework 集成</h4>
+<p>我建立了一个简单的 ASP.NET Web API 项目(.NET Framework 4.8)，提供了一个 <code>ApiTestController</code> 控制器，暴露了一个 HTTP POST 方法 CreateOrder，内部逻辑比较简单，就是创建了一个新的 <code>OrderAggregateRoot</code> 实例，然后返回了一个 Success 文本。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// ApiTestController.</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="na">[Route(&#34;api/test&#34;)]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">ApiTestController</span> <span class="p">:</span> <span class="n">ApiController</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IOrderRepository</span> <span class="n">_orderRepository</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;see cref=&#34;ApiTestController&#34;/&gt;.</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ApiTestController</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_orderRepository</span> <span class="p">=</span> <span class="k">new</span> <span class="n">FakeOrderRepository</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// CreateOrder.</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [HttpPost]</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [Route(&#34;api/test/create&#34;)]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IHttpActionResult</span> <span class="n">CreateOrder</span><span class="p">(</span><span class="n">CreateOrderInputDto</span> <span class="n">input</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">newOrder</span> <span class="p">=</span> <span class="k">new</span> <span class="n">OrderAggregateRoot</span><span class="p">(</span><span class="k">null</span><span class="p">,</span> <span class="n">input</span><span class="p">.</span><span class="n">Items</span><span class="p">.</span><span class="n">Select</span><span class="p">(</span><span class="n">x</span> <span class="p">=&gt;</span> <span class="k">new</span> <span class="n">OrderItem</span><span class="p">(</span><span class="n">x</span><span class="p">.</span><span class="n">Price</span><span class="p">,</span> <span class="n">x</span><span class="p">.</span><span class="n">Number</span><span class="p">)).</span><span class="n">ToList</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_orderRepository</span><span class="p">.</span><span class="n">InsertAsync</span><span class="p">(</span><span class="n">newOrder</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">Ok</span><span class="p">(</span><span class="s">&#34;Success&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h5 id="单元测试覆盖率报告">单元测试覆盖率报告</h5>
+<p>单元测试项目建立比较简单，我建立了一个 AltCoverTestUnitTest 项目，并且添加了 ASP.NET Web API 项目的引用，在内部添加了 AltCover 与 xUnit 相关包的引用。</p>
+<p><img src="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185640497-738049634.png"
+	width="766"
+	height="963"
+	srcset="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185640497-738049634_hu9c4c30dd7fb3b0c2e4a14327b13fa243_61923_480x0_resize_box_3.png 480w, /p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185640497-738049634_hu9c4c30dd7fb3b0c2e4a14327b13fa243_61923_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="79"
+		data-flex-basis="190px"
+	
+></p>
+<p><a class="link" href="https://img2022.cnblogs.com/blog/1203160/202208/1203160-20220812185652367-1156150566.png"  target="_blank" rel="noopener"
+    ><img src="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185652367-1156150566.png"
+	width="1867"
+	height="722"
+	srcset="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185652367-1156150566_hu31da7de2c54a8a3a4c5a8acfefa67eba_106457_480x0_resize_box_3.png 480w, /p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185652367-1156150566_hu31da7de2c54a8a3a4c5a8acfefa67eba_106457_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="258"
+		data-flex-basis="620px"
+	
+></a></p>
+<p><strong>AltCover</strong> 与 <strong>xUnit Console Runner</strong> 包安装完成之后，对于 .NET Framework 项目来说，会在对应的解决方案目录下面有一个 <em>packages</em> 文件夹，在里面找到 <em>packages\altcover.8.3.838\tools\net472</em> 目录，在这个目录里面有一个 <em>AltCover.exe</em> 的可执行文件，这个就是 <strong>AltCover</strong> 的 CLI 工具。</p>
+<p>而 <strong>xUnit Console Runner</strong> 对应的 CLI 工具则在 <em>packages\xunit.runner.console.2.4.2\tools\net472</em> 中，根据自己的平台使用 <em>xunit.console.exe</em> 或者是 <em>xunit.console.x86.exe</em> 均可。</p>
+<p>随后我们直接使用 <code>MSBuild</code> 命令/IDE 重新编译一下单元测试项目，转到对应的 <code>bin\Debug</code> 目录。在 <em>.bin\Debug</em> 目录中，执行以下命令，将会生成一个新的文件夹，里面会包含修改后的 DLL 文件。</p>
+<p>这里 CLI 工具的路径，取决于你的实际路径，就在你解决方案对应的 <em>pacakges</em> 里面。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-powershell" data-lang="powershell"><span class="line"><span class="cl"><span class="n">D:</span><span class="p">\</span><span class="n">CoverageTool</span><span class="p">\</span><span class="n">AltCoverTestRESFul</span><span class="p">\</span><span class="n">packages</span><span class="p">\</span><span class="n">altcover</span><span class="p">.</span><span class="py">8</span><span class="p">.</span><span class="py">3</span><span class="p">.</span><span class="mf">838</span><span class="p">\</span><span class="n">tools</span><span class="p">\</span><span class="n">net472</span><span class="p">\</span><span class="n">AltCover</span><span class="p">.</span><span class="py">exe</span> <span class="p">/</span><span class="n">o</span><span class="p">=./</span><span class="n">__UnitTestWithAltCover</span> <span class="n">-s</span><span class="p">=</span><span class="n">Adapter</span> <span class="n">-s</span><span class="p">=</span><span class="n">Shouldly</span> <span class="n">-s</span><span class="p">=</span><span class="n">Microsoft</span> <span class="n">-t</span><span class="p">=</span><span class="s2">&#34;Shouldly.&#34;</span> <span class="n">-s</span><span class="p">=</span><span class="s2">&#34;AltCover.Monitor&#34;</span> <span class="n">-t</span><span class="p">=</span><span class="s2">&#34;System.&#34;</span> <span class="n">-s</span><span class="p">=</span><span class="n">xunit</span> <span class="n">-e</span><span class="p">=</span><span class="s2">&#34;EmptyFiles&#34;</span> <span class="n">-e</span><span class="p">=</span><span class="n">Tests</span> <span class="n">-r</span><span class="p">=</span><span class="s2">&#34;.\_Reports\UnitTestWithAltCover.xml&#34;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里我解释以下命令，其中 <code>/o</code> 参数指的是修改后 DLL 的输出目录，这里我指定的当前目录下的 <em>__UnitTestWithAltCover</em> 文件夹。<code>-s</code> 参数指的是需要排除的程序集名称，支持通配符与正则表达式。<code>-e</code> 的作用与 <code>-s</code> 类似，具体可以查看 <a class="link" href="https://stevegilham.github.io/altcover/Usage"  target="_blank" rel="noopener"
+    >Usage</a> ，最有一个 <code>-r</code> 参数指定报告的输出路径，也就是 OpenCover 格式的 XML 文件输出路径。</p>
+<p>为什么需要排除？因为我们的项目可能会引用很多第三方库，这个时候我们为了减少报告的噪音，你也不想在报告里面看到一堆 Microsoft 的代码吧，所以需要手动排除掉这些程序集。</p>
+<blockquote>
+<p>为什么叫做修改后，因为执行命令后，AltCover 会重新生成一个新的 DLL，这个新的 DLL 反编译后可以看到会在每行代码插入 <code>Instance.Visit()</code> 来记录代码的访问路径。</p>
+<p><a class="link" href="https://img2022.cnblogs.com/blog/1203160/202208/1203160-20220812185715282-2102146540.png"  target="_blank" rel="noopener"
+    ><img src="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185715282-2102146540.png"
+	width="2779"
+	height="1398"
+	srcset="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185715282-2102146540_hu89d4ab6e8656569886f9838ebd23e659_394399_480x0_resize_box_3.png 480w, /p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185715282-2102146540_hu89d4ab6e8656569886f9838ebd23e659_394399_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="198"
+		data-flex-basis="477px"
+	
+></a></p>
+</blockquote>
+<p>命令执行完成之后，可以看到对应的覆盖率文件生成了，但是这里面覆盖率是 0，因为我们的单元测试还没开始跑。</p>
+<p><a class="link" href="https://img2022.cnblogs.com/blog/1203160/202208/1203160-20220812185744315-1506973497.png"  target="_blank" rel="noopener"
+    ><img src="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185744315-1506973497.png"
+	width="1389"
+	height="220"
+	srcset="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185744315-1506973497_hu73ed3ca590888dcbc56b80e729700adc_19133_480x0_resize_box_3.png 480w, /p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185744315-1506973497_hu73ed3ca590888dcbc56b80e729700adc_19133_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="631"
+		data-flex-basis="1515px"
+	
+></a></p>
+<p>随后我们执行下面的命令，使用 <strong>xUnit Console Runner</strong> 运行我们的单元测试项目。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-powershell" data-lang="powershell"><span class="line"><span class="cl"><span class="n">D:</span><span class="p">\</span><span class="n">CoverageTool</span><span class="p">\</span><span class="n">AltCoverTestRESFul</span><span class="p">\</span><span class="n">packages</span><span class="p">\</span><span class="n">xunit</span><span class="p">.</span><span class="py">runner</span><span class="p">.</span><span class="py">console</span><span class="p">.</span><span class="py">2</span><span class="p">.</span><span class="py">4</span><span class="p">.</span><span class="mf">2</span><span class="p">\</span><span class="n">tools</span><span class="p">\</span><span class="n">net47</span><span class="p">\</span><span class="n">xunit</span><span class="p">.</span><span class="py">console</span><span class="p">.</span><span class="py">exe</span> <span class="p">./</span><span class="n">__UnitTestWithAltCover</span><span class="p">/</span><span class="n">AltCoverTestUnitTest</span><span class="p">.</span><span class="py">dll</span> <span class="n">-xml</span> <span class="s2">&#34;./_Reports/UnitTestWithAltCoverReport.xml&#34;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>第一个参数是需要执行的单元测试 DLL，第二个参数 <code>-xml</code> 说明我们具体的执行结果输出路径，这里我们也输出到了 <em>_Reports</em> 文件夹，这个时候我们就有两个 XML 文件了。</p>
+<p><a class="link" href="https://img2022.cnblogs.com/blog/1203160/202208/1203160-20220812185757821-639311049.png"  target="_blank" rel="noopener"
+    ><img src="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185757821-639311049.png"
+	width="1448"
+	height="288"
+	srcset="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185757821-639311049_huc2dd5316a7235488ba4c2a10020ccb19_29433_480x0_resize_box_3.png 480w, /p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185757821-639311049_huc2dd5316a7235488ba4c2a10020ccb19_29433_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="502"
+		data-flex-basis="1206px"
+	
+></a></p>
+<p>切换到 <em>_Reports</em> 文件夹，打开终端，我们这个时候需要使用 <code>reportgeneator</code> 工具，根据这两个 XML 文件生成人类可读的 HTML 报告。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-powershell" data-lang="powershell"><span class="line"><span class="cl"><span class="n">reportgenerator</span> <span class="s2">&#34;-reports:UnitTestWithAltCover.xml;UnitTestWithAltCoverReport.xml&#34;</span> <span class="s2">&#34;-targetdir:coveragereport&#34;</span> <span class="n">-reporttypes:Html</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>上述命令的意思就是根据这两个 xml ，在当前目录的 <em>coveragereport</em> 文件夹，生成一个新的 HTML 报告。</p>
+<blockquote>
+<p>关于 <code>reportgenerator</code> 的安装，可以参考官方的 <a class="link" href="https://reportgenerator.io/usage"  target="_blank" rel="noopener"
+    >线上工具</a>，它会根据你选择的情况返回适合的安装命令。我自己直接使用的 <code>dotnet tool install --global dotnet-reportgenerator-globaltool</code> 命令进行的安装。</p>
+</blockquote>
+<p><a class="link" href="https://img2022.cnblogs.com/blog/1203160/202208/1203160-20220812185810558-1733244478.png"  target="_blank" rel="noopener"
+    ><img src="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185810558-1733244478.png"
+	width="1693"
+	height="1099"
+	srcset="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185810558-1733244478_hu1545f7d8f4c0ea91dd96246ba98a9f74_122843_480x0_resize_box_3.png 480w, /p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185810558-1733244478_hu1545f7d8f4c0ea91dd96246ba98a9f74_122843_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="154"
+		data-flex-basis="369px"
+	
+></a></p>
+<p>最后的效果:</p>
+<p><a class="link" href="https://img2022.cnblogs.com/blog/1203160/202208/1203160-20220812185829106-1893339042.png"  target="_blank" rel="noopener"
+    ><img src="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185829106-1893339042.png"
+	width="3368"
+	height="1771"
+	srcset="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185829106-1893339042_hu397846fae3fa646ed74371813dae05da_483025_480x0_resize_box_3.png 480w, /p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185829106-1893339042_hu397846fae3fa646ed74371813dae05da_483025_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="190"
+		data-flex-basis="456px"
+	
+></a></p>
+<p><a class="link" href="https://img2022.cnblogs.com/blog/1203160/202208/1203160-20220812185840371-668948115.png"  target="_blank" rel="noopener"
+    ><img src="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185840371-668948115.png"
+	width="3289"
+	height="1858"
+	srcset="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185840371-668948115_hu607e6be39fd69805dd49c7e593aae607_270868_480x0_resize_box_3.png 480w, /p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185840371-668948115_hu607e6be39fd69805dd49c7e593aae607_270868_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="177"
+		data-flex-basis="424px"
+	
+></a></p>
+<h5 id="iis-web-api-覆盖率报告">IIS Web API 覆盖率报告</h5>
+<p>我们建立一个新的 IIS 站点，并将对应的 DLL 文件放到对应的目录下面。首先暂停对应 IIS 站点，并且停止对应的应用程序池。</p>
+<p><a class="link" href="https://img2022.cnblogs.com/blog/1203160/202208/1203160-20220812185851751-1742986819.png"  target="_blank" rel="noopener"
+    ><img src="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185851751-1742986819.png"
+	width="1310"
+	height="712"
+	srcset="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185851751-1742986819_hud217d0a21fd742b030f869bec5ec3253_51794_480x0_resize_box_3.png 480w, /p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185851751-1742986819_hud217d0a21fd742b030f869bec5ec3253_51794_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="183"
+		data-flex-basis="441px"
+	
+></a></p>
+<p>随后执行以下命令，将会修改对应的 DLL 文件，以便后续进行覆盖率跟踪，原理跟上面的一样。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-powershell" data-lang="powershell"><span class="line"><span class="cl"><span class="n">D:</span><span class="p">\</span><span class="n">CoverageTool</span><span class="p">\</span><span class="n">AltCoverTestRESFul</span><span class="p">\</span><span class="n">packages</span><span class="p">\</span><span class="n">altcover</span><span class="p">.</span><span class="py">8</span><span class="p">.</span><span class="py">3</span><span class="p">.</span><span class="mf">838</span><span class="p">\</span><span class="n">tools</span><span class="p">\</span><span class="n">net472</span><span class="p">\</span><span class="n">AltCover</span><span class="p">.</span><span class="py">exe</span> <span class="p">-</span><span class="n">-save</span> <span class="p">-</span><span class="n">-inplace</span> <span class="n">-i</span> <span class="s2">&#34;D:\TempFiles\IIS\AltCoverTestWebSite\bin&#34;</span> <span class="n">-s</span><span class="p">=</span><span class="n">Adapter</span> <span class="n">-s</span><span class="p">=</span><span class="n">Shouldly</span> <span class="n">-s</span><span class="p">=</span><span class="s2">&#34;Antlr3.Runtime&#34;</span> <span class="n">-s</span><span class="p">=</span><span class="n">Microsoft</span> <span class="n">-t</span><span class="p">=</span><span class="s2">&#34;Shouldly.&#34;</span> <span class="n">-s</span><span class="p">=</span><span class="s2">&#34;AltCover.Monitor&#34;</span> <span class="n">-t</span><span class="p">=</span><span class="s2">&#34;System.&#34;</span> <span class="n">-s</span><span class="p">=</span><span class="n">xunit</span> <span class="n">-e</span><span class="p">=</span><span class="s2">&#34;EmptyFiles&#34;</span> <span class="n">-e</span><span class="p">=</span><span class="n">Tests</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>执行完上述命令以后，将会在终端执行目录下生成两个文件，一个是 <em>coverage.xml</em> ，一个是 <em>coverage.xml.acv</em> 文件，后者是 <strong>AltCover</strong> 的控制文件，用于记录程序在运行过程中的执行代码路径。</p>
+<p><a class="link" href="https://img2022.cnblogs.com/blog/1203160/202208/1203160-20220812185902939-438357744.png"  target="_blank" rel="noopener"
+    ><img src="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185902939-438357744.png"
+	width="1527"
+	height="1090"
+	srcset="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185902939-438357744_hu76a70852ea480e3181147ff8375191a4_113027_480x0_resize_box_3.png 480w, /p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185902939-438357744_hu76a70852ea480e3181147ff8375191a4_113027_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="140"
+		data-flex-basis="336px"
+	
+></a></p>
+<p>随后启动对应的 IIS 站点与应用程序池，执行自动化测试，或者调用对应的接口。</p>
+<p>如果需要停止测试了，需要将对应的 IIS 站点与应用程序池停止，只有停止了，<strong>AltCover</strong> 才会将已执行代码路径信息写入到对应的控制文件当中。</p>
+<p><a class="link" href="https://img2022.cnblogs.com/blog/1203160/202208/1203160-20220812185913185-1363961084.png"  target="_blank" rel="noopener"
+    ><img src="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185913185-1363961084.png"
+	width="1466"
+	height="438"
+	srcset="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185913185-1363961084_hu4973101d9d389b4e927e35ac73b8f371_36715_480x0_resize_box_3.png 480w, /p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185913185-1363961084_hu4973101d9d389b4e927e35ac73b8f371_36715_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="334"
+		data-flex-basis="803px"
+	
+></a></p>
+<p>可以看到 <em>coverage.xml.0.acv</em> 文件已经有内容了，但是我们还需要将控制文件的信息合并到 <em>coverage.xml</em> 当中，这个时候需要执行第二个命令进行合并。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-powershell" data-lang="powershell"><span class="line"><span class="cl"><span class="n">D:</span><span class="p">\</span><span class="n">CoverageTool</span><span class="p">\</span><span class="n">AltCoverTestRESFul</span><span class="p">\</span><span class="n">packages</span><span class="p">\</span><span class="n">altcover</span><span class="p">.</span><span class="py">8</span><span class="p">.</span><span class="py">3</span><span class="p">.</span><span class="mf">838</span><span class="p">\</span><span class="n">tools</span><span class="p">\</span><span class="n">net472</span><span class="p">\</span><span class="n">AltCover</span><span class="p">.</span><span class="py">exe</span> <span class="n">runner</span> <span class="p">-</span><span class="n">-collect</span> <span class="n">-r</span> <span class="s2">&#34;D:\TempFiles\IIS\AltCoverTestWebSite\bin&#34;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><em>output:</em></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-powershell" data-lang="powershell"><span class="line"><span class="cl"><span class="p">...</span> <span class="n">D:</span><span class="p">\</span><span class="n">TempFiles</span><span class="p">\</span><span class="n">IIS</span><span class="p">\</span><span class="n">AltCoverTestWebSite</span><span class="p">\</span><span class="n">coverage</span><span class="p">.</span><span class="py">xml</span><span class="p">.</span><span class="py">0</span><span class="p">.</span><span class="py">acv</span> <span class="p">(</span><span class="n">380b</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="mf">308</span> <span class="n">visits</span> <span class="n">recorded</span> <span class="k">in</span> <span class="mf">00</span><span class="err">:</span><span class="mf">00</span><span class="err">:</span><span class="mf">00.0171096</span> <span class="p">(</span><span class="mf">18</span><span class="p">,</span><span class="mf">002</span> <span class="n">visits</span><span class="p">/</span><span class="n">sec</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">A</span> <span class="n">total</span> <span class="n">of</span> <span class="mf">308</span> <span class="n">visits</span> <span class="n">recorded</span>
+</span></span><span class="line"><span class="cl"><span class="n">Coverage</span> <span class="n">statistics</span> <span class="n">flushing</span> <span class="n">took</span> <span class="mf">0.04</span> <span class="n">seconds</span>
+</span></span><span class="line"><span class="cl"><span class="n">Visited</span> <span class="n">Classes</span> <span class="mf">10</span> <span class="n">of</span> <span class="mf">12</span> <span class="p">(</span><span class="mf">83.33</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">Visited</span> <span class="n">Methods</span> <span class="mf">14</span> <span class="n">of</span> <span class="mf">22</span> <span class="p">(</span><span class="mf">63.64</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">Visited</span> <span class="n">Points</span> <span class="mf">65</span> <span class="n">of</span> <span class="mf">93</span> <span class="p">(</span><span class="mf">69.89</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">Visited</span> <span class="n">Branches</span> <span class="mf">4</span> <span class="n">of</span> <span class="mf">30</span> <span class="p">(</span><span class="mf">13.33</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">Maximum</span> <span class="n">CRAP</span> <span class="n">score</span> <span class="mf">30</span>
+</span></span><span class="line"><span class="cl"><span class="p">====</span> <span class="n">Alternative</span> <span class="n">Results</span> <span class="p">(</span><span class="n">includes</span> <span class="n">all</span> <span class="n">methods</span> <span class="n">including</span> <span class="n">those</span> <span class="n">without</span> <span class="n">corresponding</span> <span class="n">source</span><span class="p">)</span> <span class="p">====</span>
+</span></span><span class="line"><span class="cl"><span class="n">Alternative</span> <span class="n">Visited</span> <span class="n">Classes</span> <span class="mf">13</span> <span class="n">of</span> <span class="mf">15</span> <span class="p">(</span><span class="mf">86.67</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">Alternative</span> <span class="n">Visited</span> <span class="n">Methods</span> <span class="mf">20</span> <span class="n">of</span> <span class="mf">30</span> <span class="p">(</span><span class="mf">66.67</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">Alternative</span> <span class="n">maximum</span> <span class="n">CRAP</span> <span class="n">score</span> <span class="mf">30</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到控制台的输出已经有 <code>308 visits recorded</code>，随后我们使用 <code>reportgenerator</code> 工具生成 HTML 报告。</p>
+<p><a class="link" href="https://img2022.cnblogs.com/blog/1203160/202208/1203160-20220812185925524-1952591208.png"  target="_blank" rel="noopener"
+    ><img src="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185925524-1952591208.png"
+	width="3338"
+	height="1842"
+	srcset="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185925524-1952591208_hufaa8472ee8a0717fd98ea079761d51ed_497491_480x0_resize_box_3.png 480w, /p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185925524-1952591208_hufaa8472ee8a0717fd98ea079761d51ed_497491_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="181"
+		data-flex-basis="434px"
+	
+></a></p>
+<h4 id="net-core-集成">.NET Core 集成</h4>
+<h5 id="单元测试覆盖率报告-1">单元测试覆盖率报告</h5>
+<p>集成方法同 .NET Framework 一样。</p>
+<h5 id="asp-net-core-覆盖率报告">ASP .NET Core 覆盖率报告</h5>
+<p>这里我使用的是 dotnet tool 安装的 <code>altcover</code> 命令，安装命令如下，前提是你得有 .NET Core 运行时。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-powershell" data-lang="powershell"><span class="line"><span class="cl"><span class="n">dotnet</span> <span class="n">tool</span> <span class="n">install</span> <span class="p">-</span><span class="n">-global</span> <span class="n">altcover</span><span class="p">.</span><span class="py">global</span> <span class="p">-</span><span class="n">-version</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>随后编译对应的 ASP.NET Core 项目，并且在对应的 <em>bin\Debug</em> 目录打开终端，执行以下命令进行准备工作。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-powershell" data-lang="powershell"><span class="line"><span class="cl"><span class="n">altcover</span> <span class="p">/</span><span class="n">o</span><span class="p">=./</span><span class="n">__UnitTestWithAltCover</span> <span class="n">-i</span> <span class="p">.</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>随后使用 <code>altcover runner</code> 命令启动对应的程序。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-powershell" data-lang="powershell"><span class="line"><span class="cl"><span class="n">altcover</span> <span class="n">runner</span> <span class="n">-x</span> <span class="p">.\</span><span class="n">__UnitTestWithAltCover</span><span class="p">\</span><span class="n">AltCoverTestRESTFulCore</span><span class="p">.</span><span class="py">exe</span> <span class="n">-r</span> <span class="p">.\</span><span class="n">__UnitTestWithAltCover</span><span class="p">\</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>如果已经完成了测试，请终止掉对应的进程，否则 <strong>AltCover</strong> 不会将数据写入到 XML 文件，最后也使用 <code>reportgenerator</code> 工具生成 HTML 报告。</p>
+<p><a class="link" href="https://img2022.cnblogs.com/blog/1203160/202208/1203160-20220812185937759-1782252092.png"  target="_blank" rel="noopener"
+    ><img src="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185937759-1782252092.png"
+	width="2661"
+	height="1888"
+	srcset="/p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185937759-1782252092_hua8aeac6559e2a7a3b6fdf0e640d9ca17_431977_480x0_resize_box_3.png 480w, /p/csharp-get-code-coverage-with-altcover---e2e-test-and-unit-test/1203160-20220812185937759-1782252092_hua8aeac6559e2a7a3b6fdf0e640d9ca17_431977_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="img"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="140"
+		data-flex-basis="338px"
+	
+></a></p>
+<h3 id="总结">总结</h3>
+<p>如果你的项目是基于 .NET Core ，那么可以直接选择微软主推的 <a class="link" href="https://github.com/coverlet-coverage/coverlet"  target="_blank" rel="noopener"
+    ><strong>coverlet</strong></a> ，<strong>AltCover</strong> 对于 .NET Framework、Mono、.NET Core 项目都有不错的支持，并且作者维护得也很勤快。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/asp.net-core-mvc/">ASP.NET Core MVC</a>
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/%E5%8D%95%E5%85%83%E6%B5%8B%E8%AF%95/">单元测试</a>
+        
+            <a href="/tags/.net-framework/">.NET Framework</a>
+        
+            <a href="/tags/asp.net-mvc/">ASP.NET MVC</a>
+        
+            <a href="/tags/%E9%9B%86%E6%88%90%E6%B5%8B%E8%AF%95/">集成测试</a>
+        
+            <a href="/tags/e2e-%E6%B5%8B%E8%AF%95/">E2E 测试</a>
+        
+            <a href="/tags/%E8%A6%86%E7%9B%96%E7%8E%87/">覆盖率</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/aspnet-core-removes-a-registered-filter/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">ASP.NET Core 移除已注册的过滤器</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li>
+      <ol>
+        <li><a href="#背景">背景</a></li>
+        <li><a href="#实现">实现</a>
+          <ol>
+            <li><a href="#工具选型">工具选型</a></li>
+            <li><a href="#net-framework-集成">.NET Framework 集成</a></li>
+            <li><a href="#net-core-集成">.NET Core 集成</a></li>
+          </ol>
+        </li>
+        <li><a href="#总结">总结</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

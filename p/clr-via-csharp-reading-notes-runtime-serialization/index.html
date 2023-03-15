@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、什么是运行时序列化 序列化的作用就是将对象图(特定时间点的对象连接图)转换为字节流，这样这些对象图就可以在文件系统/网络进行传输。
+二、序列化/反序列化快速入门 一般来说我们通过 FCL 提供的 BinaryFormatter 对象就可以将一个对象序列化为字节流进行存储，或者通过该 Formatter 将一个字节流反序列化为一个对象。
+'><title>《CLR Via C#》读书笔记：24.运行时序列化</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/clr-via-csharp-reading-notes-runtime-serialization/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='《CLR Via C#》读书笔记：24.运行时序列化'>
+<meta property='og:description' content='一、什么是运行时序列化 序列化的作用就是将对象图(特定时间点的对象连接图)转换为字节流，这样这些对象图就可以在文件系统/网络进行传输。
+二、序列化/反序列化快速入门 一般来说我们通过 FCL 提供的 BinaryFormatter 对象就可以将一个对象序列化为字节流进行存储，或者通过该 Formatter 将一个字节流反序列化为一个对象。
+'>
+<meta property='og:url' content='https://real-zony.github.io/p/clr-via-csharp-reading-notes-runtime-serialization/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='读书笔记' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='序列化' /><meta property='article:published_time' content='2018-11-04T12:41:29&#43;00:00'/><meta property='article:modified_time' content='2018-11-04T12:41:29&#43;00:00'/>
+<meta name="twitter:title" content="《CLR Via C#》读书笔记：24.运行时序列化">
+<meta name="twitter:description" content="一、什么是运行时序列化 序列化的作用就是将对象图(特定时间点的对象连接图)转换为字节流，这样这些对象图就可以在文件系统/网络进行传输。
+二、序列化/反序列化快速入门 一般来说我们通过 FCL 提供的 BinaryFormatter 对象就可以将一个对象序列化为字节流进行存储，或者通过该 Formatter 将一个字节流反序列化为一个对象。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/clr-via-csharp-reading-notes-runtime-serialization/">《CLR Via C#》读书笔记：24.运行时序列化</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Nov 04, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 5 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一什么是运行时序列化">一、什么是运行时序列化</h2>
+<p>序列化的作用就是将对象图(特定时间点的对象连接图)转换为字节流，这样这些对象图就可以在文件系统/网络进行传输。</p>
+<h2 id="二序列化反序列化快速入门">二、序列化/反序列化快速入门</h2>
+<p>一般来说我们通过 FCL 提供的 <code>BinaryFormatter</code> 对象就可以将一个对象序列化为字节流进行存储，或者通过该 Formatter 将一个字节流反序列化为一个对象。</p>
+<h3 id="fcl-的序列化与反序列化">FCL 的序列化与反序列化</h3>
+<p>序列化操作：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">MemoryStream</span> <span class="n">SerializeObj</span><span class="p">(</span><span class="kt">object</span> <span class="n">sourceObj</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">memStream</span> <span class="p">=</span> <span class="k">new</span> <span class="n">MemoryStream</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">formatter</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BinaryFormatter</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">formatter</span><span class="p">.</span><span class="n">Serialize</span><span class="p">(</span><span class="n">memStream</span><span class="p">,</span> <span class="n">sourceObj</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">memStream</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>反序列化操作：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="kt">object</span> <span class="n">DeserializeFromStream</span><span class="p">(</span><span class="n">MemoryStream</span> <span class="n">stream</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">formatter</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BinaryFormatter</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">stream</span><span class="p">.</span><span class="n">Position</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">formatter</span><span class="p">.</span><span class="n">Deserialize</span><span class="p">(</span><span class="n">stream</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><blockquote>
+<p>反序列化通过 Formatter 的 <code>Deserialize()</code> 方法返回序列化好的对象图的根对象的一个引用。</p>
+</blockquote>
+<h3 id="深拷贝">深拷贝</h3>
+<p>通过序列化与反序列化的特性，可以实现一个深拷贝的方法，用户创建源对象的一个克隆体。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="kt">object</span> <span class="n">DeepClone</span><span class="p">(</span><span class="kt">object</span> <span class="n">originalObj</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">memoryStream</span> <span class="p">=</span> <span class="k">new</span> <span class="n">MemoryStream</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">formatter</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BinaryFormatter</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">formatter</span><span class="p">.</span><span class="n">Serialize</span><span class="p">(</span><span class="n">memoryStream</span><span class="p">,</span> <span class="n">originalObj</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 表明对象是被克隆的，可以安全的访问其他托管资源</span>
+</span></span><span class="line"><span class="cl">        <span class="n">formatter</span><span class="p">.</span><span class="n">Context</span> <span class="p">=</span> <span class="k">new</span> <span class="n">StreamingContext</span><span class="p">(</span><span class="n">StreamingContextStates</span><span class="p">.</span><span class="n">Clone</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">memoryStream</span><span class="p">.</span><span class="n">Position</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">formatter</span><span class="p">.</span><span class="n">Deserialize</span><span class="p">(</span><span class="n">memoryStream</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>另外一种技巧就是可以将多个对象图序列化到一个流当中，即调用多次 <code>Serialize()</code> 方法将多个对象图序列化到流当中。如果需要反序列化的时候，按照序列化时对象图的序列化顺序反向反序列化即可。</p>
+<p><code>BinaryFormatter</code> 在序列化的时候会将类型的全名与程序集定义写入到流当中，这样在反序列化的时候，格式化器会获取这些信息，并且通过 <code>System.Reflection.Assembly.Load()</code> 方法将程序集加载到当前的 <code>AppDomain</code>。</p>
+<p>在程序集加载完成之后，会在该程序集搜索待反序列化的对象图类型，找不到则会抛出异常。</p>
+<blockquote>
+<p>【注意】</p>
+<p>某些应用程序通过 <code>Assembly.LoadFrom()</code> 来加载程序集，然后根据程序集中的类型来构造对象。序列化该对象是没问题的，但是反序列化的时候格式化器使用的是 <code>Assembly.Load()</code> 方法来加载程序集，这样的话就会导致无法正确加载对象。</p>
+<p>这个时候，你可以实现一个与 <code>System.ResolveEventHandler</code> 签名一样的委托，并且在反序列化注册到当前 <code>AppDomain</code> 的 <code>AssemblyResolve</code> 事件。</p>
+<p>这样当程序集加载失败的时候，你可以在该方法内部根据传入的事件参数与程序集标识自己使用 <code>Assembly.LoadFrom()</code> 来构造一个 <code>Assembly</code> 对象。</p>
+<p>记得在反序列化完成之后，马上向事件注销这个方法，否则会造成内存泄漏。</p>
+</blockquote>
+<h2 id="三使类型可序列化">三、使类型可序列化</h2>
+<p>在设计自定义类型时，你需要显式地通过 <code>Serializable</code> 特性来声明你的类型是可以被序列化的。如果没有这么做，在使用格式化器进行序列化的时候，则会抛出异常。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Serializable]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">DIYClass</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">int</span> <span class="n">x</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">int</span> <span class="n">y</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><blockquote>
+<p>【注意】</p>
+<p>正因为这样，我们一般都会现将结果保存到 <code>MemoryStream</code> 之中，当没有抛出异常之后再将这些数据写入到文件/网络。</p>
+</blockquote>
+<h3 id="serializable-特性">Serializable 特性</h3>
+<p><code>Serializable</code> 特性只能用于值类型、引用类型、枚举类型(默认)、委托类型(默认)，而且是不可被子类继承。</p>
+<p>如果有一个 A 类与其派生类 B 类，那么 A 类没拥有 <code>Serializable</code> 特性，而子类拥有，一样的是无法进行序列化操作。</p>
+<p>而且序列化的时候，是将所有访问级别的字段成员都进行了序列化，包括 private 级别成员。</p>
+<h2 id="四简单控制序列化操作">四、简单控制序列化操作</h2>
+<h3 id="禁止序列化某个字段">禁止序列化某个字段</h3>
+<p>可以通过 <code>System.NonSerializedAttribute</code> 特性来确保某个字段在序列化时不被处理其值，例如下列代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Serializable]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">DIYClass</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">DIYClass</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">x</span> <span class="p">=</span> <span class="m">10</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">y</span> <span class="p">=</span> <span class="m">100</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">z</span> <span class="p">=</span> <span class="m">1000</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">int</span> <span class="n">x</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">int</span> <span class="n">y</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">    [NonSerialized]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">int</span> <span class="n">z</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在序列化之前，该自定义对象 z 字段的值为 1000，在序列化时，检测到了忽略特性，则不会写入该字段的值到流当中。并且在反序列化之后，z 的值为 0，而 x ,y 的值是 10 和 100。</p>
+<h3 id="序列化与反序列化的四个生命周期特性">序列化与反序列化的四个生命周期特性</h3>
+<p>通过 <code>OnSerializing</code> 、<code>OnSerialized</code>、<code>OnDeserializing</code>、<code>OnDeserialized</code> 这四个特性，我们可以在对象序列化与反序列化时进行一些自定义的控制。只需要将这四个特性分别加在四个方法上面即可，但是针对方法签名必须返回值为 void，同时也需要用有一个 <code>StreamingContext</code> 参数。</p>
+<p>而且一般建议将这四个方法标识为 private ，防止其他对象误调用。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Serializable]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">DIYClass</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [OnDeserializing]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">void</span> <span class="n">OnDeserializing</span><span class="p">(</span><span class="n">StreamingContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;反序列化的时候，会调用本方法.&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">    [OnDeserialized]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">void</span> <span class="n">OnDeserialized</span><span class="p">(</span><span class="n">StreamingContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;反序列化完成的时候，会调用本方法.&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">    [OnSerializing]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">OnSerializing</span><span class="p">(</span><span class="n">StreamingContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;序列化的时候，会调用本方法.&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">    [OnSerialized]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">OnSerialized</span><span class="p">(</span><span class="n">StreamingContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;序列化完成的时候，会调用本方法.&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><blockquote>
+<p>【注意】</p>
+<p>如果 A 类型有两个版本，第 1 个版本有 5 个字段，并被序列化存储到了文件当中。后面由于业务需要，针对于 A 类型增加了 2 个新的字段，这个时候如果从文件中读取第 1 个版本的对象流信息，就会抛出异常。</p>
+<p>我们可以通过 <code>System.Runtime.Serialization.OptionalFieldAttribute</code> 添加到我们新加的字段之上，这样的话在反序列化数据时就不会因为缺少字段而抛出异常。</p>
+</blockquote>
+<h2 id="五格式化器的序列化原理">五、格式化器的序列化原理</h2>
+<p>格式化器的核心就是 FCL 提供的 <code>FormatterServices</code> 的静态工具类，下列步骤体现了序列化器如何结合 <code>FormatterServices</code> 工具类来进行序列化操作的。</p>
+<ol>
+<li>格式化器调用 <code>FormatterService.GetSerializableMembers()</code> 方法获得需要序列化的字段构成的 <code>MemberInfo</code> 数组。</li>
+<li>格式化器调用 <code>FormatterService.GetObjectData()</code> 方法，通过之前获取的字段 <code>MethodInfo</code> 信息来取得每个字段存储的值数组。该数组与字段信息数组是并行的，下标一致。</li>
+<li>格式化器写入类型的程序集等信息。</li>
+<li>遍历两个数组，写入字段信息与其数据到流当中。</li>
+</ol>
+<p>反序列化操作的步骤与上面相反。</p>
+<ol>
+<li>首先从流头部读取程序集标识与类型信息，如果当前 AppDomain 没有加载该程序集会抛出异常。如果类型的程序集已经加载，则通过 <code>FormatterServices.GetTypeFromAssembly()</code> 方法来构造一个 Type 对象。</li>
+<li>格式化器调用 <code>FormatterService.GetUninitializedObject()</code> 方法为新对象分配内存，但是 <strong>不会调用对象的构造器</strong>。</li>
+<li>格式化器通过 <code>FormatterService.GetSerializableMembers()</code> 初始化一个 <code>MemberInfo</code> 数组。</li>
+<li>格式化器根据流中的数据创建一个 Object 数组，该数组就是字段的数据。</li>
+<li>格式化器通过 <code>FormatterService.PopulateObjectMembers()</code> 方法，传入新分配的对象、字段信息数组、字段数据数组进行对象初始化。</li>
+</ol>
+<h2 id="六控制序列化反序列化的数据">六、控制序列化/反序列化的数据</h2>
+<p>一般来说通过在第四节说的那些特性控制就已经满足了大部分需求，但格式化器内部使用的是反射，反射性能开销比较大，如果你想要针对序列化/反序列化进行完全的控制，那么你可以实现 <code>ISerializable</code> 接口来进行控制。</p>
+<p>该接口只提供了一个 <code>GetObjectData()</code> 方法，原型如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">ISerializable</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">GetObjectData</span><span class="p">(</span><span class="n">SerializationInfo</span> <span class="n">info</span><span class="p">,</span><span class="n">StreamingContext</span> <span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><blockquote>
+<p>【注意】</p>
+<p>使用了 <code>ISerializable</code> 接口的代价就是其集成类都必须实现它，而且还要保证子类必须调用基类的 <code>GetObjectData()</code> 方法与其构造函数。一般来说密封类才使用 <code>ISerializable</code> ，其他的类型使用特性控制即可满足。</p>
+<p>另外为了防止其他的代码调用 <code>GetObjectData()</code> 方法，可以通过一下特性来防止误操作：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[SecurityPermissionAttribute(SecurityAction.Demand,SerializationFormatter = true)]</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></blockquote>
+<p>如果格式化器检测到了类型实现了该接口，则会忽略掉原有的特性，并且将字段值传入到 <code>SerializationInfo</code> 之中。</p>
+<p>通过这个 Info 我们可以被序列化的类型，因为 Info 提供了 <code>FullTypeName</code> 与 <code>AssemblyName</code>，不过一般推荐使用该对象提供的 <code>SetType(Type type)</code> 方法来进行操作。</p>
+<p>格式化器构造完成 Info 之后，则会调用 <code>GetObjectData()</code> 方法，这个时候将之前构造好的 Info 传入，而该方法则决定需要用哪些数据来序列化对象。这个时候我们就可以通过 Info 的 <code>AddValue()</code> 方法来添加一些信息用于反序列化时使用。</p>
+<p>在反序列化的时候，需要类型提供一个特殊的构造函数，对于密封类来说，该构造函数推荐为 private ，而一般的类型推荐为 protected，这个特殊的构造函数方法签名与 <code>GetObjectData()</code> 一样。</p>
+<p>因为在反序列化的时候，格式化器会调用这个特殊的构造函数。</p>
+<p>以下代码就是一个简单实践：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">DIYClass</span> <span class="p">:</span> <span class="n">ISerializable</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">int</span> <span class="n">X</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">int</span> <span class="n">Y</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">DIYClass</span><span class="p">()</span> <span class="p">{</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">DIYClass</span><span class="p">(</span><span class="n">SerializationInfo</span> <span class="n">info</span><span class="p">,</span> <span class="n">StreamingContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">X</span> <span class="p">=</span> <span class="n">info</span><span class="p">.</span><span class="n">GetInt32</span><span class="p">(</span><span class="s">&#34;X&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Y</span> <span class="p">=</span> <span class="m">20</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">GetObjectData</span><span class="p">(</span><span class="n">SerializationInfo</span> <span class="n">info</span><span class="p">,</span> <span class="n">StreamingContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">info</span><span class="p">.</span><span class="n">AddValue</span><span class="p">(</span><span class="s">&#34;X&#34;</span><span class="p">,</span> <span class="m">10</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>该类型的对象在反序列化之后，X 的值为序列化之前的值，而 Y 的值始终都会为 20。</p>
+<blockquote>
+<p>【注意】</p>
+<p>如果你存储的 X 值是 Int32 ，而在获取的时候是通过 GetInt64() 进行获取。那么格式化器就会尝试使用 <code>System.Convert</code> 提供的方法进行转换，并且可以通过实现 <code>IConvertible</code> 接口来自定义自己的转换。</p>
+<p>不过只有在 Get 方法转换失败的情况下才会使用上述机制。</p>
+</blockquote>
+<h3 id="子类与基类的-iserializable">子类与基类的 ISerializable</h3>
+<p>如果某个子类集成了基类，那么子类在其 <code>GetObjectData()</code> 与特殊构造器中都要调用父类的方法，这样才能够完成正确的序列化/反序列化操作。</p>
+<p>如果基类没有实现 <code>ISerializable</code> 接口与特殊的构造器，那么子类就需要通过 <code>FormatterService</code> 来手动针对基类的字段进行赋值。</p>
+<h2 id="七流上下文">七、流上下文</h2>
+<p>流上下文 <code>StreamingContext</code> 只有两个属性，第一个是状态标识位，用于标识序列化/反序列化对象的来源与目的地。而第二个属性就是一个 Object 引用，该引用则是一个附加的上下文信息，由用户进行提供。</p>
+<h2 id="八类型序列化为不同的类型与对象反序列化为不同的对象">八、类型序列化为不同的类型与对象反序列化为不同的对象</h2>
+<p>在某些时候可能需要更改序列化完成之后的对象类型，这个时候只需要对象在其实现 <code>ISerializable</code> 接口的 <code>GetObjectData()</code> 方法内部通过 <code>SerializationInfo</code> 的 <code>SetType()</code> 方法变更了序列化的目标类型。</p>
+<p>下面的代码演示了如何序列化一个单例对象：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Serializable]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">sealed</span> <span class="k">class</span> <span class="nc">Singleton</span> <span class="p">:</span> <span class="n">ISerializable</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">static</span> <span class="k">readonly</span> <span class="n">Singleton</span> <span class="n">_instance</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Singleton</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">Singleton</span><span class="p">()</span> <span class="p">{</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="n">Singleton</span> <span class="n">GetSingleton</span><span class="p">()</span> <span class="p">{</span> <span class="k">return</span> <span class="n">_instance</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="cl"><span class="na">    [SecurityPermissionAttribute(SecurityAction.Demand,SerializationFormatter =true)]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">ISerializable</span><span class="p">.</span><span class="n">GetObjectData</span><span class="p">(</span><span class="n">SerializationInfo</span> <span class="n">info</span><span class="p">,</span> <span class="n">StreamingContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">info</span><span class="p">.</span><span class="n">SetType</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">SingletonHelper</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里通过显式实现接口的 <code>GetObjectData()</code> 方法来将序列化的目标类型设置为 <code>SingletonHelper</code> ，该类型的定义如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[Serializable]</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">SingletonHelper</span> <span class="p">:</span> <span class="n">IObjectReference</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">object</span> <span class="n">GetRealObject</span><span class="p">(</span><span class="n">StreamingContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">Singleton</span><span class="p">.</span><span class="n">GetSingleton</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里因为 <code>SingletonHelper</code> 实现了 <code>IObjectReference</code> 接口，当格式化器尝试进行反序列化的时候，由于在 <code>GetObjectData()</code> 欺骗了转换器，因此反序列化的时候检测到类型有实现该接口，所以会尝试调用其 <code>GetRealObject()</code> 方法来进行反序列化操作。</p>
+<p>而以上动作完成之后，<code>SingletonHelper</code> 会立即变为不可达对象，等待 GC 进行回收处理。</p>
+<h2 id="九序列化代理">九、序列化代理</h2>
+<p>当某些时候需要对一个第三方库对象进行序列化的时候，没有其源码，但是想要进行序列化，则可以通过序列化代理来进行序列化操作。</p>
+<p>要实现序列化代理，需要实现 <code>ISerializationSurrogate</code> 接口，该接口拥有两个方法，其签名分别如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">void</span> <span class="n">GetObjectData</span><span class="p">(</span><span class="n">Object</span> <span class="n">obj</span><span class="p">,</span><span class="n">SerializationInfo</span> <span class="n">info</span><span class="p">,</span><span class="n">StreamingContext</span> <span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="k">void</span> <span class="n">SetObjectData</span><span class="p">(</span><span class="n">Object</span> <span class="n">obj</span><span class="p">,</span><span class="n">SerializationInfo</span> <span class="n">info</span><span class="p">,</span><span class="n">StreamingContext</span> <span class="n">context</span><span class="p">,</span><span class="n">ISurrogateSelector</span> <span class="n">selector</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><code>GetObjectData()</code> 方法会在对象序列化时进行调用，而 <code>SetObjectData()</code> 会在对象反序列化时调用。</p>
+<p>比如说我们有一个需求是希望 <code>DateTime</code> 类型在序列化的时候通过 UTC 时间序列化到流中，而在反序列化时则更改为本地时间。</p>
+<p>这个时候我们就可以自己实现一个序列化代理类 <code>UTCToLocalTimeSerializationSurrogate</code>：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">sealed</span> <span class="k">class</span> <span class="nc">UTCToLocalTimeSerializationSurrogate</span> <span class="p">:</span> <span class="n">ISerializationSurrogate</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">GetObjectData</span><span class="p">(</span><span class="kt">object</span> <span class="n">obj</span><span class="p">,</span> <span class="n">SerializationInfo</span> <span class="n">info</span><span class="p">,</span> <span class="n">StreamingContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">info</span><span class="p">.</span><span class="n">AddValue</span><span class="p">(</span><span class="s">&#34;Date&#34;</span><span class="p">,</span> <span class="p">((</span><span class="n">DateTime</span><span class="p">)</span><span class="n">obj</span><span class="p">).</span><span class="n">ToUniversalTime</span><span class="p">().</span><span class="n">ToString</span><span class="p">(</span><span class="s">&#34;u&#34;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">object</span> <span class="n">SetObjectData</span><span class="p">(</span><span class="kt">object</span> <span class="n">obj</span><span class="p">,</span> <span class="n">SerializationInfo</span> <span class="n">info</span><span class="p">,</span> <span class="n">StreamingContext</span> <span class="n">context</span><span class="p">,</span> <span class="n">ISurrogateSelector</span> <span class="n">selector</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">DateTime</span><span class="p">.</span><span class="n">ParseExact</span><span class="p">(</span><span class="n">info</span><span class="p">.</span><span class="n">GetString</span><span class="p">(</span><span class="s">&#34;Date&#34;</span><span class="p">),</span> <span class="s">&#34;u&#34;</span><span class="p">,</span> <span class="k">null</span><span class="p">).</span><span class="n">ToLocalTime</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>并且在使用的时候，通过构造一个 <code>SurrogateSelector</code> 代理选择器，传入我们针对于 <code>DateTime</code> 类型的代理，并且将格式化器与代理选择器相绑定。那么在使用格式化器的时候，就会通过我们的代理类来处理 <code>DateTime</code> 类型对象的序列化/反序列化操作了。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">stream</span> <span class="p">=</span> <span class="k">new</span> <span class="n">MemoryStream</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">formatter</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BinaryFormatter</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 创建一个代理选择器</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">ss</span> <span class="p">=</span> <span class="k">new</span> <span class="n">SurrogateSelector</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 告诉代理选择器，针对于 DateTime 类型采用 UTCToLocal 代理类进行序列化/反序列化代理</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ss</span><span class="p">.</span><span class="n">AddSurrogate</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">DateTime</span><span class="p">),</span> <span class="n">formatter</span><span class="p">.</span><span class="n">Context</span><span class="p">,</span> <span class="k">new</span> <span class="n">UTCToLocalTimeSerializationSurrogate</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 绑定代理选择器</span>
+</span></span><span class="line"><span class="cl">        <span class="n">formatter</span><span class="p">.</span><span class="n">SurrogateSelector</span> <span class="p">=</span> <span class="n">ss</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">formatter</span><span class="p">.</span><span class="n">Serialize</span><span class="p">(</span><span class="n">stream</span><span class="p">,</span><span class="n">DateTime</span><span class="p">.</span><span class="n">Now</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">stream</span><span class="p">.</span><span class="n">Position</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">oldValue</span> <span class="p">=</span> <span class="k">new</span> <span class="n">StreamReader</span><span class="p">(</span><span class="n">stream</span><span class="p">).</span><span class="n">ReadToEnd</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">stream</span><span class="p">.</span><span class="n">Position</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">newValue</span> <span class="p">=</span> <span class="p">(</span><span class="n">DateTime</span><span class="p">)</span><span class="n">formatter</span><span class="p">.</span><span class="n">Deserialize</span><span class="p">(</span><span class="n">stream</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="n">oldValue</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="n">newValue</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">Console</span><span class="p">.</span><span class="n">ReadLine</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>而一个代理选择器允许绑定多个代理类，选择器内部维护一个哈希表，通过 <code>Type</code> 与 <code>StreamingContext</code> 作为其键来进行搜索，通过 <code>StreamintContext</code> 地不同可以方便地为 <code>DateTime</code> 类型绑定不同用途的代理类。</p>
+<h2 id="十反序列化对象时重写程序集类型">十、反序列化对象时重写程序集/类型</h2>
+<p>通过继承 <code>SerializationBinder</code> 抽象类，我们可以很方便地实现类型反序列化时转化为不同的类型，该抽象类有一个 <code>Type BindToType(String assemblyName,String typeName)</code> 方法。</p>
+<p>重写该方法你就可以在对象反序列化时，通过传入的两个参数来构造自己需要返回的真实类型。第一个参数是程序集名称，第二个参数是格式化器想要反序列化时转换的类型。</p>
+<p>编写好 Binder 类重写该方法之后，在格式化器的 <code>Binder</code> 属性当中绑定你的 Binder 类即可。</p>
+<blockquote>
+<p>【注意】</p>
+<p>抽象类还有一个 <code>BindToName()</code> 方法，该方法是在序列化时被调用，会传入他想要序列化的类型。</p>
+</blockquote>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/%E5%BA%8F%E5%88%97%E5%8C%96/">序列化</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/ignore-invalid-property-values-during-json-serialization/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">JSON 序列化的时候忽略无效的属性值</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/clr-via-csharp-reading-notes-27-asynchronous-operation-of-calculation-limit/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">《CLR Via C#》读书笔记：27.计算限制的异步操作</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/clr-via-csharp-reading-notes-thread-basics/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">《CLR Via C#》读书笔记：26.线程基础</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/serialize-the-specified-entity-into-an-xml-document/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">将指定实体序列化为 XML 文档</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一什么是运行时序列化">一、什么是运行时序列化</a></li>
+    <li><a href="#二序列化反序列化快速入门">二、序列化/反序列化快速入门</a>
+      <ol>
+        <li><a href="#fcl-的序列化与反序列化">FCL 的序列化与反序列化</a></li>
+        <li><a href="#深拷贝">深拷贝</a></li>
+      </ol>
+    </li>
+    <li><a href="#三使类型可序列化">三、使类型可序列化</a>
+      <ol>
+        <li><a href="#serializable-特性">Serializable 特性</a></li>
+      </ol>
+    </li>
+    <li><a href="#四简单控制序列化操作">四、简单控制序列化操作</a>
+      <ol>
+        <li><a href="#禁止序列化某个字段">禁止序列化某个字段</a></li>
+        <li><a href="#序列化与反序列化的四个生命周期特性">序列化与反序列化的四个生命周期特性</a></li>
+      </ol>
+    </li>
+    <li><a href="#五格式化器的序列化原理">五、格式化器的序列化原理</a></li>
+    <li><a href="#六控制序列化反序列化的数据">六、控制序列化/反序列化的数据</a>
+      <ol>
+        <li><a href="#子类与基类的-iserializable">子类与基类的 ISerializable</a></li>
+      </ol>
+    </li>
+    <li><a href="#七流上下文">七、流上下文</a></li>
+    <li><a href="#八类型序列化为不同的类型与对象反序列化为不同的对象">八、类型序列化为不同的类型与对象反序列化为不同的对象</a></li>
+    <li><a href="#九序列化代理">九、序列化代理</a></li>
+    <li><a href="#十反序列化对象时重写程序集类型">十、反序列化对象时重写程序集/类型</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

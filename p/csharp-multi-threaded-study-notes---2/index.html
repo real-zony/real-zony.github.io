@@ -1,0 +1,1982 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content=' 本文主要针对 GKarch 相关文章留作笔记，仅在原文基础上记录了自己的理解与摘抄部分片段。 遵循原作者的 CC 3.0 协议。 如果想要了解更加详细的文章信息内容，请访问下列地址进行学习。
+原文章地址：https://blog.gkarch.com/threading/part2.html
+一、同步概要 同步构造基本分为四种，简单的阻塞方法、锁构造、信号构造、非阻塞同步构造。
+1.1 阻塞方法 阻塞方法一般是会暂停某些线程的执行，例如 Sleep() 与 Join() 方法。当一个线程被阻塞的时候，会立即出让(yields) CPU 时间片，不再消耗处理器时间。 通过检查线程的 ThreadState 属性来确认某个线程是否被阻塞。 当某个线程被阻塞或者解除阻塞的时候，会进行上下文切换。 阻塞方法在满足以下几个条件的时候会进行解除。 阻塞条件满足。 操作超时。 通过 Thread.Interrupt() 中断。 通过 Thread.Abort() 中止。 '><title>C# 多线程学习笔记 - 2</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/csharp-multi-threaded-study-notes---2/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='C# 多线程学习笔记 - 2'>
+<meta property='og:description' content=' 本文主要针对 GKarch 相关文章留作笔记，仅在原文基础上记录了自己的理解与摘抄部分片段。 遵循原作者的 CC 3.0 协议。 如果想要了解更加详细的文章信息内容，请访问下列地址进行学习。
+原文章地址：https://blog.gkarch.com/threading/part2.html
+一、同步概要 同步构造基本分为四种，简单的阻塞方法、锁构造、信号构造、非阻塞同步构造。
+1.1 阻塞方法 阻塞方法一般是会暂停某些线程的执行，例如 Sleep() 与 Join() 方法。当一个线程被阻塞的时候，会立即出让(yields) CPU 时间片，不再消耗处理器时间。 通过检查线程的 ThreadState 属性来确认某个线程是否被阻塞。 当某个线程被阻塞或者解除阻塞的时候，会进行上下文切换。 阻塞方法在满足以下几个条件的时候会进行解除。 阻塞条件满足。 操作超时。 通过 Thread.Interrupt() 中断。 通过 Thread.Abort() 中止。 '>
+<meta property='og:url' content='https://real-zony.github.io/p/csharp-multi-threaded-study-notes---2/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='多线程' /><meta property='article:tag' content='线程安全' /><meta property='article:tag' content='.NET' /><meta property='article:published_time' content='2019-01-31T11:15:54&#43;00:00'/><meta property='article:modified_time' content='2019-01-31T11:15:54&#43;00:00'/>
+<meta name="twitter:title" content="C# 多线程学习笔记 - 2">
+<meta name="twitter:description" content=" 本文主要针对 GKarch 相关文章留作笔记，仅在原文基础上记录了自己的理解与摘抄部分片段。 遵循原作者的 CC 3.0 协议。 如果想要了解更加详细的文章信息内容，请访问下列地址进行学习。
+原文章地址：https://blog.gkarch.com/threading/part2.html
+一、同步概要 同步构造基本分为四种，简单的阻塞方法、锁构造、信号构造、非阻塞同步构造。
+1.1 阻塞方法 阻塞方法一般是会暂停某些线程的执行，例如 Sleep() 与 Join() 方法。当一个线程被阻塞的时候，会立即出让(yields) CPU 时间片，不再消耗处理器时间。 通过检查线程的 ThreadState 属性来确认某个线程是否被阻塞。 当某个线程被阻塞或者解除阻塞的时候，会进行上下文切换。 阻塞方法在满足以下几个条件的时候会进行解除。 阻塞条件满足。 操作超时。 通过 Thread.Interrupt() 中断。 通过 Thread.Abort() 中止。 ">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/csharp-multi-threaded-study-notes---2/">C# 多线程学习笔记 - 2</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jan 31, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 9 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <blockquote>
+<p>本文主要针对 GKarch 相关文章留作笔记，仅在原文基础上记录了自己的理解与摘抄部分片段。
+遵循原作者的 <strong><a class="link" href="https://creativecommons.org/licenses/by/3.0/cn/"  target="_blank" rel="noopener"
+    >CC 3.0 协议</a></strong>。
+如果想要了解更加详细的文章信息内容，请访问下列地址进行学习。</p>
+<p>原文章地址：https://blog.gkarch.com/threading/part2.html</p>
+</blockquote>
+<h2 id="一同步概要">一、同步概要</h2>
+<p>同步构造基本分为四种，简单的阻塞方法、锁构造、信号构造、非阻塞同步构造。</p>
+<h3 id="11-阻塞方法">1.1 阻塞方法</h3>
+<ol>
+<li>阻塞方法一般是会暂停某些线程的执行，例如 <code>Sleep()</code> 与 <code>Join()</code> 方法。<strong>当一个线程被阻塞的时候，会立即出让(yields) CPU 时间片，不再消耗处理器时间。</strong></li>
+<li>通过检查线程的 <code>ThreadState</code> 属性来确认某个线程是否被阻塞。</li>
+<li>当某个线程被阻塞或者解除阻塞的时候，会进行<strong>上下文切换</strong>。</li>
+<li>阻塞方法在满足以下几个条件的时候会进行解除。
+<ul>
+<li>阻塞条件满足。</li>
+<li>操作超时。</li>
+<li>通过 <code>Thread.Interrupt()</code> 中断。</li>
+<li>通过 <code>Thread.Abort()</code> 中止。</li>
+</ul>
+</li>
+</ol>
+<h3 id="12-阻塞与自旋">1.2 阻塞与自旋</h3>
+<ol>
+<li>
+<p>信号构造与锁构造可以在某些条件被满足前阻塞线程。另外一种方法就是通过自旋来等待条件被满足。</p>
+</li>
+<li>
+<p>自旋即通过一个循环不断检测条件，来伪造一个空忙状态。</p>
+</li>
+<li>
+<p>虽然自旋会造成大量的处理器时间浪费，但是它可以避免上下文切换带来的额外开销。</p>
+</li>
+<li>
+<p>一个标准的自旋结构如下列代码。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="c1">// 单纯的自旋</span>
+</span></span><span class="line"><span class="cl"><span class="k">while</span><span class="p">(!</span><span class="n">proceed</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 阻塞 + 自旋</span>
+</span></span><span class="line"><span class="cl"><span class="k">while</span><span class="p">(!</span><span class="n">proceed</span><span class="p">)</span> <span class="n">Thread</span><span class="p">.</span><span class="n">Sleep</span><span class="p">(</span><span class="m">10</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+</ol>
+<h2 id="二锁">二、锁</h2>
+<h3 id="21-排它锁">2.1 排它锁</h3>
+<ol>
+<li>
+<p>排它锁的作用是为了<strong>保证线程安全</strong>，如下列代码。如果 <code>Go()</code> 方法被两个线程同时执行，则可能某个线程在执行完 <code>if</code> 后，另一个线程已经将 <code>V2</code> 置为0，原先线程就可能造成除数不能为 0 的异常。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">class</span> <span class="nc">Code1</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">static</span> <span class="kt">int</span> <span class="n">V1</span> <span class="p">=</span> <span class="m">1</span><span class="p">,</span><span class="n">V2</span> <span class="p">=</span> <span class="m">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">static</span> <span class="k">void</span> <span class="n">Go</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span><span class="p">(</span><span class="n">V2</span> <span class="p">!=</span> <span class="m">0</span><span class="p">)</span> <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="n">V1</span> <span class="p">/</span> <span class="n">V2</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">V2</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 使用了排它锁的代码</span>
+</span></span><span class="line"><span class="cl"><span class="k">class</span> <span class="nc">Code2</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">static</span> <span class="kt">int</span> <span class="n">V1</span> <span class="p">=</span> <span class="m">1</span><span class="p">,</span><span class="n">V2</span> <span class="p">=</span> <span class="m">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">static</span> <span class="k">readonly</span> <span class="kt">object</span> <span class="n">locker</span> <span class="p">=</span> <span class="k">new</span> <span class="kt">object</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">static</span> <span class="k">void</span> <span class="n">Go</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">lock</span><span class="p">(</span><span class="n">locker</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span><span class="p">(</span><span class="n">V2</span> <span class="p">!=</span> <span class="m">0</span><span class="p">)</span> <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="n">V1</span> <span class="p">/</span> <span class="n">V2</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">       	    <span class="n">V2</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+<li>
+<p>如果使用了 <code>lock</code> 语句快，则可以锁定一个同步对象，其他竞争锁的线程会被阻塞，直到锁被释放。</p>
+</li>
+<li>
+<p>如果有多个线程竞争锁，则按照先到先得的队列进行排队，通过排它锁可以强制线程对锁保护的内容进行<strong>顺序访问</strong>。</p>
+</li>
+<li>
+<p>在竞争锁时被阻塞的线程，其状态为 <code>WaitSleepJoin</code> 。</p>
+</li>
+<li>
+<p>不同的同步结构技术的性能开销。</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:center"><strong>构造</strong></th>
+<th style="text-align:center"><strong>用途</strong></th>
+<th style="text-align:center"><strong>开销</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">lock （ Monitor.Enter / Monitor.Exit ）</td>
+<td style="text-align:center">确保同一时间只有一个线程可以访问资源或代码</td>
+<td style="text-align:center">20 ns</td>
+</tr>
+<tr>
+<td style="text-align:center">Mutex</td>
+<td style="text-align:center">确保同一时间只有一个线程可以访问资源或代码</td>
+<td style="text-align:center">1000 ns</td>
+</tr>
+<tr>
+<td style="text-align:center">SemaphoreSlim</td>
+<td style="text-align:center">确保只有不超过指定数量的线程可以并发访问资源或代码</td>
+<td style="text-align:center">200 ns</td>
+</tr>
+<tr>
+<td style="text-align:center">Semaphore</td>
+<td style="text-align:center">确保只有不超过指定数量的线程可以并发访问资源或代码</td>
+<td style="text-align:center">1000 ns</td>
+</tr>
+<tr>
+<td style="text-align:center">ReaderWriterLockSlim</td>
+<td style="text-align:center">允许多个读线程和一个写线程共存</td>
+<td style="text-align:center">40 ns</td>
+</tr>
+<tr>
+<td style="text-align:center">ReaderWriterLock (已过时)</td>
+<td style="text-align:center">允许多个读线程和一个写线程共存</td>
+<td style="text-align:center">100 ns</td>
+</tr>
+</tbody>
+</table></div>
+</li>
+</ol>
+<h3 id="22-monitorenter-与-monitorexit">2.2 Monitor.Enter 与 Monitor.Exit</h3>
+<ol>
+<li>
+<p><code>lock</code> 语句块实质上就是一个语法糖，其核心代码就是结合 <code>try/finally</code> 来调用 <code>Monitor.Enter()</code> 与 <code>Monitor.Exit()</code> 方法，并且如果在一个方法内直接调用 <code>Monitor.Exit()</code> 会直接抛出异常。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">Monitor</span><span class="p">.</span><span class="n">Enter</span><span class="p">(</span><span class="n">locker</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="k">try</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span><span class="p">(</span><span class="n">V2</span> <span class="p">!=</span> <span class="m">0</span><span class="p">)</span> <span class="n">Console</span><span class="p">.</span><span class="n">Writeline</span><span class="p">(</span><span class="n">V1</span> <span class="p">/</span> <span class="n">V2</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">V2</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="k">finally</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Monitor</span><span class="p">.</span><span class="n">Exit</span><span class="p">(</span><span class="n">locker</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+<li>
+<p>上述情况可能发生锁泄漏，因为在 <code>Monitor.Enter()</code> 与 <code>try/finally</code> 语句块之间如果发生了异常，会导致后续的 <code>try/finally</code> 语句块不被执行。造成无法获得锁，或者得到锁之后，无法释放造成锁泄漏。</p>
+</li>
+<li>
+<p>解决锁泄漏的方式是，CLR 4.0 当中，对于 <code>lock</code> 语句的翻译则是通过一个 <code>bool</code> 类型的 <code>lockTaken</code> 进行解决。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kt">bool</span> <span class="n">lockTaken</span> <span class="p">=</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">try</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Monitor</span><span class="p">.</span><span class="n">Enter</span> <span class="p">(</span><span class="n">locker</span><span class="p">,</span> <span class="k">ref</span> <span class="n">lockTaken</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 用户代码 ...</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="k">finally</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span><span class="p">(</span><span class="n">lockTaken</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Monitor</span><span class="p">.</span><span class="n">Exit</span><span class="p">(</span><span class="n">locker</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+<li>
+<p><code>Monitor</code> 还提供了 <code>TryEnter()</code> 方法，用于执行超时时间，如果超过时间没有获得到锁，则返回 <code>false</code> 。</p>
+</li>
+</ol>
+<h3 id="23-什么时候加锁">2.3 什么时候加锁</h3>
+<ol>
+<li>
+<p>需要访问任意可写的共享字段，下面代码展示了线程安全与非线程安全的代码。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">class</span> <span class="nc">ThreadUnsafe</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">static</span> <span class="kt">int</span> <span class="n">_x</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="k">static</span> <span class="k">void</span> <span class="n">Increment</span><span class="p">()</span> <span class="p">{</span> <span class="n">_x</span><span class="p">++;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">static</span> <span class="k">void</span> <span class="n">Assign</span><span class="p">()</span>    <span class="p">{</span> <span class="n">_x</span> <span class="p">=</span> <span class="m">123</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 线程安全</span>
+</span></span><span class="line"><span class="cl"><span class="k">class</span> <span class="nc">ThreadSafe</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">static</span> <span class="k">readonly</span> <span class="kt">object</span> <span class="n">_locker</span> <span class="p">=</span> <span class="k">new</span> <span class="kt">object</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="k">static</span> <span class="kt">int</span> <span class="n">_x</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">static</span> <span class="k">void</span> <span class="n">Increment</span><span class="p">()</span> <span class="p">{</span> <span class="k">lock</span><span class="p">(</span><span class="n">_locker</span><span class="p">)</span> <span class="n">_X</span><span class="p">++;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">static</span> <span class="k">void</span> <span class="n">Assign</span><span class="p">()</span> <span class="p">{</span> <span class="k">lock</span><span class="p">(</span><span class="n">_locker</span><span class="p">)</span> <span class="n">_x</span><span class="p">++;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+</ol>
+<h3 id="24-锁与原子性">2.4 锁与原子性</h3>
+<ol>
+<li>如果一组变量总是在一个锁内进行读且，即可被成为原子的读写。</li>
+<li>例如 <code>lock(locker) { if(x != 0) y /= x; }</code> 就可以说 <code>x</code> 与 <code>y</code> 是被原子访问的，因为这段代码无法被其他线程分割或者抢占。</li>
+<li>如果在 <code>lock</code> 锁内抛出异常，将会影响锁的原子性，这个时候就需要结合回滚机制来进行实现。</li>
+</ol>
+<h3 id="25-锁嵌套">2.5 锁嵌套</h3>
+<ol>
+<li>排他锁是可以被嵌套的，并且只有当最外层的锁被释放的时候，对象才会被解锁。</li>
+<li>线程只会在最外层的 <code>lock</code> 语句处被阻塞。</li>
+</ol>
+<h3 id="26-死锁">2.6 死锁</h3>
+<ol>
+<li>
+<p>死锁是当两个甚至多个线程所等待的资源都被对方占用的时候，它们都无法执行，就会产生了死锁。</p>
+</li>
+<li>
+<p>一个标准的死锁代码如下，我们在 A 线程内部锁定了 <code>locker1</code> 与 <code>locker2</code> ，在主线程同同时也锁定了 <code>locker2</code> 与 <code>locker1</code> 。这个时候由于排他锁的特性，主线程与新开启的线程都会等待对方的锁被释放，造成死锁。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kt">object</span> <span class="n">locker1</span> <span class="p">=</span> <span class="k">new</span> <span class="kt">object</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="kt">object</span> <span class="n">locker2</span> <span class="p">=</span> <span class="k">new</span> <span class="kt">object</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">new</span> <span class="n">Thread</span><span class="p">(()</span> <span class="p">=&gt;</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">lock</span><span class="p">(</span><span class="n">locker1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Thread</span><span class="p">.</span><span class="n">Sleep</span><span class="p">(</span><span class="m">1000</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">lock</span><span class="p">(</span><span class="n">loekcer2</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}).</span><span class="n">Start</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">lock</span><span class="p">(</span><span class="n">locker2</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Thread</span><span class="p">.</span><span class="n">Sleep</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="k">lock</span><span class="p">(</span><span class="n">locker1</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+<li>
+<p>应该尽量较少对锁的使用，更多的依靠其他的同步构造进行处理。</p>
+</li>
+</ol>
+<h3 id="27-互斥体">2.7 互斥体</h3>
+<ol>
+<li>互斥体使用 <code>WaitOne()</code> 方法进行加锁，使用 <code>ReleaseMutex()</code> 来解锁。</li>
+<li>关闭或者销毁 <code>Mutex</code> 对象会自动释放锁，所以可以结合 <code>using</code> 语句块进行使用。</li>
+<li>互斥体是机器范围的，其性能比 <code>lock</code> 慢约 50 倍。</li>
+</ol>
+<h3 id="28-信号量">2.8 信号量</h3>
+<ol>
+<li>
+<p>信号量具有一定容量，当容量满了之后和就会拒绝其他线程占用，当有一个线程释放资源之后，其他线程按先后顺序进入。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">class</span> <span class="nc">Program</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">sem</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Semaphore</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="p">=</span> <span class="m">1</span><span class="p">;</span> <span class="n">i</span> <span class="p">&lt;=</span> <span class="m">5</span><span class="p">;</span> <span class="n">i</span><span class="p">++)</span> <span class="k">new</span> <span class="n">Thread</span><span class="p">(</span><span class="n">sem</span><span class="p">.</span><span class="n">Enter</span><span class="p">).</span><span class="n">Start</span><span class="p">(</span><span class="n">i</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">Semaphore</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">SemaphoreSlim</span> <span class="n">_semaphoreSlim</span> <span class="p">=</span> <span class="k">new</span> <span class="n">SemaphoreSlim</span><span class="p">(</span><span class="m">3</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">Enter</span><span class="p">(</span><span class="kt">object</span> <span class="n">id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;Id 为 {id} 的线程想调用本方法。&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_semaphoreSlim</span><span class="p">.</span><span class="n">Wait</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;Id 为 {id} 的线程已经进入方法。&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Thread</span><span class="p">.</span><span class="n">Sleep</span><span class="p">(</span><span class="m">1000</span> <span class="p">*</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">id</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;Id 为 {id} 的线程正在离开方法。&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_semaphoreSlim</span><span class="p">.</span><span class="n">Release</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+<li>
+<p>容量为 1 的信号量与 <code>Mutex</code> 和 <code>lock</code> 类似。</p>
+</li>
+<li>
+<p>信号量是线程无关的，任何线程都可以调用 <code>Release()</code> 方法释放信号量。而 <code>Mutex</code> 与 <code>lock</code> 只有获得锁的线程才可以释放。</p>
+</li>
+<li>
+<p>在 .NET 4.0 当中有一个轻量级的信号量 <code>SemaphoreSlim</code> ，但是不是跨进程的，开销只有 <code>Semaphore</code> 的四分之一。</p>
+</li>
+<li>
+<p>一般在某些需要限流或者是要执行比较密集的磁盘 I/O 操作，这个时候可以使用信号量进行并发限制，这样可以改善程序整体的性能。</p>
+</li>
+</ol>
+<h2 id="三线程安全">三、线程安全</h2>
+<ol>
+<li>如果某个程序或者方法是一个线程安全的，那么它在任意的多线程场景中都不会存在不确定性。</li>
+<li>线程安全是通过锁，或者减少线程交互来实现的。</li>
+<li>多线程当中的线程安全一般是在需要的时候才会进行实现，但是可以以牺牲粒度，将整段代码甚至是整个对象封装在一个排它锁的内部。这种解决方案十分简单有效，这种方案适用于使用了线程不安全的<strong>第三方库代码</strong>，并且仅适用于能够快速执行的场景，否则会产生<strong>大量阻塞</strong>。</li>
+<li>除了 CLR 定义的基本类型以外，很少有能够在高并发需求下保证其实例是线程安全的，除了 Concurrent 下的并行集合以外。</li>
+<li>可以最小化共享数据来减少线程交互，例如 Web 服务器不需要持久化并发请求的数据，是无状态的，线程交互的时候仅需要考虑静态字段等共享资源。</li>
+<li>除了以上两种方法之外，也可以使用自动锁机制，集成 <code>ContextBoundObject</code> 类并且使用 <code>Synchronization</code> 特性。但是这种方法很容易造成死锁的情况，并且降低并发度。</li>
+</ol>
+<h3 id="31-线程安全与-bcl-类型">3.1 线程安全与 BCL 类型</h3>
+<ol>
+<li>
+<p>通过锁可以将不安全的代码转换为线程安全的代码，例如 BCL 提供的 <code>List&lt;T&gt;</code> 集合本身不是线程安全的，但是通过对一个集合实例的锁定，我们就可以进行线程安全的操作。下面的代码当中，我们直接使用 <code>List&lt;int&gt;</code> 集合自身来加锁，这里对集合进行遍历的操作也不是线程安全的，也需要加锁进行处理，另一种方式就是通过读写锁来实现避免长时间锁定。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl">    <span class="k">class</span> <span class="nc">Program</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">bcl</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BCLThreadSafe</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span> <span class="n">i</span> <span class="p">&lt;</span> <span class="m">10</span><span class="p">;</span> <span class="n">i</span><span class="p">++)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">new</span> <span class="n">Thread</span><span class="p">(</span><span class="n">bcl</span><span class="p">.</span><span class="n">AddItem</span><span class="p">).</span><span class="n">Start</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">class</span> <span class="nc">BCLThreadSafe</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">private</span> <span class="k">readonly</span> <span class="n">List</span><span class="p">&lt;</span><span class="kt">int</span><span class="p">&gt;</span> <span class="n">_innerList</span>  <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="kt">int</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">public</span> <span class="k">void</span> <span class="n">AddItem</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">lock</span> <span class="p">(</span><span class="n">_innerList</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">_innerList</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">_innerList</span><span class="p">.</span><span class="n">Count</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">sb</span> <span class="p">=</span> <span class="k">new</span> <span class="n">StringBuilder</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">lock</span> <span class="p">(</span><span class="n">_innerList</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">item</span> <span class="k">in</span> <span class="n">_innerList</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">sb</span><span class="p">.</span><span class="n">Append</span><span class="p">(</span><span class="n">item</span><span class="p">).</span><span class="n">Append</span><span class="p">(</span><span class="sc">&#39;,&#39;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">                <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="n">sb</span><span class="p">.</span><span class="n">ToString</span><span class="p">().</span><span class="n">TrimEnd</span><span class="p">(</span><span class="sc">&#39;,&#39;</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+<li>
+<p>即便 <code>List&lt;T&gt;</code> 集合是线程安全的，如果我们需要使用以下代码增加一个新的数据到集合当中。也会由于在执行 <code>if</code> 之后，其他线程抢占修改了 <code>_list</code> 集合，增加了一个相同的类目。在这个时候，对 <code>_list</code> 集合的添加操作就是存在问题的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">if</span><span class="p">(!</span><span class="n">_list</span><span class="p">.</span><span class="n">Contains</span><span class="p">(</span><span class="n">newItem</span><span class="p">))</span> <span class="n">_list</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">newItem</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+<li>
+<p>在高并发的环境下，对集合的访问加锁可能产生大量阻塞，所以进行类似操作的时候建议使用线程安全的队列、栈、字典。</p>
+</li>
+<li>
+<p>针对于静态成员，BCL 的所有类型的静态成员都实现了线程安全，所以开发人员在开发基础类型或者框架的时候，应该保证静态成员的线程安全。</p>
+</li>
+<li>
+<p>大部分 BCL 类型的只读访问都是线程安全的，开发人员在设计类基础类型或者框架的时候也应该遵循这个规则。</p>
+</li>
+</ol>
+<h3 id="32-应用服务器其与线程安全">3.2 应用服务器其与线程安全</h3>
+<ol>
+<li>
+<p>服务端经常需要使用到多线程处理客户请求，也就意味着必须考虑线程安全。但一般来说服务端类都是无状态的，或者为每个请求创建新的对象实例，很少存在有交互的点。</p>
+</li>
+<li>
+<p>以缓存为例，假设对一个用户表使用了静态的字典实例进行缓存，那么就存在线程安全的问题。下列代码在读取与更新锁的时候，使用了排它锁进行加锁处理。但是会存在两个线程同时访问 <code>GetUser()</code> 方法的时候，都传递了未缓存过得数据的 <code>id</code> ，这个时候就会去查询两次数据库。虽然可以通过对整个 <code>GetUser()</code> 加锁，但是这样设计的话，都会在 <code>QueryUser()</code> 进行查询的时候，整个获得用户信息的方法都被阻塞。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">static</span> <span class="k">class</span> <span class="nc">UserCache</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">static</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">int</span><span class="p">,</span><span class="n">User</span><span class="p">&gt;</span> <span class="n">_users</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">int</span><span class="p">,</span><span class="n">User</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">internal</span> <span class="k">static</span> <span class="n">User</span> <span class="n">GetUser</span><span class="p">(</span><span class="kt">int</span> <span class="n">id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">User</span> <span class="n">u</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">lock</span><span class="p">(</span><span class="n">_users</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span><span class="p">(</span><span class="n">_users</span><span class="p">.</span><span class="n">TryGetValue</span><span class="p">(</span><span class="n">id</span><span class="p">,</span><span class="k">out</span> <span class="n">u</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="n">u</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 从数据库查询用户数据</span>
+</span></span><span class="line"><span class="cl">        <span class="n">u</span> <span class="p">=</span> <span class="n">QueryUser</span><span class="p">(</span><span class="n">id</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">lock</span><span class="p">(</span><span class="n">_users</span><span class="p">)</span><span class="n">_users</span><span class="p">[</span><span class="n">id</span><span class="p">]</span> <span class="p">=</span> <span class="n">u</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">u</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+</ol>
+<h3 id="33-wpf-与-winform-程序的线程安全">3.3 WPF 与 WinForm 程序的线程安全</h3>
+<ol>
+<li>
+<p>富客户端程序一般都是基于 <code>DependencyObject</code> (WPF) 与 <code>Control</code> (Windows Forms)，它们都具备线程亲和性，即只有创建他们的线程才能够访问其成员。</p>
+</li>
+<li>
+<p>作用就是访问 UI 对象并不需要加锁，坏处则是如果要跨线程调用 UI 控件则需要一些比较繁琐的步骤。</p>
+<ul>
+<li>WPF：其 <code>Dispatcher</code> 调用 <code>Invoke()</code> 或 <code>BeginInvoke()</code> 。</li>
+<li>Windows Forms：调用 <code>Control()</code> 对象的 <code>Invoke()</code> 或 <code>BeginInvoke()</code> 。</li>
+</ul>
+</li>
+<li>
+<p><code>Invoke()</code> 与 <code>BeginInvoke()</code> 都接收一个委托以便代替工作线程需要在 UI 线程执行的操作。前者是同步方法，在委托执行完成之前，都处于阻塞状态。后者是异步方法，调用方立刻返回。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="c1">// WPF DEMO</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">partial</span> <span class="k">class</span> <span class="nc">MainWindow</span> <span class="p">:</span> <span class="n">Window</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">MainWindow</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="n">InitializeComponent</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    	<span class="k">new</span> <span class="n">Thread</span><span class="p">(</span><span class="n">Work</span><span class="p">).</span><span class="n">Start</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">void</span> <span class="n">Work</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="n">Thread</span><span class="p">.</span><span class="n">Sleep</span><span class="p">(</span><span class="m">5000</span><span class="p">);</span> <span class="c1">// 阻塞当前线程 5s 模拟耗时任务</span>
+</span></span><span class="line"><span class="cl">    	<span class="n">UpdateMessage</span><span class="p">(</span><span class="s">&#34;new msg&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">void</span> <span class="n">UpdateMessage</span><span class="p">(</span><span class="kt">string</span> <span class="n">msg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="kt">var</span> <span class="n">action</span> <span class="p">=</span> <span class="p">()</span> <span class="p">=&gt;</span> <span class="n">txtMessage</span><span class="p">.</span><span class="n">Text</span> <span class="p">=</span> <span class="n">msg</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    	<span class="n">Dispatcher</span><span class="p">.</span><span class="n">Invoke</span><span class="p">(</span><span class="n">action</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Windows Forms DEMO</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">partial</span> <span class="k">class</span> <span class="nc">FormClass</span> <span class="p">:</span> <span class="n">Form</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">void</span> <span class="n">UpdateMessage</span><span class="p">(</span><span class="kt">string</span> <span class="n">msg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="kt">var</span> <span class="n">action</span> <span class="p">=</span> <span class="p">()</span> <span class="p">=&gt;</span> <span class="n">txtMessage</span><span class="p">.</span><span class="n">Text</span> <span class="p">=</span> <span class="n">msg</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    	<span class="k">this</span><span class="p">.</span><span class="n">Invoke</span><span class="p">(</span><span class="n">action</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+</ol>
+<h3 id="34-不可变对象">3.4 不可变对象</h3>
+<ol>
+<li>不可变对象拥有的不变性可以在多线程环境中最小化共享可写状态的问题。</li>
+</ol>
+<h2 id="四事件等待句柄与信号同步">四、事件等待句柄与信号同步</h2>
+<ol>
+<li>
+<p>事件等待句柄的作用是用于进行信号同步。</p>
+</li>
+<li>
+<p>信号同步即一个线程进行等待，直到其接受到其他线程通知的过程。</p>
+</li>
+<li>
+<p>信号构造的开销比较。</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:left">构造</th>
+<th style="text-align:left">用途</th>
+<th style="text-align:center">开销</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">AutoResetEvent</td>
+<td style="text-align:left">使线程在接收到其他线程信号时解除阻塞一次。</td>
+<td style="text-align:center">1000 ns</td>
+</tr>
+<tr>
+<td style="text-align:left">ManualResetEvent</td>
+<td style="text-align:left">使线程在接收到其他线程信号时解除阻塞，并不继续 阻塞，直到其复位。</td>
+<td style="text-align:center">1000 ns</td>
+</tr>
+<tr>
+<td style="text-align:left">ManualResetEventSlim</td>
+<td style="text-align:left">使线程在接收到其他线程信号时解除阻塞，并不继续 阻塞，直到其复位。</td>
+<td style="text-align:center">40 ns</td>
+</tr>
+<tr>
+<td style="text-align:left">CountdownEvent</td>
+<td style="text-align:left">使线程在收到预订数量的信号时，解除阻塞。</td>
+<td style="text-align:center">40 ns</td>
+</tr>
+<tr>
+<td style="text-align:left">Barrier</td>
+<td style="text-align:left">实现线程执行屏障。</td>
+<td style="text-align:center">80 ns</td>
+</tr>
+<tr>
+<td style="text-align:left">Wait 和 Pulse</td>
+<td style="text-align:left">使线程阻塞，直到自定义条件被满足。</td>
+<td style="text-align:center">Pulse/120 ns</td>
+</tr>
+</tbody>
+</table></div>
+</li>
+</ol>
+<h3 id="41-autoresetevent">4.1 AutoResetEvent</h3>
+<ol>
+<li>
+<p><code>AutoResetEvent</code> 的原理类似于验票闸机，在闸机处调用 <code>WaitOne()</code> 方法，线程就会被阻塞。插入票的动作就类似于调用 <code>Set()</code> 方法打开闸机。任何能够访问这个 <code>AutoResetEvent</code> 的非阻塞线程都可以调用 <code>Set()</code> 方法来放行一个被阻塞的线程。</p>
+</li>
+<li>
+<p><code>AutoResetEvent</code> 是基于 <code>EventWaitHandle</code> 进行构造的，有两种方法可以创建 <code>AutoResetEvent</code> 对象。第一种即通过其构造方法 <code>var auto = new AutoResetEvent (false);</code> ，第二种则是通过 <code>EventWaitHandle</code> 传递事件类型，<code>var auto = new EventWaitHandle (false, EventResetMode.AutoReset);</code> 。这里如果传递的是 <code>false</code> 则会在创建后立即调用 <code>Set()</code> 方法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">class</span> <span class="nc">Program</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">static</span> <span class="k">readonly</span> <span class="n">EventWaitHandle</span> <span class="n">WaitHandle</span> <span class="p">=</span> <span class="k">new</span> <span class="n">AutoResetEvent</span><span class="p">(</span><span class="k">false</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">testClass</span> <span class="p">=</span> <span class="k">new</span> <span class="n">AutoResetEventTest</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">new</span> <span class="n">Thread</span><span class="p">(</span><span class="n">testClass</span><span class="p">.</span><span class="n">Waiter</span><span class="p">).</span><span class="n">Start</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 主线程等待 1 秒再发送信号唤醒</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Thread</span><span class="p">.</span><span class="n">Sleep</span><span class="p">(</span><span class="m">1000</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">WaitHandle</span><span class="p">.</span><span class="n">Set</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AutoResetEventTest</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">Waiter</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;线程开始等待...&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 如果传入了超时时间，超时则返回 false。</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Program</span><span class="p">.</span><span class="n">WaitHandle</span><span class="p">.</span><span class="n">WaitOne</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;接受到了通知，进入闸机。&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+<li>
+<p>如果没有线程等待的时候调用 <code>Set()</code> 方法，则等待句柄会保持初始状态，直到有线程调用了 <code>WaitOne()</code> 方法。</p>
+</li>
+<li>
+<p>为等待句柄调用 <code>Reset()</code> 方法可以关闭闸机，这个方法不会被阻塞。</p>
+</li>
+<li>
+<p>可以调用 <code>Dispose()</code> 方法来销毁等待句柄，或者直接丢弃，等待 GC 进行回收。</p>
+</li>
+<li>
+<p>如果主线程需要向工作线程连续发送 3 个信号并结束线程，则可以通过<strong>双向信号</strong>进行实现，其步骤大体如下。</p>
+<ol>
+<li>启动工作线程。</li>
+<li>主线程通过事件等待句柄 A 等待工作线程就绪。</li>
+<li>工作线程通过 A 句柄通知主线程就绪，工作线程通过事件等待句柄 B 等待主线程通知。</li>
+<li>主线程更改某个共享数据，通过句柄 B 通知工作线程进行处理。</li>
+<li>工作线程收到信号唤醒之后，输出共享数据，并判断是否应该结束线程。</li>
+<li>循环往复三次之后，工作线程收到的共享数据为 <code>null</code>，工作线程进行退出。</li>
+</ol>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl">	<span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">testObj</span> <span class="p">=</span> <span class="k">new</span> <span class="n">MultiAutoResetEventTest</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">new</span> <span class="n">Thread</span><span class="p">(</span><span class="n">testObj</span><span class="p">.</span><span class="n">WorkThread</span><span class="p">).</span><span class="n">Start</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">MultiAutoResetEventTest</span><span class="p">.</span><span class="n">WaitHandle_MainThread</span><span class="p">.</span><span class="n">WaitOne</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="k">lock</span> <span class="p">(</span><span class="n">MultiAutoResetEventTest</span><span class="p">.</span><span class="n">Locker</span><span class="p">)</span> <span class="n">MultiAutoResetEventTest</span><span class="p">.</span><span class="n">Message</span> <span class="p">=</span> <span class="n">DateTime</span><span class="p">.</span><span class="n">Now</span><span class="p">.</span><span class="n">ToFileTimeUtc</span><span class="p">().</span><span class="n">ToString</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">MultiAutoResetEventTest</span><span class="p">.</span><span class="n">WaitHandle_WorkThread</span><span class="p">.</span><span class="n">Set</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">MultiAutoResetEventTest</span><span class="p">.</span><span class="n">WaitHandle_MainThread</span><span class="p">.</span><span class="n">WaitOne</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="k">lock</span> <span class="p">(</span><span class="n">MultiAutoResetEventTest</span><span class="p">.</span><span class="n">Locker</span><span class="p">)</span> <span class="n">MultiAutoResetEventTest</span><span class="p">.</span><span class="n">Message</span> <span class="p">=</span> <span class="n">DateTime</span><span class="p">.</span><span class="n">Now</span><span class="p">.</span><span class="n">ToFileTimeUtc</span><span class="p">().</span><span class="n">ToString</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">MultiAutoResetEventTest</span><span class="p">.</span><span class="n">WaitHandle_WorkThread</span><span class="p">.</span><span class="n">Set</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">MultiAutoResetEventTest</span><span class="p">.</span><span class="n">WaitHandle_MainThread</span><span class="p">.</span><span class="n">WaitOne</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="k">lock</span> <span class="p">(</span><span class="n">MultiAutoResetEventTest</span><span class="p">.</span><span class="n">Locker</span><span class="p">)</span> <span class="n">MultiAutoResetEventTest</span><span class="p">.</span><span class="n">Message</span> <span class="p">=</span> <span class="n">DateTime</span><span class="p">.</span><span class="n">Now</span><span class="p">.</span><span class="n">ToFileTimeUtc</span><span class="p">().</span><span class="n">ToString</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">MultiAutoResetEventTest</span><span class="p">.</span><span class="n">WaitHandle_WorkThread</span><span class="p">.</span><span class="n">Set</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">MultiAutoResetEventTest</span><span class="p">.</span><span class="n">WaitHandle_MainThread</span><span class="p">.</span><span class="n">WaitOne</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="k">lock</span> <span class="p">(</span><span class="n">MultiAutoResetEventTest</span><span class="p">.</span><span class="n">Locker</span><span class="p">)</span> <span class="n">MultiAutoResetEventTest</span><span class="p">.</span><span class="n">Message</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">MultiAutoResetEventTest</span><span class="p">.</span><span class="n">WaitHandle_WorkThread</span><span class="p">.</span><span class="n">Set</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">MultiAutoResetEventTest</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">static</span> <span class="k">readonly</span> <span class="n">EventWaitHandle</span> <span class="n">WaitHandle_MainThread</span> <span class="p">=</span> <span class="k">new</span> <span class="n">AutoResetEvent</span><span class="p">(</span><span class="k">false</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">static</span> <span class="k">readonly</span> <span class="n">EventWaitHandle</span> <span class="n">WaitHandle_WorkThread</span> <span class="p">=</span> <span class="k">new</span> <span class="n">AutoResetEvent</span><span class="p">(</span><span class="k">false</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">static</span> <span class="kt">string</span> <span class="n">Message</span> <span class="p">=</span> <span class="kt">string</span><span class="p">.</span><span class="n">Empty</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">static</span> <span class="k">readonly</span> <span class="kt">object</span> <span class="n">Locker</span> <span class="p">=</span> <span class="k">new</span> <span class="kt">object</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">WorkThread</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">while</span> <span class="p">(</span><span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">WaitHandle_MainThread</span><span class="p">.</span><span class="n">Set</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">			<span class="n">WaitHandle_WorkThread</span><span class="p">.</span><span class="n">WaitOne</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="k">lock</span> <span class="p">(</span><span class="n">Locker</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="k">if</span> <span class="p">(</span><span class="n">Message</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">				<span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;收到主线程的消息，内容为: {Message}&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+<li>
+<p>生产消费者队列的构成如下所描述的一致。</p>
+<ul>
+<li>构建一个队列，用于存放需要执行的工作项。</li>
+<li>如果有新的任务需要执行，将其放在队列当中。</li>
+<li>一个或多个工作线程在后台执行，从队列中拿取工作项执行，将其消费。</li>
+</ul>
+</li>
+<li>
+<p>生产/消费者队列可以精确控制工作线程的数量，CLR 的线程池就是一种生产/消费者队列。</p>
+</li>
+<li>
+<p>结合 <code>AutoResetEvent</code> 事件等待句柄，我们可以很方便地实现一个生产/消费者队列。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span><span class="lnt">75
+</span><span class="lnt">76
+</span><span class="lnt">77
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">class</span> <span class="nc">Program</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">queue</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ProducerConsumerQueue</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">queue</span><span class="p">.</span><span class="n">EnqueueTask</span><span class="p">(</span><span class="s">&#34;Hello&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span> <span class="n">i</span> <span class="p">&lt;</span> <span class="m">10</span><span class="p">;</span> <span class="n">i</span><span class="p">++)</span>
+</span></span><span class="line"><span class="cl">			<span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="n">queue</span><span class="p">.</span><span class="n">EnqueueTask</span><span class="p">(</span><span class="s">$&#34;{i}&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">			<span class="n">queue</span><span class="p">.</span><span class="n">EnqueueTask</span><span class="p">(</span><span class="s">&#34;End&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">ProducerConsumerQueue</span> <span class="p">:</span> <span class="n">IDisposable</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">EventWaitHandle</span> <span class="n">_waitHandle</span> <span class="p">=</span> <span class="k">new</span> <span class="n">AutoResetEvent</span><span class="p">(</span><span class="k">false</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="kt">object</span> <span class="n">_locker</span> <span class="p">=</span> <span class="k">new</span> <span class="kt">object</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">Queue</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">_taskQueue</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Queue</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">Thread</span> <span class="n">_workThread</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">ProducerConsumerQueue</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_workThread</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Thread</span><span class="p">(</span><span class="n">Work</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_workThread</span><span class="p">.</span><span class="n">Start</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">EnqueueTask</span><span class="p">(</span><span class="kt">string</span> <span class="n">task</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 向队列当中插入任务，加锁保证线程安全</span>
+</span></span><span class="line"><span class="cl">		<span class="k">lock</span> <span class="p">(</span><span class="n">_locker</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">_taskQueue</span><span class="p">.</span><span class="n">Enqueue</span><span class="p">(</span><span class="n">task</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="c1">// 通知工作线程开始干活</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_waitHandle</span><span class="p">.</span><span class="n">Set</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">void</span> <span class="n">Work</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">while</span> <span class="p">(</span><span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="kt">string</span> <span class="n">task</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">			<span class="k">lock</span> <span class="p">(</span><span class="n">_locker</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="k">if</span> <span class="p">(</span><span class="n">_taskQueue</span><span class="p">.</span><span class="n">Count</span> <span class="p">&gt;</span> <span class="m">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">				<span class="p">{</span>
+</span></span><span class="line"><span class="cl">					<span class="n">task</span> <span class="p">=</span> <span class="n">_taskQueue</span><span class="p">.</span><span class="n">Dequeue</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">					<span class="k">if</span> <span class="p">(</span><span class="n">task</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">				<span class="p">}</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">task</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="n">Thread</span><span class="p">.</span><span class="n">Sleep</span><span class="p">(</span><span class="m">100</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">				<span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;正在处理任务 {task}&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">			<span class="k">else</span>
+</span></span><span class="line"><span class="cl">			<span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="c1">// 如果任务等于空则阻塞线程，等待心的工作项</span>
+</span></span><span class="line"><span class="cl">				<span class="n">_waitHandle</span><span class="p">.</span><span class="n">WaitOne</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">Dispose</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 优雅退出</span>
+</span></span><span class="line"><span class="cl">		<span class="n">EnqueueTask</span><span class="p">(</span><span class="k">null</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_workThread</span><span class="p">.</span><span class="n">Join</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_waitHandle</span><span class="p">.</span><span class="n">Close</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+<li>
+<p>.NET 4.0 以后提供了一个 <code>BlockingCollection&lt;T&gt;</code> 类型实现了生产/消费者队列。</p>
+</li>
+</ol>
+<h3 id="42-manualresetevent">4.2 ManualResetEvent</h3>
+<ol>
+<li>
+<p>与 <code>AutoResetEvent</code> 类似，但在调用 <code>Set()</code> 方法的时候打开门，是可以允许任意数量的线程在调用 <code>WaitOne()</code> 后通过。(与 <code>AutoResetEvent</code> 每次只能通过 1 个不一样)</p>
+</li>
+<li>
+<p>如果是在关闭状态下调用 <code>WaitOne()</code> 方法，线程会被阻塞，其余功能都与 <code>AutoResetEvent</code> 一致。</p>
+</li>
+<li>
+<p><code>ManualResetEvent</code> 的基类也是 <code>EventWaitHandle</code> ，通过以下两种方式均可构造。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">manual1</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ManualResetEvent</span><span class="p">(</span><span class="k">false</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">manual2</span> <span class="p">=</span> <span class="k">new</span> <span class="n">EventWaitHandle</span><span class="p">(</span><span class="k">false</span><span class="p">,</span> <span class="n">EventResetModel</span><span class="p">.</span><span class="n">ManualReset</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+<li>
+<p>.NET 4.0 提供了性能更高的 <code>ManualResetEventSliam</code> ，但是不能够跨线程使用。</p>
+</li>
+</ol>
+<h3 id="43-countdownevent">4.3 CountdownEvent</h3>
+<ol>
+<li>
+<p>使用 <code>CountdownEvent</code> 可以指定一个计数器的值，用于表明需要等待的线程数量。</p>
+</li>
+<li>
+<p>调用 <code>Signal()</code> 方法会将计数器自减 1 ，如果调用其 <code>Wait()</code> 则会阻塞计数到 0 ，通过 <code>AddCount()</code> 可以增加计数。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">class</span> <span class="nc">Program</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">test</span> <span class="p">=</span> <span class="k">new</span> <span class="n">CountdownEventTest</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="k">new</span> <span class="n">Thread</span><span class="p">(</span><span class="n">test</span><span class="p">.</span><span class="n">Say</span><span class="p">).</span><span class="n">Start</span><span class="p">(</span><span class="s">&#34;Hello 1&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="k">new</span> <span class="n">Thread</span><span class="p">(</span><span class="n">test</span><span class="p">.</span><span class="n">Say</span><span class="p">).</span><span class="n">Start</span><span class="p">(</span><span class="s">&#34;Hello 2&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="k">new</span> <span class="n">Thread</span><span class="p">(</span><span class="n">test</span><span class="p">.</span><span class="n">Say</span><span class="p">).</span><span class="n">Start</span><span class="p">(</span><span class="s">&#34;Hello 3&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">test</span><span class="p">.</span><span class="n">CountdownEvent</span><span class="p">.</span><span class="n">Wait</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;所有线程执行完成...&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">CountdownEventTest</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">readonly</span> <span class="n">CountdownEvent</span> <span class="n">CountdownEvent</span> <span class="p">=</span> <span class="k">new</span> <span class="n">CountdownEvent</span><span class="p">(</span><span class="m">3</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">Say</span><span class="p">(</span><span class="kt">object</span> <span class="n">info</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Thread</span><span class="p">.</span><span class="n">Sleep</span><span class="p">(</span><span class="m">1000</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="n">info</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">CountdownEvent</span><span class="p">.</span><span class="n">Signal</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+<li>
+<p>当计数为 0 的时候，无法通过 <code>AddCount()</code> 增加计数，只能调用 <code>Reset()</code> 进行复位。</p>
+</li>
+</ol>
+<h3 id="44-等待句柄与线程池">4.4 等待句柄与线程池</h3>
+<ol>
+<li>
+<p>除了手动开启线程之外，事件等待句柄也支持通过线程池来运行工作任务。</p>
+</li>
+<li>
+<p>通过 <code>ThreadPool.RegisterWaitForSingleObject()</code> 方法可以减少资源消耗，当需要执行的委托处于等待状态的时候，不会浪费线程资源。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">class</span> <span class="nc">Program</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">static</span> <span class="k">void</span> <span class="n">Main</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">test</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ThreadPoolTest</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">test</span><span class="p">.</span><span class="n">Test</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">ThreadPoolTest</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">EventWaitHandle</span> <span class="n">_waitHandle</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ManualResetEvent</span><span class="p">(</span><span class="k">false</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">Test</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">RegisteredWaitHandle</span> <span class="n">regHandle</span> <span class="p">=</span> <span class="n">ThreadPool</span><span class="p">.</span><span class="n">RegisterWaitForSingleObject</span><span class="p">(</span><span class="n">_waitHandle</span><span class="p">,</span> <span class="n">Work</span><span class="p">,</span> <span class="s">&#34;OJBK&#34;</span><span class="p">,</span> <span class="p">-</span><span class="m">1</span><span class="p">,</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">Thread</span><span class="p">.</span><span class="n">Sleep</span><span class="p">(</span><span class="m">1000</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">_waitHandle</span><span class="p">.</span><span class="n">Set</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Console</span><span class="p">.</span><span class="n">ReadLine</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">regHandle</span><span class="p">.</span><span class="n">Unregister</span><span class="p">(</span><span class="n">_waitHandle</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">void</span> <span class="n">Work</span><span class="p">(</span><span class="kt">object</span> <span class="n">data</span><span class="p">,</span><span class="kt">bool</span> <span class="n">timeout</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$&#34;正在执行任务 {data} .....&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div></li>
+<li>
+<p>上述代码如果通过传统的方式进行阻塞与信号发送， 那么有 1000 个请求 <code>Work()</code> 方法，就会造成大量服务线程阻塞，而 <code>RegisterWaitForSingleObject</code> 可以立即返回，不会浪费线程资源。</p>
+</li>
+</ol>
+<h3 id="45-跨进程的-eventwaithandle">4.5 跨进程的 EventWaitHandle</h3>
+<p>可以通过对 <code>EventWaitHandle</code> 类型构造函数的第三个参数传入标识，来获得跨进程的事件的等待句柄。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">EventWaitHandle</span> <span class="n">wh</span> <span class="p">=</span> <span class="k">new</span> <span class="n">EventWaitHandle</span><span class="p">(</span><span class="k">false</span><span class="p">,</span><span class="n">EventResetMode</span><span class="p">.</span><span class="n">AutoReset</span><span class="p">,</span><span class="s">&#34;AppName.Identity&#34;</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="五同步上下文">五、同步上下文</h2>
+<h3 id="51-使用同步上下文">5.1 使用同步上下文</h3>
+<ol>
+<li>这里的同步上下文不是 <code>SynchronizationContext</code> 类，而是 CLR 的自动锁机制。</li>
+<li>通过继承 <code>ContextBoundObject</code> 基类并添加 <code>Synchronization</code> 特性即可让 CLR 自动加锁。</li>
+<li>同步上下文是一种比较重型的加锁方法，很容易引起死锁的情况发生。</li>
+</ol>
+<h3 id="52-重入">5.2 重入</h3>
+<ol>
+<li>线程安全方法也被称之为可重入的，因为其可以在运行途中被其他线程抢占。</li>
+<li>使用了自动锁会有一个严重问题，如果将 <code>Synchronization</code> 特性的 <code>reentrant</code> 参数设置为 <code>true</code> 。则允许同步类是可被重入的，这就导致同步上下文被临时释放，会导致过度期间任何线程都可以自由调用原对象的任何方法。</li>
+<li>这是因为 <code>Synchronization</code> 特性是直接作用于类，所以其所有方法都会带来可重入的问题。</li>
+<li>所以因尽量减少粗粒度的自动锁。</li>
+</ol>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/%E5%A4%9A%E7%BA%BF%E7%A8%8B/">多线程</a>
+        
+            <a href="/tags/%E7%BA%BF%E7%A8%8B%E5%AE%89%E5%85%A8/">线程安全</a>
+        
+            <a href="/tags/.net/">.NET</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/problems-with-containerizing-a-wcf-service/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">WCF 服务容器化的一些问题</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/record-of-problems-encountered-in-cefsharp-developing-touch-screen-terminals/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">CefSharp 开发触屏终端遇到的问题记录</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/why-implement-the-idisposable-interface/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">为什么要实现 IDisposable 接口?</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/use-csharp-to-implement-the-analysis-and-coding-of-cj-t188-water-meter-protocol-and-dl-t645-electricity-meter-protocol/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">使用 C# 实现 CJ-T188 水表协议和 DL-T645 电表协议的解析与编码</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/why-not-use-async-void/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">为什么不要使用 async void ？</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一同步概要">一、同步概要</a>
+      <ol>
+        <li><a href="#11-阻塞方法">1.1 阻塞方法</a></li>
+        <li><a href="#12-阻塞与自旋">1.2 阻塞与自旋</a></li>
+      </ol>
+    </li>
+    <li><a href="#二锁">二、锁</a>
+      <ol>
+        <li><a href="#21-排它锁">2.1 排它锁</a></li>
+        <li><a href="#22-monitorenter-与-monitorexit">2.2 Monitor.Enter 与 Monitor.Exit</a></li>
+        <li><a href="#23-什么时候加锁">2.3 什么时候加锁</a></li>
+        <li><a href="#24-锁与原子性">2.4 锁与原子性</a></li>
+        <li><a href="#25-锁嵌套">2.5 锁嵌套</a></li>
+        <li><a href="#26-死锁">2.6 死锁</a></li>
+        <li><a href="#27-互斥体">2.7 互斥体</a></li>
+        <li><a href="#28-信号量">2.8 信号量</a></li>
+      </ol>
+    </li>
+    <li><a href="#三线程安全">三、线程安全</a>
+      <ol>
+        <li><a href="#31-线程安全与-bcl-类型">3.1 线程安全与 BCL 类型</a></li>
+        <li><a href="#32-应用服务器其与线程安全">3.2 应用服务器其与线程安全</a></li>
+        <li><a href="#33-wpf-与-winform-程序的线程安全">3.3 WPF 与 WinForm 程序的线程安全</a></li>
+        <li><a href="#34-不可变对象">3.4 不可变对象</a></li>
+      </ol>
+    </li>
+    <li><a href="#四事件等待句柄与信号同步">四、事件等待句柄与信号同步</a>
+      <ol>
+        <li><a href="#41-autoresetevent">4.1 AutoResetEvent</a></li>
+        <li><a href="#42-manualresetevent">4.2 ManualResetEvent</a></li>
+        <li><a href="#43-countdownevent">4.3 CountdownEvent</a></li>
+        <li><a href="#44-等待句柄与线程池">4.4 等待句柄与线程池</a></li>
+        <li><a href="#45-跨进程的-eventwaithandle">4.5 跨进程的 EventWaitHandle</a></li>
+      </ol>
+    </li>
+    <li><a href="#五同步上下文">五、同步上下文</a>
+      <ol>
+        <li><a href="#51-使用同步上下文">5.1 使用同步上下文</a></li>
+        <li><a href="#52-重入">5.2 重入</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

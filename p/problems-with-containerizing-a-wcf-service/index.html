@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='背景 目前项目当中存有 .NET Framework 和 .NET Core 两种类型的项目，但是都需要进行容器化将其分别部署在 Windows 集群和 Linux 集群当中。在 WCF 进行容器化的时候，遇到了以下几个问题：
+某些服务使用到了 WSHttpBinding 保护服务安全，要在容器里面加载 SSL 证书。 WCF 服务的日志，如何重定向到标准输出流? '><title>WCF 服务容器化的一些问题</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/problems-with-containerizing-a-wcf-service/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='WCF 服务容器化的一些问题'>
+<meta property='og:description' content='背景 目前项目当中存有 .NET Framework 和 .NET Core 两种类型的项目，但是都需要进行容器化将其分别部署在 Windows 集群和 Linux 集群当中。在 WCF 进行容器化的时候，遇到了以下几个问题：
+某些服务使用到了 WSHttpBinding 保护服务安全，要在容器里面加载 SSL 证书。 WCF 服务的日志，如何重定向到标准输出流? '>
+<meta property='og:url' content='https://real-zony.github.io/p/problems-with-containerizing-a-wcf-service/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='WCF' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='.NET' /><meta property='article:tag' content='Docker' /><meta property='article:tag' content='容器化' /><meta property='article:published_time' content='2022-12-31T09:43:00&#43;00:00'/><meta property='article:modified_time' content='2022-12-31T09:43:00&#43;00:00'/>
+<meta name="twitter:title" content="WCF 服务容器化的一些问题">
+<meta name="twitter:description" content="背景 目前项目当中存有 .NET Framework 和 .NET Core 两种类型的项目，但是都需要进行容器化将其分别部署在 Windows 集群和 Linux 集群当中。在 WCF 进行容器化的时候，遇到了以下几个问题：
+某些服务使用到了 WSHttpBinding 保护服务安全，要在容器里面加载 SSL 证书。 WCF 服务的日志，如何重定向到标准输出流? ">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/problems-with-containerizing-a-wcf-service/">WCF 服务容器化的一些问题</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Dec 31, 2022</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 2 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="背景">背景</h2>
+<p>目前项目当中存有 .NET Framework 和 .NET Core 两种类型的项目，但是都需要进行容器化将其分别部署在 Windows 集群和 Linux 集群当中。在 WCF 进行容器化的时候，遇到了以下几个问题：</p>
+<ol>
+<li>某些服务使用到了 WSHttpBinding 保护服务安全，要在容器里面加载 SSL 证书。</li>
+<li>WCF 服务的日志，如何重定向到标准输出流?</li>
+</ol>
+<h2 id="解决">解决</h2>
+<h3 id="问题一">问题一</h3>
+<p>关于第一个问题，最开始我觉得只需要将 WCF 服务打包出来，暴露一个 HTTP 端点。然后在这个 WCF 服务的前面再加一层 NGINX，具体的证书由 NGINX 进行管理。大概的流程就是 <code>API Caller --&gt; (HTTPS)F5 --&gt; (HTTPS)NGINX --&gt; (HTTP)WCF</code>，按照这样的方式部署之后，对应的服务端点无法访问，具体的错误提示的是 Schema 不匹配。因为 WSHttpBinding 强制使用 HTTPS，如果我仅暴露一个 HTTP 端点，是无法绕过 WSHttpBinding 的限制的。</p>
+<p>随后我又在网上找到了 <a class="link" href="https://blog.hackedbrain.com/2006/09/26/how-to-ssl-passthrough-with-wcf-or-transportwithmessagecredential-over-plain-http/"  target="_blank" rel="noopener"
+    >这篇文章</a>，该文章的思路就是实现一个 <em><strong>CustomBinding</strong></em>，然后在里面忽略掉这块验证，经过我的测试无法满足需求。</p>
+<p>上述方法行不通就只有创建一个自签 SSL 证书，并导入到 IIS 当中，随后在 NGINX 启用 SSL 转发，目前看来已经解决这个问题。下面是我的 Dockerfile 以及入口点的 PowerShell 脚本，脚本里面包含了证书生成与导入方法。</p>
+<p><em>dockerfile:</em></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-dockerfile" data-lang="dockerfile"><span class="line"><span class="cl"><span class="k">FROM</span><span class="s"> mcr.microsoft.com/dotnet/framework/sdk:4.8 AS build</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">WORKDIR</span><span class="s"> /build</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">COPY</span> . .<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> <span class="nb">cd</span> ./src<span class="p">;</span> nuget restore<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">WORKDIR</span><span class="s"> /build/src/ProjectName</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">RUN</span> msbuild Wcf.csproj /p:Configuration<span class="o">=</span>Release -r:False<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">FROM</span><span class="s"> mcr.microsoft.com/dotnet/framework/wcf:4.8-windowsservercore-ltsc2019 AS runtime</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">WORKDIR</span><span class="s"> /WcfService</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">EXPOSE</span><span class="s"> 443</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">COPY</span> --from<span class="o">=</span>build /build/wcf-entrypoint.ps1 .<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">COPY</span> --from<span class="o">=</span>build /build/src/ProjectName .<span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="k">ENTRYPOINT</span> <span class="p">[</span><span class="s2">&#34;powershell&#34;</span><span class="p">,</span> <span class="s2">&#34;.\\wcf-entrypoint.ps1&#34;</span><span class="p">]</span><span class="err">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p><em>entrypoint.ps1</em></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-powershell" data-lang="powershell"><span class="line"><span class="cl"><span class="nv">$hostName</span> <span class="p">=</span> <span class="nv">$env:HostName</span>
+</span></span><span class="line"><span class="cl"><span class="nv">$port</span> <span class="p">=</span> <span class="s2">&#34;443&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="nv">$password</span> <span class="p">=</span> <span class="s2">&#34;Your password.&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="nv">$storeLocation</span> <span class="p">=</span> <span class="s2">&#34;Cert:\LocalMachine\My&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="nv">$certificate</span> <span class="p">=</span> <span class="nb">New-SelfSignedCertificate</span> <span class="n">-DnsName</span> <span class="nv">$hostName</span> <span class="n">-CertStoreLocation</span> <span class="nv">$storeLocation</span>
+</span></span><span class="line"><span class="cl"><span class="nv">$thumbPrint</span> <span class="p">=</span> <span class="nv">$certificate</span><span class="p">.</span><span class="py">Thumbprint</span>
+</span></span><span class="line"><span class="cl"><span class="nv">$certificatePath</span> <span class="p">=</span> <span class="p">(</span><span class="s2">&#34;cert:\localmachine\my\&#34;</span> <span class="p">+</span> <span class="nv">$certificate</span><span class="p">.</span><span class="n">Thumbprint</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="nv">$bindingInformation</span> <span class="p">=</span> <span class="s2">&#34;*:&#34;</span> <span class="p">+</span> <span class="nv">$port</span> <span class="p">+</span> <span class="s2">&#34;:&#34;</span> <span class="p">+</span> <span class="nv">$hostName</span>
+</span></span><span class="line"><span class="cl"><span class="nv">$securedString</span> <span class="p">=</span> <span class="nb">ConvertTo-SecureString</span> <span class="n">-String</span> <span class="nv">$password</span> <span class="n">-Force</span> <span class="n">-AsPlainText</span>
+</span></span><span class="line"><span class="cl"><span class="nb">Export-PfxCertificate</span> <span class="n">-FilePath</span> <span class="s2">&#34;C:\WcfService\temp.pfx&#34;</span> <span class="n">-Cert</span> <span class="nv">$certificatePath</span> <span class="n">-Password</span> <span class="nv">$securedString</span>
+</span></span><span class="line"><span class="cl"><span class="nb">Import-PfxCertificate</span> <span class="n">-FilePath</span> <span class="s2">&#34;C:\WcfService\temp.pfx&#34;</span> <span class="n">-CertStoreLocation</span> <span class="s2">&#34;Cert:\LocalMachine\Root&#34;</span> <span class="n">-Password</span> <span class="nv">$securedString</span>
+</span></span><span class="line"><span class="cl"><span class="nb">New-IISSite</span> <span class="n">-Name</span> <span class="s2">&#34;WcfService&#34;</span> <span class="n">-PhysicalPath</span> <span class="n">C:</span><span class="p">\</span><span class="n">WcfService</span> <span class="n">-BindingInformation</span> <span class="nv">$bindingInformation</span> <span class="n">-CertificateThumbPrint</span> <span class="nv">$thumbPrint</span> <span class="n">-CertStoreLocation</span> <span class="nv">$storeLocation</span> <span class="n">-Protocol</span> <span class="n">https</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c"># Entry point for the application.</span>
+</span></span><span class="line"><span class="cl"><span class="p">&amp;</span><span class="n">C:</span><span class="p">\\</span><span class="n">ServiceMonitor</span><span class="p">.</span><span class="py">exe</span> <span class="n">w3svc</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="问题二">问题二</h3>
+<p>由于 WCF 是托管在 IIS 里面的，我们的日志信息是无法输出到标准输出流的。所以我们就采取了一个曲线救国的方案，使用一个旁路程序，我们的日志输出到文件当中，由这个旁路程序监控文件变动，然后将变动的内容输出到标准输出流里面。</p>
+<p>这个功能有点像 Logstash，你可能会说我们为什么不直接用 Logstash 收集这些日志呢？因为我们所有项目的日志，都是由基础架构团队统一处理。规范就是我们日志必须输出到标准输出流，并且日志是结构化日志，还需带上一些 ProjectId 之类的标记信息。然后由注入的 Sidecar 容器统一收集、处理、上报到 Garylog 平台。</p>
+<p>回到正题，最开始我找到了微软实现的一个开源工具，它的本意就是为一些 Windows 容器解决日志收集问题的。</p>
+<p>项目的地址是: <a class="link" href="https://github.com/microsoft/windows-container-tools"  target="_blank" rel="noopener"
+    >https://github.com/microsoft/windows-container-tools</a>。</p>
+<p>使用这个工具，指定好路径与需要运行的程序，替换 Dockerfile 的入口点即可解决问题。微软那个工具的核心，就是使用了系统提供的文件监听 API，在 .NET 里面也有提供类似的 API，叫做 <em><strong>FileSystemWatcher</strong></em>，如果有兴趣的话，也可以参考 C++ 的源码和思路自己实现。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/wcf/">WCF</a>
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/.net/">.NET</a>
+        
+            <a href="/tags/docker/">Docker</a>
+        
+            <a href="/tags/%E5%AE%B9%E5%99%A8%E5%8C%96/">容器化</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/record-of-problems-encountered-in-cefsharp-developing-touch-screen-terminals/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">CefSharp 开发触屏终端遇到的问题记录</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/why-implement-the-idisposable-interface/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">为什么要实现 IDisposable 接口?</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/use-csharp-to-implement-the-analysis-and-coding-of-cj-t188-water-meter-protocol-and-dl-t645-electricity-meter-protocol/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">使用 C# 实现 CJ-T188 水表协议和 DL-T645 电表协议的解析与编码</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/csharp-multi-threaded-study-notes---2/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">C# 多线程学习笔记 - 2</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/ddns-tool-based-on-alibaba-cloud-dns-api/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">基于阿里云 DNS API 实现的 DDNS 工具</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#解决">解决</a>
+      <ol>
+        <li><a href="#问题一">问题一</a></li>
+        <li><a href="#问题二">问题二</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

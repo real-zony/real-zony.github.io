@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+    <channel>
+        <title>WCF on Zony 的博客</title>
+        <link>https://real-zony.github.io/tags/wcf/</link>
+        <description>Recent content in WCF on Zony 的博客</description>
+        <generator>Hugo -- gohugo.io</generator>
+        <language>zh-cn</language>
+        <lastBuildDate>Sat, 31 Dec 2022 09:43:00 +0000</lastBuildDate><atom:link href="https://real-zony.github.io/tags/wcf/index.xml" rel="self" type="application/rss+xml" /><item>
+        <title>WCF 服务容器化的一些问题</title>
+        <link>https://real-zony.github.io/p/problems-with-containerizing-a-wcf-service/</link>
+        <pubDate>Sat, 31 Dec 2022 09:43:00 +0000</pubDate>
+        
+        <guid>https://real-zony.github.io/p/problems-with-containerizing-a-wcf-service/</guid>
+        <description>&lt;h2 id=&#34;背景&#34;&gt;背景&lt;/h2&gt;
+&lt;p&gt;目前项目当中存有 .NET Framework 和 .NET Core 两种类型的项目，但是都需要进行容器化将其分别部署在 Windows 集群和 Linux 集群当中。在 WCF 进行容器化的时候，遇到了以下几个问题：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;某些服务使用到了 WSHttpBinding 保护服务安全，要在容器里面加载 SSL 证书。&lt;/li&gt;
+&lt;li&gt;WCF 服务的日志，如何重定向到标准输出流?&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&#34;解决&#34;&gt;解决&lt;/h2&gt;
+&lt;h3 id=&#34;问题一&#34;&gt;问题一&lt;/h3&gt;
+&lt;p&gt;关于第一个问题，最开始我觉得只需要将 WCF 服务打包出来，暴露一个 HTTP 端点。然后在这个 WCF 服务的前面再加一层 NGINX，具体的证书由 NGINX 进行管理。大概的流程就是 &lt;code&gt;API Caller --&amp;gt; (HTTPS)F5 --&amp;gt; (HTTPS)NGINX --&amp;gt; (HTTP)WCF&lt;/code&gt;，按照这样的方式部署之后，对应的服务端点无法访问，具体的错误提示的是 Schema 不匹配。因为 WSHttpBinding 强制使用 HTTPS，如果我仅暴露一个 HTTP 端点，是无法绕过 WSHttpBinding 的限制的。&lt;/p&gt;
+&lt;p&gt;随后我又在网上找到了 &lt;a class=&#34;link&#34; href=&#34;https://blog.hackedbrain.com/2006/09/26/how-to-ssl-passthrough-with-wcf-or-transportwithmessagecredential-over-plain-http/&#34;  target=&#34;_blank&#34; rel=&#34;noopener&#34;
+    &gt;这篇文章&lt;/a&gt;，该文章的思路就是实现一个 &lt;em&gt;&lt;strong&gt;CustomBinding&lt;/strong&gt;&lt;/em&gt;，然后在里面忽略掉这块验证，经过我的测试无法满足需求。&lt;/p&gt;
+&lt;p&gt;上述方法行不通就只有创建一个自签 SSL 证书，并导入到 IIS 当中，随后在 NGINX 启用 SSL 转发，目前看来已经解决这个问题。下面是我的 Dockerfile 以及入口点的 PowerShell 脚本，脚本里面包含了证书生成与导入方法。&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;dockerfile:&lt;/em&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt; 1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 5
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 6
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 7
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 8
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 9
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;10
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;11
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;12
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;13
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;14
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;15
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;16
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-dockerfile&#34; data-lang=&#34;dockerfile&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;k&#34;&gt;FROM&lt;/span&gt;&lt;span class=&#34;s&#34;&gt; mcr.microsoft.com/dotnet/framework/sdk:4.8 AS build&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;err&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;WORKDIR&lt;/span&gt;&lt;span class=&#34;s&#34;&gt; /build&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;err&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;COPY&lt;/span&gt; . .&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;err&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;RUN&lt;/span&gt; &lt;span class=&#34;nb&#34;&gt;cd&lt;/span&gt; ./src&lt;span class=&#34;p&#34;&gt;;&lt;/span&gt; nuget restore&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;err&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;WORKDIR&lt;/span&gt;&lt;span class=&#34;s&#34;&gt; /build/src/ProjectName&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;err&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;RUN&lt;/span&gt; msbuild Wcf.csproj /p:Configuration&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;Release -r:False&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;err&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;FROM&lt;/span&gt;&lt;span class=&#34;s&#34;&gt; mcr.microsoft.com/dotnet/framework/wcf:4.8-windowsservercore-ltsc2019 AS runtime&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;err&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;WORKDIR&lt;/span&gt;&lt;span class=&#34;s&#34;&gt; /WcfService&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;err&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;EXPOSE&lt;/span&gt;&lt;span class=&#34;s&#34;&gt; 443&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;err&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;COPY&lt;/span&gt; --from&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;build /build/wcf-entrypoint.ps1 .&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;err&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;COPY&lt;/span&gt; --from&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;build /build/src/ProjectName .&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;err&#34;&gt;&lt;/span&gt;&lt;span class=&#34;k&#34;&gt;ENTRYPOINT&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;[&lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;powershell&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;.\\wcf-entrypoint.ps1&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;]&lt;/span&gt;&lt;span class=&#34;err&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;&lt;em&gt;entrypoint.ps1&lt;/em&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;
+&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt; 1
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 2
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 3
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 4
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 5
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 6
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 7
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 8
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt; 9
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;10
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;11
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;12
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;13
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;14
+&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;15
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class=&#34;lntd&#34;&gt;
+&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-powershell&#34; data-lang=&#34;powershell&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;nv&#34;&gt;$hostName&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;$env:HostName&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;nv&#34;&gt;$port&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;443&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;nv&#34;&gt;$password&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;Your password.&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;nv&#34;&gt;$storeLocation&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;Cert:\LocalMachine\My&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;nv&#34;&gt;$certificate&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;nb&#34;&gt;New-SelfSignedCertificate&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-DnsName&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;$hostName&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-CertStoreLocation&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;$storeLocation&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;nv&#34;&gt;$thumbPrint&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;$certificate&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;py&#34;&gt;Thumbprint&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;nv&#34;&gt;$certificatePath&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;cert:\localmachine\my\&amp;#34;&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;+&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;$certificate&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;Thumbprint&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;nv&#34;&gt;$bindingInformation&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;*:&amp;#34;&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;+&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;$port&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;+&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;:&amp;#34;&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;+&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;$hostName&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;nv&#34;&gt;$securedString&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;nb&#34;&gt;ConvertTo-SecureString&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-String&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;$password&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-Force&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-AsPlainText&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;nb&#34;&gt;Export-PfxCertificate&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-FilePath&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;C:\WcfService\temp.pfx&amp;#34;&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-Cert&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;$certificatePath&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-Password&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;$securedString&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;nb&#34;&gt;Import-PfxCertificate&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-FilePath&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;C:\WcfService\temp.pfx&amp;#34;&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-CertStoreLocation&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;Cert:\LocalMachine\Root&amp;#34;&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-Password&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;$securedString&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;nb&#34;&gt;New-IISSite&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-Name&lt;/span&gt; &lt;span class=&#34;s2&#34;&gt;&amp;#34;WcfService&amp;#34;&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-PhysicalPath&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;C:&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;\&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;WcfService&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-BindingInformation&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;$bindingInformation&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-CertificateThumbPrint&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;$thumbPrint&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-CertStoreLocation&lt;/span&gt; &lt;span class=&#34;nv&#34;&gt;$storeLocation&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;-Protocol&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;https&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c&#34;&gt;# Entry point for the application.&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;p&#34;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;C:&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;\\&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;ServiceMonitor&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;py&#34;&gt;exe&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;w3svc&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;h3 id=&#34;问题二&#34;&gt;问题二&lt;/h3&gt;
+&lt;p&gt;由于 WCF 是托管在 IIS 里面的，我们的日志信息是无法输出到标准输出流的。所以我们就采取了一个曲线救国的方案，使用一个旁路程序，我们的日志输出到文件当中，由这个旁路程序监控文件变动，然后将变动的内容输出到标准输出流里面。&lt;/p&gt;
+&lt;p&gt;这个功能有点像 Logstash，你可能会说我们为什么不直接用 Logstash 收集这些日志呢？因为我们所有项目的日志，都是由基础架构团队统一处理。规范就是我们日志必须输出到标准输出流，并且日志是结构化日志，还需带上一些 ProjectId 之类的标记信息。然后由注入的 Sidecar 容器统一收集、处理、上报到 Garylog 平台。&lt;/p&gt;
+&lt;p&gt;回到正题，最开始我找到了微软实现的一个开源工具，它的本意就是为一些 Windows 容器解决日志收集问题的。&lt;/p&gt;
+&lt;p&gt;项目的地址是: &lt;a class=&#34;link&#34; href=&#34;https://github.com/microsoft/windows-container-tools&#34;  target=&#34;_blank&#34; rel=&#34;noopener&#34;
+    &gt;https://github.com/microsoft/windows-container-tools&lt;/a&gt;。&lt;/p&gt;
+&lt;p&gt;使用这个工具，指定好路径与需要运行的程序，替换 Dockerfile 的入口点即可解决问题。微软那个工具的核心，就是使用了系统提供的文件监听 API，在 .NET 里面也有提供类似的 API，叫做 &lt;em&gt;&lt;strong&gt;FileSystemWatcher&lt;/strong&gt;&lt;/em&gt;，如果有兴趣的话，也可以参考 C++ 的源码和思路自己实现。&lt;/p&gt;</description>
+        </item>
+        
+    </channel>
+</rss>

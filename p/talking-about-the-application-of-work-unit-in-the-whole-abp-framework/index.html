@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='ABP在其内部实现了工作单元模式，统一地进行事务与连接管理。 其核心就是通过 Castle 的 Dynamic Proxy 进行动态代理，在组件注册的时候进行拦截器注入，拦截到实现了 Unit Of Work 特性的方法进行操作，在执行完方法之后就会关闭掉工作单元。
+其整体流程大概如下：
+首先 UOW 相关接口、拦截器等通过 IocManager 注入到 Ioc 容器当中。 监听 Ioc 注册事件，并为其添加方法拦截器。 在拦截器内部使用 using 包裹数据库操作方法，使其成为一个工作单元。 一旦在方法 procced 执行的时候，产生任何异常触发任何异常都不会执行 Complete 方法，直接抛出终止执行。 UnitOfWorkInterceptors 这是一个 Castle Interceptors 的实现，在 AbpBootStrap 的 Initialze 方法当中被注入到 Ioc 容器。
+1 2 3 4 5 6 7 8 private void AddInterceptorRegistrars() { ValidationInterceptorRegistrar.Initialize(IocManager); AuditingInterceptorRegistrar.Initialize(IocManager); EntityHistoryInterceptorRegistrar.Initialize(IocManager); UnitOfWorkRegistrar.Initialize(IocManager); AuthorizationInterceptorRegistrar.Initialize(IocManager); } 之后在 Registrar 内部针对组件注入事件进行绑定：
+1 2 3 4 5 6 7 8 9 public static void Initialize(IIocManager iocManager) { iocManager.'><title>浅谈工作单元 在整个 ABP 框架当中的应用</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/talking-about-the-application-of-work-unit-in-the-whole-abp-framework/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='浅谈工作单元 在整个 ABP 框架当中的应用'>
+<meta property='og:description' content='ABP在其内部实现了工作单元模式，统一地进行事务与连接管理。 其核心就是通过 Castle 的 Dynamic Proxy 进行动态代理，在组件注册的时候进行拦截器注入，拦截到实现了 Unit Of Work 特性的方法进行操作，在执行完方法之后就会关闭掉工作单元。
+其整体流程大概如下：
+首先 UOW 相关接口、拦截器等通过 IocManager 注入到 Ioc 容器当中。 监听 Ioc 注册事件，并为其添加方法拦截器。 在拦截器内部使用 using 包裹数据库操作方法，使其成为一个工作单元。 一旦在方法 procced 执行的时候，产生任何异常触发任何异常都不会执行 Complete 方法，直接抛出终止执行。 UnitOfWorkInterceptors 这是一个 Castle Interceptors 的实现，在 AbpBootStrap 的 Initialze 方法当中被注入到 Ioc 容器。
+1 2 3 4 5 6 7 8 private void AddInterceptorRegistrars() { ValidationInterceptorRegistrar.Initialize(IocManager); AuditingInterceptorRegistrar.Initialize(IocManager); EntityHistoryInterceptorRegistrar.Initialize(IocManager); UnitOfWorkRegistrar.Initialize(IocManager); AuthorizationInterceptorRegistrar.Initialize(IocManager); } 之后在 Registrar 内部针对组件注入事件进行绑定：
+1 2 3 4 5 6 7 8 9 public static void Initialize(IIocManager iocManager) { iocManager.'>
+<meta property='og:url' content='https://real-zony.github.io/p/talking-about-the-application-of-work-unit-in-the-whole-abp-framework/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='AspNetBoilerplate' /><meta property='article:tag' content='工作单元' /><meta property='article:published_time' content='2018-01-26T15:22:00&#43;00:00'/><meta property='article:modified_time' content='2018-01-26T15:22:00&#43;00:00'/>
+<meta name="twitter:title" content="浅谈工作单元 在整个 ABP 框架当中的应用">
+<meta name="twitter:description" content="ABP在其内部实现了工作单元模式，统一地进行事务与连接管理。 其核心就是通过 Castle 的 Dynamic Proxy 进行动态代理，在组件注册的时候进行拦截器注入，拦截到实现了 Unit Of Work 特性的方法进行操作，在执行完方法之后就会关闭掉工作单元。
+其整体流程大概如下：
+首先 UOW 相关接口、拦截器等通过 IocManager 注入到 Ioc 容器当中。 监听 Ioc 注册事件，并为其添加方法拦截器。 在拦截器内部使用 using 包裹数据库操作方法，使其成为一个工作单元。 一旦在方法 procced 执行的时候，产生任何异常触发任何异常都不会执行 Complete 方法，直接抛出终止执行。 UnitOfWorkInterceptors 这是一个 Castle Interceptors 的实现，在 AbpBootStrap 的 Initialze 方法当中被注入到 Ioc 容器。
+1 2 3 4 5 6 7 8 private void AddInterceptorRegistrars() { ValidationInterceptorRegistrar.Initialize(IocManager); AuditingInterceptorRegistrar.Initialize(IocManager); EntityHistoryInterceptorRegistrar.Initialize(IocManager); UnitOfWorkRegistrar.Initialize(IocManager); AuthorizationInterceptorRegistrar.Initialize(IocManager); } 之后在 Registrar 内部针对组件注入事件进行绑定：
+1 2 3 4 5 6 7 8 9 public static void Initialize(IIocManager iocManager) { iocManager.">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/talking-about-the-application-of-work-unit-in-the-whole-abp-framework/">浅谈工作单元 在整个 ABP 框架当中的应用</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jan 26, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 6 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <blockquote>
+<p>ABP在其内部实现了工作单元模式，统一地进行事务与连接管理。 其核心就是通过 Castle 的 Dynamic Proxy 进行动态代理，在组件注册的时候进行拦截器注入，拦截到实现了 Unit Of Work 特性的方法进行操作，在执行完方法之后就会关闭掉工作单元。</p>
+</blockquote>
+<p>其整体流程大概如下：</p>
+<ul>
+<li>首先 UOW 相关接口、拦截器等通过 IocManager 注入到 Ioc 容器当中。</li>
+<li>监听 Ioc 注册事件，并为其添加方法拦截器。</li>
+<li>在拦截器内部使用 using 包裹数据库操作方法，使其成为一个工作单元。</li>
+<li>一旦在方法 procced 执行的时候，产生任何异常触发任何异常都不会执行 Complete 方法，直接抛出终止执行。</li>
+</ul>
+<h2 id="unitofworkinterceptors">UnitOfWorkInterceptors</h2>
+<p>这是一个 Castle Interceptors 的实现，在 AbpBootStrap 的 Initialze 方法当中被注入到 Ioc 容器。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">void</span> <span class="n">AddInterceptorRegistrars</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">ValidationInterceptorRegistrar</span><span class="p">.</span><span class="n">Initialize</span><span class="p">(</span><span class="n">IocManager</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">AuditingInterceptorRegistrar</span><span class="p">.</span><span class="n">Initialize</span><span class="p">(</span><span class="n">IocManager</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">EntityHistoryInterceptorRegistrar</span><span class="p">.</span><span class="n">Initialize</span><span class="p">(</span><span class="n">IocManager</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">UnitOfWorkRegistrar</span><span class="p">.</span><span class="n">Initialize</span><span class="p">(</span><span class="n">IocManager</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">AuthorizationInterceptorRegistrar</span><span class="p">.</span><span class="n">Initialize</span><span class="p">(</span><span class="n">IocManager</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>之后在 Registrar 内部针对组件注入事件进行绑定：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">void</span> <span class="n">Initialize</span><span class="p">(</span><span class="n">IIocManager</span> <span class="n">iocManager</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">iocManager</span><span class="p">.</span><span class="n">IocContainer</span><span class="p">.</span><span class="n">Kernel</span><span class="p">.</span><span class="n">ComponentRegistered</span> <span class="p">+=</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">handler</span><span class="p">)</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">implementationType</span> <span class="p">=</span> <span class="n">handler</span><span class="p">.</span><span class="n">ComponentModel</span><span class="p">.</span><span class="n">Implementation</span><span class="p">.</span><span class="n">GetTypeInfo</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">HandleTypesWithUnitOfWorkAttribute</span><span class="p">(</span><span class="n">implementationType</span><span class="p">,</span> <span class="n">handler</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">HandleConventionalUnitOfWorkTypes</span><span class="p">(</span><span class="n">iocManager</span><span class="p">,</span> <span class="n">implementationType</span><span class="p">,</span> <span class="n">handler</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">};</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在这里的两个方法分别是针对已经实现了 UnitOfWork 特性的类进行绑定，另外一个则是针对符合命名规则的类型进行拦截器绑定。
+拦截器做的事情十分简单，针对拦截到的方法进行 UOW 特性检测，如果检测通过之后则直接执行工作单元方法，并根据特性生成 Options。不过不是一个 UOW 的话，则直接继续执行原先方法内代码。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">unitOfWorkAttr</span> <span class="p">=</span> <span class="n">_unitOfWorkOptions</span><span class="p">.</span><span class="n">GetUnitOfWorkAttributeOrNull</span><span class="p">(</span><span class="n">method</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="n">unitOfWorkAttr</span> <span class="p">==</span> <span class="k">null</span> <span class="p">||</span> <span class="n">unitOfWorkAttr</span><span class="p">.</span><span class="n">IsDisabled</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">//No need to a uow</span>
+</span></span><span class="line"><span class="cl">    <span class="n">invocation</span><span class="p">.</span><span class="n">Proceed</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="n">PerformUow</span><span class="p">(</span><span class="n">invocation</span><span class="p">,</span> <span class="n">unitOfWorkAttr</span><span class="p">.</span><span class="n">CreateOptions</span><span class="p">());</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在创建 UOW 的时候，拦截器也会根据方法类型的不同来用不同的方式构建 UOW 。
+如果是同步方法的话：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">void</span> <span class="n">PerformSyncUow</span><span class="p">(</span><span class="n">IInvocation</span> <span class="n">invocation</span><span class="p">,</span> <span class="n">UnitOfWorkOptions</span> <span class="n">options</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 直接从 Manager 生成一个新的工作单元</span>
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">uow</span> <span class="p">=</span> <span class="n">_unitOfWorkManager</span><span class="p">.</span><span class="n">Begin</span><span class="p">(</span><span class="n">options</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 继续执行原方法</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 产生异常直接进入 uow 的 Dispose 方法</span>
+</span></span><span class="line"><span class="cl">        <span class="n">invocation</span><span class="p">.</span><span class="n">Proceed</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果一切正常，提交事务</span>
+</span></span><span class="line"><span class="cl">        <span class="n">uow</span><span class="p">.</span><span class="n">Complete</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>但如果这个工作单元被标注在异步方法上面，则操作略微复杂：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">void</span> <span class="n">PerformAsyncUow</span><span class="p">(</span><span class="n">IInvocation</span> <span class="n">invocation</span><span class="p">,</span> <span class="n">UnitOfWorkOptions</span> <span class="n">options</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得一个工作单元</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">uow</span> <span class="p">=</span> <span class="n">_unitOfWorkManager</span><span class="p">.</span><span class="n">Begin</span><span class="p">(</span><span class="n">options</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 继续执行拦截到的方法</span>
+</span></span><span class="line"><span class="cl">    <span class="k">try</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">invocation</span><span class="p">.</span><span class="n">Proceed</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">catch</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">uow</span><span class="p">.</span><span class="n">Dispose</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果是异步无返回值的方法</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">invocation</span><span class="p">.</span><span class="n">Method</span><span class="p">.</span><span class="n">ReturnType</span> <span class="p">==</span> <span class="k">typeof</span><span class="p">(</span><span class="n">Task</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">invocation</span><span class="p">.</span><span class="n">ReturnValue</span> <span class="p">=</span> <span class="n">InternalAsyncHelper</span><span class="p">.</span><span class="n">AwaitTaskWithPostActionAndFinally</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="p">(</span><span class="n">Task</span><span class="p">)</span> <span class="n">invocation</span><span class="p">.</span><span class="n">ReturnValue</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="k">async</span> <span class="p">()</span> <span class="p">=&gt;</span> <span class="k">await</span> <span class="n">uow</span><span class="p">.</span><span class="n">CompleteAsync</span><span class="p">(),</span>
+</span></span><span class="line"><span class="cl">            <span class="n">exception</span> <span class="p">=&gt;</span> <span class="n">uow</span><span class="p">.</span><span class="n">Dispose</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">else</span> <span class="c1">//Task&lt;TResult&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">invocation</span><span class="p">.</span><span class="n">ReturnValue</span> <span class="p">=</span> <span class="n">InternalAsyncHelper</span><span class="p">.</span><span class="n">CallAwaitTaskWithPostActionAndFinallyAndGetResult</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">invocation</span><span class="p">.</span><span class="n">Method</span><span class="p">.</span><span class="n">ReturnType</span><span class="p">.</span><span class="n">GenericTypeArguments</span><span class="p">[</span><span class="m">0</span><span class="p">],</span>
+</span></span><span class="line"><span class="cl">            <span class="n">invocation</span><span class="p">.</span><span class="n">ReturnValue</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="k">async</span> <span class="p">()</span> <span class="p">=&gt;</span> <span class="k">await</span> <span class="n">uow</span><span class="p">.</span><span class="n">CompleteAsync</span><span class="p">(),</span>
+</span></span><span class="line"><span class="cl">            <span class="n">exception</span> <span class="p">=&gt;</span> <span class="n">uow</span><span class="p">.</span><span class="n">Dispose</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>以上代码在进入的时候直接执行原方法，如果产生任何异常直接进入 Dispose 方法并且抛出异常。乍一看与同步方法处理没什么区别，但重点是这里并没有执行 Complete 方法,因为这里需要对其异步返回结果更改为 UOW 异步提交之后的值，先查看第一种直接返回 Task 的情况.</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">AwaitTaskWithPostActionAndFinally</span><span class="p">(</span><span class="n">Task</span> <span class="n">actualReturnValue</span><span class="p">,</span> <span class="n">Func</span><span class="p">&lt;</span><span class="n">Task</span><span class="p">&gt;</span> <span class="n">postAction</span><span class="p">,</span> <span class="n">Action</span><span class="p">&lt;</span><span class="n">Exception</span><span class="p">&gt;</span> <span class="n">finalAction</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Exception</span> <span class="n">exception</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">try</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 原有异步任务返回值</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">actualReturnValue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 新的异步返回结果</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">postAction</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">exception</span> <span class="p">=</span> <span class="n">ex</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">finally</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">finalAction</span><span class="p">(</span><span class="n">exception</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在内部首先等待原有任务执行完成之后再执行传入的 UOW 的 CompleteAsync() 方法，并且在执行过程中有无异常都会直接调用 UOW 的 Disopse 释放资源。
+第二种则适用于有返回值的情况：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="kt">object</span> <span class="n">CallAwaitTaskWithPostActionAndFinallyAndGetResult</span><span class="p">(</span><span class="n">Type</span> <span class="n">taskReturnType</span><span class="p">,</span> <span class="kt">object</span> <span class="n">actualReturnValue</span><span class="p">,</span> <span class="n">Func</span><span class="p">&lt;</span><span class="n">Task</span><span class="p">&gt;</span> <span class="n">action</span><span class="p">,</span> <span class="n">Action</span><span class="p">&lt;</span><span class="n">Exception</span><span class="p">&gt;</span> <span class="n">finalAction</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得 AwaitTaskWithPreActionAndPostActionAndFinallyAndGetResult 方法，并且通过反射构造一个泛型方法，并且将自身参数传入调用。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">typeof</span> <span class="p">(</span><span class="n">InternalAsyncHelper</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">GetMethod</span><span class="p">(</span><span class="s">&#34;AwaitTaskWithPostActionAndFinallyAndGetResult&#34;</span><span class="p">,</span> <span class="n">BindingFlags</span><span class="p">.</span><span class="n">Public</span> <span class="p">|</span> <span class="n">BindingFlags</span><span class="p">.</span><span class="n">Static</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">MakeGenericMethod</span><span class="p">(</span><span class="n">taskReturnType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">Invoke</span><span class="p">(</span><span class="k">null</span><span class="p">,</span> <span class="k">new</span> <span class="kt">object</span><span class="p">[]</span> <span class="p">{</span> <span class="n">actualReturnValue</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">finalAction</span> <span class="p">});</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span> <span class="n">AwaitTaskWithPreActionAndPostActionAndFinallyAndGetResult</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;(</span><span class="n">Func</span><span class="p">&lt;</span><span class="n">Task</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;&gt;</span> <span class="n">actualReturnValue</span><span class="p">,</span> <span class="n">Func</span><span class="p">&lt;</span><span class="n">Task</span><span class="p">&gt;</span> <span class="n">preAction</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span> <span class="n">Func</span><span class="p">&lt;</span><span class="n">Task</span><span class="p">&gt;</span> <span class="n">postAction</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span> <span class="n">Action</span><span class="p">&lt;</span><span class="n">Exception</span><span class="p">&gt;</span> <span class="n">finalAction</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Exception</span> <span class="n">exception</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">try</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">preAction</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">preAction</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="k">await</span> <span class="n">actualReturnValue</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">postAction</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">postAction</span><span class="p">();</span>                    
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">result</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">exception</span> <span class="p">=</span> <span class="n">ex</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">finally</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">finalAction</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">finalAction</span><span class="p">(</span><span class="n">exception</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这两个方法的作用都是确保 CompleteAsync 和 Dispose 能够在放在异步任务当中执行。</p>
+<h2 id="iunitofworkmanager">IUnitOfWorkManager</h2>
+<p>顾名思义，这是一个 UOW 的管理器，在 ABP 内部有其一个默认实现 <code>UnitOfWorkManager</code>，在 AbpKernel 模块初始化的时候就已经被注入。
+核心方法是 Begin 方法，在 Begin 方法当中通过 <code>FillDefaultsForNonProvidedOptions</code> 方法判断是否传入了配置参数，如果没有传入的话则构建一个默认参数对象。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">IUnitOfWorkCompleteHandle</span> <span class="n">Begin</span><span class="p">(</span><span class="n">UnitOfWorkOptions</span> <span class="n">options</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果没有 UOW 参数，构造默认参数</span>
+</span></span><span class="line"><span class="cl">    <span class="n">options</span><span class="p">.</span><span class="n">FillDefaultsForNonProvidedOptions</span><span class="p">(</span><span class="n">_defaultOptions</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">outerUow</span> <span class="p">=</span> <span class="n">_currentUnitOfWorkProvider</span><span class="p">.</span><span class="n">Current</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 当前是否已经存在工作单元，存在工作单元的话，构建一个内部工作单元</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">options</span><span class="p">.</span><span class="n">Scope</span> <span class="p">==</span> <span class="n">TransactionScopeOption</span><span class="p">.</span><span class="n">Required</span> <span class="p">&amp;&amp;</span> <span class="n">outerUow</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">new</span> <span class="n">InnerUnitOfWorkCompleteHandle</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 不存在的话构建一个新的工作单元</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">uow</span> <span class="p">=</span> <span class="n">_iocResolver</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IUnitOfWork</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 绑定各种事件</span>
+</span></span><span class="line"><span class="cl">    <span class="n">uow</span><span class="p">.</span><span class="n">Completed</span> <span class="p">+=</span> <span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_currentUnitOfWorkProvider</span><span class="p">.</span><span class="n">Current</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">};</span>
+</span></span><span class="line"><span class="cl">    <span class="n">uow</span><span class="p">.</span><span class="n">Failed</span> <span class="p">+=</span> <span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_currentUnitOfWorkProvider</span><span class="p">.</span><span class="n">Current</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">};</span>
+</span></span><span class="line"><span class="cl">    <span class="n">uow</span><span class="p">.</span><span class="n">Disposed</span> <span class="p">+=</span> <span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_iocResolver</span><span class="p">.</span><span class="n">Release</span><span class="p">(</span><span class="n">uow</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">};</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">//Inherit filters from outer UOW</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">outerUow</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">options</span><span class="p">.</span><span class="n">FillOuterUowFiltersForNonProvidedOptions</span><span class="p">(</span><span class="n">outerUow</span><span class="p">.</span><span class="n">Filters</span><span class="p">.</span><span class="n">ToList</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="n">uow</span><span class="p">.</span><span class="n">Begin</span><span class="p">(</span><span class="n">options</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">//Inherit tenant from outer UOW</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">outerUow</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">uow</span><span class="p">.</span><span class="n">SetTenantId</span><span class="p">(</span><span class="n">outerUow</span><span class="p">.</span><span class="n">GetTenantId</span><span class="p">(),</span> <span class="k">false</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 设置当前工作单元为新创建的 UOW </span>
+</span></span><span class="line"><span class="cl">    <span class="n">_currentUnitOfWorkProvider</span><span class="p">.</span><span class="n">Current</span> <span class="p">=</span> <span class="n">uow</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">uow</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里 Begin 方法所返回的是一个 <code>IUnitOfWorkCompleteHandle</code> 对象，跳转到 <code>IUnitOfWorkCompleteHandle</code>，可以看到它有两个方法：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IUnitOfWorkCompleteHandle</span> <span class="p">:</span> <span class="n">IDisposable</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">Complete</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span> <span class="n">CompleteAsync</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>都是完成工作单元的方法，一个同步、一个异步，同时这个接口也实现了 IDispose 接口，从开始使用 using 就可以看出其含义。</p>
+<h2 id="innerunitofworkcompletehandle">InnerUnitOfWorkCompleteHandle</h2>
+<p>参考其引用，可以发现有一个 <code>IUnitOfWork</code> 接口继承自它,并且还有一个 <code>InnerUnitOfWorkCompleteHandle</code> 的内部实现。这里先查看 <code>InnerUnitOfWorkCompleteHandle</code> 内部实现：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">internal</span> <span class="k">class</span> <span class="nc">InnerUnitOfWorkCompleteHandle</span> <span class="p">:</span> <span class="n">IUnitOfWorkCompleteHandle</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">const</span> <span class="kt">string</span> <span class="n">DidNotCallCompleteMethodExceptionMessage</span> <span class="p">=</span> <span class="s">&#34;Did not call Complete method of a unit of work.&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">volatile</span> <span class="kt">bool</span> <span class="n">_isCompleteCalled</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">volatile</span> <span class="kt">bool</span> <span class="n">_isDisposed</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">Complete</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_isCompleteCalled</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Task</span> <span class="n">CompleteAsync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_isCompleteCalled</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">Task</span><span class="p">.</span><span class="n">FromResult</span><span class="p">(</span><span class="m">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">Dispose</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">_isDisposed</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_isDisposed</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="n">_isCompleteCalled</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">HasException</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="k">throw</span> <span class="k">new</span> <span class="n">AbpException</span><span class="p">(</span><span class="n">DidNotCallCompleteMethodExceptionMessage</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">static</span> <span class="kt">bool</span> <span class="n">HasException</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">try</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="n">Marshal</span><span class="p">.</span><span class="n">GetExceptionCode</span><span class="p">()</span> <span class="p">!=</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>其内部实现十分简单，其中 Complete 的同步和异步方法都只是对完成标识进行一个标记。并未真正的进行任何数据库事务操作。同时在他的内部也实现了 <code>IDispose</code> 接口，如果 complete 未被标记为已完成，那么直接抛出异常，后续操作不会执行。
+现在再转到 Begin 方法内部就可以发现，在创建的时候会首先判断了当前是否已经存在了工作单元，如果存在了才会创建这样一个内部工作单元。也就是说真正那个的事务操作是在返回的 IUnitOfWork 当中实现的。
+这样的话就会构建出一个嵌套的工作单元:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">OuterUOW-&gt;InnerUow1-&gt;InnerUOW2-&gt;.....-&gt;InnerUowN
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>你可以想象有以下代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">TestUowMethod</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">using</span><span class="p">(</span><span class="kt">var</span> <span class="n">outerUOW</span> <span class="p">=</span> <span class="n">Manager</span><span class="p">.</span><span class="n">Begin</span><span class="p">())</span>  <span class="c1">// 这里返回的是 IOC 解析出的 IUnitOfWork</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">OperationOuter</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">using</span><span class="p">(</span><span class="kt">var</span> <span class="n">innerUOW1</span> <span class="p">=</span> <span class="n">Manager</span><span class="p">.</span><span class="n">Begin</span><span class="p">())</span>  <span class="c1">// 内部 UOW</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Operation1</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="n">using</span><span class="p">(</span><span class="kt">var</span> <span class="n">innerUOW2</span> <span class="p">=</span> <span class="n">Manager</span><span class="p">.</span><span class="n">Begin</span><span class="p">())</span>  <span class="c1">// 内部 UOW</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">Operation2</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">                <span class="n">Complete</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Complete</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Complete</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>当代码执行的时候，如同俄罗斯套娃，从内部依次到外部执行，内部工作单元仅会在调用 Complete 方法的时候将 completed 标记为 true，但一旦操作抛出异常，Complete无法得到执行，则会直接抛出异常，中断外层代码执行。
+那么 IUnitOfWork 的实现又是怎样的呢？
+在 ABP 内部针对 EF Core 框架实现了一套 UOW，其继承自 UnitOfWorkBase，而在 UnitOfWorkBase 内部有部分针对接口 IActiveUnitOfWork 的实现，同时由于 IUnifOfWork 也实现了 IUnitOfWorkCompleteHandle 接口，所以在 Begin 方法处能够向上转型。</p>
+<h2 id="iactiveunitofwork">IActiveUnitOfWork</h2>
+<p>在 IActiveUnitOfWork 接口当中定义了工作单元的三个事件，用户在使用的时候可以针对这三个事件进行绑定。</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th style="text-align:left">事件名称</th>
+<th style="text-align:left">触发条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Completed</td>
+<td style="text-align:left">工作单元调用 Complete 方法之后触发</td>
+</tr>
+<tr>
+<td style="text-align:left">Failed</td>
+<td style="text-align:left">工作单元在调用 Complete 方法如果产生异常，则会在 Dispose 释放资源时触发。</td>
+</tr>
+<tr>
+<td style="text-align:left">Disposed</td>
+<td style="text-align:left">释放工作单元的时候触发</td>
+</tr>
+</tbody>
+</table></div>
+<p>除了三个事件之外，在 ABP 当中的数据过滤器也是在工作单元调用的时候工作的，后面讲解 EfCoreUnitOfWork 的时候会研究，数据过滤仅包括软删除等审计字段，同时也包括多租户的租户 ID 也在工作单元当中进行设置的。
+在这里也定义了两个 SaveChanges 方法，一个同步、一个异步，作用跟实体上下文的同名方法作用差不多。</p>
+<h2 id="iunitofwork">IUnitOfWork</h2>
+<p>IUnitOfWork 同时继承了 IUnitOfWorkCompleteHandle 与 IActiveUnitOfWork 接口，并且增加了两个属性与一个 Begin 方法。</p>
+<h2 id="unitofworkbase">UnitOfWorkBase</h2>
+<p>UnitOfWorkBase 是所有工作单元的一个抽象基类，在其内部实现了 IUnitOfWork 的所有方法，其中也包括两个父级接口。
+下面就一个一个属性讲解。</p>
+<h3 id="id">Id</h3>
+<p>这个 Id 是在构造函数当中初始化的，全局唯一的 Id,使用 Guid 初始化其值。</p>
+<h3 id="outer">Outer</h3>
+<p>用于标明当前工作单元的外部工作单元，其值是在 UnitOfWorkManager 创建工作单元的时候赋予的。在 Manager 的 Begin 方法当中每次针对 Current Uow 赋值的时候都会将已经存在的 UOW 关联最新的 Current Uow 的 Outer 属性上面。形成如下结构：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">Current Uow = Uow3.Outer = Uow2.Outer = Uow1.Outer = null
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>具体代码参考 <code>ICurrentUnitOfWorkProvider</code> 的实现。</p>
+<h3 id="begin">Begin()</h3>
+<p>在 Manager 创建好一个 Uow 之后，就会调用它的 Begin 方法，在内部首先做了一个判断，判断是否多次调用了 Begin 方法，这里可以看到并未做加锁处理。这是因为在 ABP 当中，一个线程当中共用一个工作单元。其实在 CurrentProvider 的代码当中就可以看出来如果在一个线程里面创建了多个工作单元，他会将其串联起来。
+之后设置过滤器，并且开始调用 BeginUow 方法，这里并未实现，具体实现我们转到 EfUnitOfWork 可以看到。</p>
+<h3 id="beginuow-efcoreunitofwork">BeginUow()-EfCoreUnitOfWork</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">override</span> <span class="k">void</span> <span class="n">BeginUow</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">Options</span><span class="p">.</span><span class="n">IsTransactional</span> <span class="p">==</span> <span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_transactionStrategy</span><span class="p">.</span><span class="n">InitOptions</span><span class="p">(</span><span class="n">Options</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>覆写了父类方法，仅对设置进行初始化。
+其实到这里我们就大概清楚了 ABP 整个 UOW 的工作流程，如果是两个打上 UnitOfWork 特性的方法在 A 调用 B 的时候其实就会封装成两个嵌套的 using 块。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">using</span><span class="p">(</span><span class="kt">var</span> <span class="n">a</span> <span class="p">=</span> <span class="n">Manager</span><span class="p">.</span><span class="n">Begin</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 操作</span>
+</span></span><span class="line"><span class="cl">    <span class="n">using</span><span class="p">(</span><span class="kt">var</span> <span class="n">b</span> <span class="p">=</span> <span class="n">Manager</span><span class="p">.</span><span class="n">Begin</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 操作</span>
+</span></span><span class="line"><span class="cl">        <span class="n">b</span><span class="p">.</span><span class="n">Complete</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="n">a</span><span class="p">.</span><span class="n">Complete</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>而最外层的 Complete 就是真正执行了数据库事务操作的。
+可以看下 EfUnitOfWork 的实现：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="c1">// 这里是 UnitOfWorkBase 的 Complete 方法</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">Complete</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">PreventMultipleComplete</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="k">try</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">CompleteUow</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_succeed</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">OnCompleted</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_exception</span> <span class="p">=</span> <span class="n">ex</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 这里是 EfUnitOfWork 的 CompleteUow 方法</span>
+</span></span><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">override</span> <span class="k">void</span> <span class="n">CompleteUow</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">SaveChanges</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">CommitTransaction</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 遍历所有激活的 DbContext 并保存更改到数据库</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">SaveChanges</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">dbContext</span> <span class="k">in</span> <span class="n">GetAllActiveDbContexts</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">SaveChangesInDbContext</span><span class="p">(</span><span class="n">dbContext</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 提交事务</span>
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">void</span> <span class="n">CommitTransaction</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">Options</span><span class="p">.</span><span class="n">IsTransactional</span> <span class="p">==</span> <span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_transactionStrategy</span><span class="p">.</span><span class="n">Commit</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/aspnetboilerplate/">AspNetBoilerplate</a>
+        
+            <a href="/tags/%E5%B7%A5%E4%BD%9C%E5%8D%95%E5%85%83/">工作单元</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-source-code-analysis-7-implementation-of-work-unit/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp 源码分析：七、工作单元的实现</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-source-code-analysis-6-implementation-of-work-unit/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp 源码分析：六、工作单元的实现</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-work-unit/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">ABP 工作单元</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/why-does-abp-vnext-throw-an-exception-if-it-does-not-use-the-unit-of-work/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">ABP vNext 不使用工作单元为什么会抛出异常</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---4-unit-of-work/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 4. 工作单元</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#unitofworkinterceptors">UnitOfWorkInterceptors</a></li>
+    <li><a href="#iunitofworkmanager">IUnitOfWorkManager</a></li>
+    <li><a href="#innerunitofworkcompletehandle">InnerUnitOfWorkCompleteHandle</a></li>
+    <li><a href="#iactiveunitofwork">IActiveUnitOfWork</a></li>
+    <li><a href="#iunitofwork">IUnitOfWork</a></li>
+    <li><a href="#unitofworkbase">UnitOfWorkBase</a>
+      <ol>
+        <li><a href="#id">Id</a></li>
+        <li><a href="#outer">Outer</a></li>
+        <li><a href="#begin">Begin()</a></li>
+        <li><a href="#beginuow-efcoreunitofwork">BeginUow()-EfCoreUnitOfWork</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

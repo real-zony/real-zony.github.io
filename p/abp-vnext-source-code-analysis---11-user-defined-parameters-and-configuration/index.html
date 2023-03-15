@@ -1,0 +1,1679 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、简要说明 文章信息：
+基于的 ABP vNext 版本：1.0.0
+创作日期：2019 年 10 月 23 日晚
+更新日期：暂无
+ABP vNext 针对用户可编辑的配置，提供了单独的 Volo.Abp.Settings 模块，本篇文章的后面都将这种用户可变更的配置，叫做 参数。所谓可编辑的配置，就是我们在系统页面上，用户可以动态更改的参数值。
+例如你做的系统是一个门户网站，那么前端页面上展示的 Title ，你可以在后台进行配置。这个时候你就可以将网站这种全局配置作为一个参数，在程序代码中进行定义。通过 GlobalSettingValueProvider(后面会讲) 作为这个参数的值提供者，用户就可以随时对 Title 进行更改。又或者是某些通知的开关，你也可以定义一堆参数，让用户可以动态的进行变更。
+'><title>Abp vNext 源码分析 - 11. 用户的自定义参数与配置</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/abp-vnext-source-code-analysis---11-user-defined-parameters-and-configuration/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp vNext 源码分析 - 11. 用户的自定义参数与配置'>
+<meta property='og:description' content='一、简要说明 文章信息：
+基于的 ABP vNext 版本：1.0.0
+创作日期：2019 年 10 月 23 日晚
+更新日期：暂无
+ABP vNext 针对用户可编辑的配置，提供了单独的 Volo.Abp.Settings 模块，本篇文章的后面都将这种用户可变更的配置，叫做 参数。所谓可编辑的配置，就是我们在系统页面上，用户可以动态更改的参数值。
+例如你做的系统是一个门户网站，那么前端页面上展示的 Title ，你可以在后台进行配置。这个时候你就可以将网站这种全局配置作为一个参数，在程序代码中进行定义。通过 GlobalSettingValueProvider(后面会讲) 作为这个参数的值提供者，用户就可以随时对 Title 进行更改。又或者是某些通知的开关，你也可以定义一堆参数，让用户可以动态的进行变更。
+'>
+<meta property='og:url' content='https://real-zony.github.io/p/abp-vnext-source-code-analysis---11-user-defined-parameters-and-configuration/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='ABP vNext' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='ASP.NET Core' /><meta property='article:tag' content='ASP.NET Core MVC' /><meta property='article:published_time' content='2019-10-24T04:26:50&#43;00:00'/><meta property='article:modified_time' content='2019-10-24T04:26:50&#43;00:00'/>
+<meta name="twitter:title" content="Abp vNext 源码分析 - 11. 用户的自定义参数与配置">
+<meta name="twitter:description" content="一、简要说明 文章信息：
+基于的 ABP vNext 版本：1.0.0
+创作日期：2019 年 10 月 23 日晚
+更新日期：暂无
+ABP vNext 针对用户可编辑的配置，提供了单独的 Volo.Abp.Settings 模块，本篇文章的后面都将这种用户可变更的配置，叫做 参数。所谓可编辑的配置，就是我们在系统页面上，用户可以动态更改的参数值。
+例如你做的系统是一个门户网站，那么前端页面上展示的 Title ，你可以在后台进行配置。这个时候你就可以将网站这种全局配置作为一个参数，在程序代码中进行定义。通过 GlobalSettingValueProvider(后面会讲) 作为这个参数的值提供者，用户就可以随时对 Title 进行更改。又或者是某些通知的开关，你也可以定义一堆参数，让用户可以动态的进行变更。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-vnext-source-code-analysis---11-user-defined-parameters-and-configuration/">Abp vNext 源码分析 - 11. 用户的自定义参数与配置</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Oct 24, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 8 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一简要说明">一、简要说明</h2>
+<blockquote>
+<p><strong>文章信息：</strong></p>
+<p>基于的 ABP vNext 版本：1.0.0</p>
+<p>创作日期：2019 年 10 月 23 日晚</p>
+<p>更新日期：暂无</p>
+</blockquote>
+<p>ABP vNext 针对用户可编辑的配置，提供了单独的 <strong>Volo.Abp.Settings</strong> 模块，本篇文章的后面都将这种用户可变更的配置，叫做 <strong>参数</strong>。所谓可编辑的配置，就是我们在系统页面上，用户可以动态更改的参数值。</p>
+<p>例如你做的系统是一个门户网站，那么前端页面上展示的 Title ，你可以在后台进行配置。这个时候你就可以将网站这种全局配置作为一个参数，在程序代码中进行定义。通过 <code>GlobalSettingValueProvider</code>(后面会讲) 作为这个参数的值提供者，用户就可以随时对 Title 进行更改。又或者是某些通知的开关，你也可以定义一堆参数，让用户可以动态的进行变更。</p>
+<h2 id="二源码分析">二、源码分析</h2>
+<h3 id="21-模块启动流程">2.1 模块启动流程</h3>
+<p><code>AbpSettingsModule</code> 模块干的事情只有两件，第一是扫描所有 <code>ISettingDefinitionProvider</code> (参数定义提供者)，第二则是往配置参数添加一堆参数值提供者(<code>ISettingValueProvider</code>)。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpSettingsModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">PreConfigureServices</span><span class="p">(</span><span class="n">ServiceConfigurationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 自动扫描所有实现了 ISettingDefinitionProvider 的类型。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AutoAddDefinitionProviders</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">Services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">ConfigureServices</span><span class="p">(</span><span class="n">ServiceConfigurationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 配置默认的一堆参数值提供者。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Configure</span><span class="p">&lt;</span><span class="n">AbpSettingOptions</span><span class="p">&gt;(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">options</span><span class="p">.</span><span class="n">ValueProviders</span><span class="p">.</span><span class="n">Add</span><span class="p">&lt;</span><span class="n">DefaultValueSettingValueProvider</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">            <span class="n">options</span><span class="p">.</span><span class="n">ValueProviders</span><span class="p">.</span><span class="n">Add</span><span class="p">&lt;</span><span class="n">GlobalSettingValueProvider</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">            <span class="n">options</span><span class="p">.</span><span class="n">ValueProviders</span><span class="p">.</span><span class="n">Add</span><span class="p">&lt;</span><span class="n">TenantSettingValueProvider</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">            <span class="n">options</span><span class="p">.</span><span class="n">ValueProviders</span><span class="p">.</span><span class="n">Add</span><span class="p">&lt;</span><span class="n">UserSettingValueProvider</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">static</span> <span class="k">void</span> <span class="n">AutoAddDefinitionProviders</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">definitionProviders</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">services</span><span class="p">.</span><span class="n">OnRegistred</span><span class="p">(</span><span class="n">context</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">ISettingDefinitionProvider</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ImplementationType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">definitionProviders</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">ImplementationType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">});</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 将扫描到的数据添加到 Options 中。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">services</span><span class="p">.</span><span class="n">Configure</span><span class="p">&lt;</span><span class="n">AbpSettingOptions</span><span class="p">&gt;(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">options</span><span class="p">.</span><span class="n">DefinitionProviders</span><span class="p">.</span><span class="n">AddIfNotContains</span><span class="p">(</span><span class="n">definitionProviders</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-参数的定义">2.2 参数的定义</h3>
+<h4 id="221-参数的基本定义">2.2.1 参数的基本定义</h4>
+<p>ABP vNext 关于参数的定义在类型 <code>SettingDefinition</code> 可以找到，内部的结构与 <code>PermissionDefine</code> 类似。。开发人员需要先定义有哪些可配置的参数，然后 ABP vNext 会自动进行管理，在网站运行期间，用户、租户可以根据自己的需要随时变更参数值。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span><span class="lnt">75
+</span><span class="lnt">76
+</span><span class="lnt">77
+</span><span class="lnt">78
+</span><span class="lnt">79
+</span><span class="lnt">80
+</span><span class="lnt">81
+</span><span class="lnt">82
+</span><span class="lnt">83
+</span><span class="lnt">84
+</span><span class="lnt">85
+</span><span class="lnt">86
+</span><span class="lnt">87
+</span><span class="lnt">88
+</span><span class="lnt">89
+</span><span class="lnt">90
+</span><span class="lnt">91
+</span><span class="lnt">92
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">SettingDefinition</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 参数的唯一标识。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [NotNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 参数的显示名称，是一个多语言字符串。</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [NotNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ILocalizableString</span> <span class="n">DisplayName</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">get</span> <span class="p">=&gt;</span> <span class="n">_displayName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">set</span> <span class="p">=&gt;</span> <span class="n">_displayName</span> <span class="p">=</span> <span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="k">value</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="k">value</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">ILocalizableString</span> <span class="n">_displayName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 参数的描述信息，也是一个多语言字符串。</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [CanBeNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ILocalizableString</span> <span class="n">Description</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 参数的默认值。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [CanBeNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">DefaultValue</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 指定参数与其参数的值，是否能够在客户端进行显示。对于某些密钥设置来说是很危险的，默认值为 Fasle。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">IsVisibleToClients</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 允许更改本参数的值提供者，为空则允许所有提供者提供参数值。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">List</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">Providers</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span> <span class="c1">//TODO: 考虑重命名为 AllowedProviders。</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 当前参数是否能够继承父类的 Scope 信息，默认值为 True。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">IsInherited</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 参数相关连的一些扩展属性，通过一个字典进行存储。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [NotNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;</span> <span class="n">Properties</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 参数的值是否以加密的形式存储，默认值为 False。</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">bool</span> <span class="n">IsEncrypted</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">SettingDefinition</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">string</span> <span class="n">defaultValue</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ILocalizableString</span> <span class="n">displayName</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ILocalizableString</span> <span class="n">description</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">bool</span> <span class="n">isVisibleToClients</span> <span class="p">=</span> <span class="k">false</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">bool</span> <span class="n">isInherited</span> <span class="p">=</span> <span class="k">true</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">bool</span> <span class="n">isEncrypted</span> <span class="p">=</span> <span class="k">false</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Name</span> <span class="p">=</span> <span class="n">name</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">DefaultValue</span> <span class="p">=</span> <span class="n">defaultValue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IsVisibleToClients</span> <span class="p">=</span> <span class="n">isVisibleToClients</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">DisplayName</span> <span class="p">=</span> <span class="n">displayName</span> <span class="p">??</span> <span class="k">new</span> <span class="n">FixedLocalizableString</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Description</span> <span class="p">=</span> <span class="n">description</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IsInherited</span> <span class="p">=</span> <span class="n">isInherited</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IsEncrypted</span> <span class="p">=</span> <span class="n">isEncrypted</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">Properties</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Providers</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 设置附加数据值。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">SettingDefinition</span> <span class="n">WithProperty</span><span class="p">(</span><span class="kt">string</span> <span class="n">key</span><span class="p">,</span> <span class="kt">object</span> <span class="k">value</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Properties</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="p">=</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">this</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 设置 Provider 属性的值。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">SettingDefinition</span> <span class="n">WithProviders</span><span class="p">(</span><span class="k">params</span> <span class="kt">string</span><span class="p">[]</span> <span class="n">providers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="n">providers</span><span class="p">.</span><span class="n">IsNullOrEmpty</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Providers</span><span class="p">.</span><span class="n">AddRange</span><span class="p">(</span><span class="n">providers</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">this</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>上面的参数定义值得注意的就是 <code>DefaultValue</code> 、<code>IsVisibleToClients</code>、<code>IsEncrypted</code> 这三个属性。默认值一般适用于某些系统配置，例如当前系统的默认语言。后面两个属性则更加注重于 <strong>安全问题</strong>，因为某些参数存储的是一些重要信息，这个时候就需要进行特殊处理了。</p>
+<p>如果参数值是加密的，那么在获取参数值的时候就会进行解密操作，例如下面的代码。</p>
+<p><strong><code>SettingProvider</code> 类中的相关代码：</strong></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">SettingProvider</span> <span class="p">:</span> <span class="n">ISettingProvider</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetOrNullAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="k">value</span> <span class="p">=</span> <span class="k">await</span> <span class="n">GetOrNullValueFromProvidersAsync</span><span class="p">(</span><span class="n">providers</span><span class="p">,</span> <span class="n">setting</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 对值进行解密处理。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">setting</span><span class="p">.</span><span class="n">IsEncrypted</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">value</span> <span class="p">=</span> <span class="n">SettingEncryptionService</span><span class="p">.</span><span class="n">Decrypt</span><span class="p">(</span><span class="n">setting</span><span class="p">,</span> <span class="k">value</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>参数不对客户端可见的话，在默认的 <code>AbpApplicationConfigurationAppService</code> 服务类中，获取参数值的时候就会跳过。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">ApplicationSettingConfigurationDto</span><span class="p">&gt;</span> <span class="n">GetSettingConfigAsync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ApplicationSettingConfigurationDto</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Values</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">string</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">settingDefinition</span> <span class="k">in</span> <span class="n">_settingDefinitionManager</span><span class="p">.</span><span class="n">GetAll</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 不会展示这些属性为 False 的参数。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="n">settingDefinition</span><span class="p">.</span><span class="n">IsVisibleToClients</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">result</span><span class="p">.</span><span class="n">Values</span><span class="p">[</span><span class="n">settingDefinition</span><span class="p">.</span><span class="n">Name</span><span class="p">]</span> <span class="p">=</span> <span class="k">await</span> <span class="n">_settingProvider</span><span class="p">.</span><span class="n">GetOrNullAsync</span><span class="p">(</span><span class="n">settingDefinition</span><span class="p">.</span><span class="n">Name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">result</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="222-参数定义的扫描">2.2.2 参数定义的扫描</h4>
+<p>跟权限定义类似，所有的参数定义都被放在了 <code>SettingDefinitionProvider</code> 里面，如果你需要定义一堆参数，只需要继承并实现 <code>Define(ISettingDefinitionContext)</code> 抽象方法就可以了。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TestSettingDefinitionProvider</span> <span class="p">:</span> <span class="n">SettingDefinitionProvider</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">Define</span><span class="p">(</span><span class="n">ISettingDefinitionContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="k">new</span> <span class="n">SettingDefinition</span><span class="p">(</span><span class="n">TestSettingNames</span><span class="p">.</span><span class="n">TestSettingWithoutDefaultValue</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">            <span class="k">new</span> <span class="n">SettingDefinition</span><span class="p">(</span><span class="n">TestSettingNames</span><span class="p">.</span><span class="n">TestSettingWithDefaultValue</span><span class="p">,</span> <span class="s">&#34;default-value&#34;</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">            <span class="k">new</span> <span class="n">SettingDefinition</span><span class="p">(</span><span class="n">TestSettingNames</span><span class="p">.</span><span class="n">TestSettingEncrypted</span><span class="p">,</span> <span class="n">isEncrypted</span><span class="p">:</span> <span class="k">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>因为我们的 <code>SettingDefinitionProvider</code> 实现了 <code>ISettingDefinitionProvider</code> 和 <code>ITransientDependency</code> 接口，所以这些 Provider 都会在组件注册的时候(<strong>模块里面有定义</strong>)，添加到对应的 <code>AbpSettingOptions</code> 内部，方便后续进行调用。</p>
+<h4 id="223-参数定义的管理">2.2.3 参数定义的管理</h4>
+<p>我们的 <strong>参数定义提供者</strong> 和 <strong>参数值提供者</strong> 都赋值给 <code>AbpSettingOptions</code> 了，首先看有哪些地方使用到了 <strong>参数定义提供者</strong>。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---11-user-defined-parameters-and-configuration/1571827576154.png"
+	width="1772"
+	height="392"
+	srcset="/p/abp-vnext-source-code-analysis---11-user-defined-parameters-and-configuration/1571827576154_hua69e06fcb92886fb2091144ac5eadba5_75995_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---11-user-defined-parameters-and-configuration/1571827576154_hua69e06fcb92886fb2091144ac5eadba5_75995_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1571827576154"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="452"
+		data-flex-basis="1084px"
+	
+></p>
+<p>第二个我们已经看过，是在模块启动时有用到。第一个则是有一个 <code>SettingDefinitionManager</code> ，顾名思义就是管理所有的 <code>SettingDefinition</code> 的管理器。这个管理器提供了三个方法，都是针对 <code>SettingDefinition</code> 的查询功能。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">ISettingDefinitionManager</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 根据参数定义的标识查询，不存在则抛出 AbpException 异常。</span>
+</span></span><span class="line"><span class="cl"><span class="na">    [NotNull]</span>
+</span></span><span class="line"><span class="cl">    <span class="n">SettingDefinition</span> <span class="n">Get</span><span class="p">([</span><span class="n">NotNull</span><span class="p">]</span> <span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获得所有的参数定义。</span>
+</span></span><span class="line"><span class="cl">    <span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">SettingDefinition</span><span class="p">&gt;</span> <span class="n">GetAll</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 根据参数定义的标识查询，如果不存在则返回 null。</span>
+</span></span><span class="line"><span class="cl">    <span class="n">SettingDefinition</span> <span class="n">GetOrNull</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>接下来我们看一下它的默认实现 <code>SettingDefinitionManager</code> ，它的内部没什么说的，只是注意 <code>SettingDefinitions</code> 的填充方式，这里使用了线程安全的 <strong>懒加载模式</strong>。只有当用到的时候，才会调用 <code>CreateSettingDefinitions()</code> 方法填充数据。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">SettingDefinitionManager</span> <span class="p">:</span> <span class="n">ISettingDefinitionManager</span><span class="p">,</span> <span class="n">ISingletonDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">Lazy</span><span class="p">&lt;</span><span class="n">IDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">SettingDefinition</span><span class="p">&gt;&gt;</span> <span class="n">SettingDefinitions</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">AbpSettingOptions</span> <span class="n">Options</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">IServiceProvider</span> <span class="n">ServiceProvider</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">SettingDefinitionManager</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IOptions</span><span class="p">&lt;</span><span class="n">AbpSettingOptions</span><span class="p">&gt;</span> <span class="n">options</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IServiceProvider</span> <span class="n">serviceProvider</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ServiceProvider</span> <span class="p">=</span> <span class="n">serviceProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Options</span> <span class="p">=</span> <span class="n">options</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 填充的时候，调用 CreateSettingDefinitions 方法进行填充。</span>
+</span></span><span class="line"><span class="cl">        <span class="n">SettingDefinitions</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Lazy</span><span class="p">&lt;</span><span class="n">IDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">SettingDefinition</span><span class="p">&gt;&gt;(</span><span class="n">CreateSettingDefinitions</span><span class="p">,</span> <span class="k">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">virtual</span> <span class="n">IDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">SettingDefinition</span><span class="p">&gt;</span> <span class="n">CreateSettingDefinitions</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">settings</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="n">SettingDefinition</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">using</span> <span class="p">(</span><span class="kt">var</span> <span class="n">scope</span> <span class="p">=</span> <span class="n">ServiceProvider</span><span class="p">.</span><span class="n">CreateScope</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 从 Options 中得到类型，然后通过 IoC 进行实例化。</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">providers</span> <span class="p">=</span> <span class="n">Options</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">DefinitionProviders</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">Select</span><span class="p">(</span><span class="n">p</span> <span class="p">=&gt;</span> <span class="n">scope</span><span class="p">.</span><span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="k">as</span> <span class="n">ISettingDefinitionProvider</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="p">.</span><span class="n">ToList</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// 执行每个 Provider 的 Define 方法填充数据。</span>
+</span></span><span class="line"><span class="cl">            <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">provider</span> <span class="k">in</span> <span class="n">providers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">provider</span><span class="p">.</span><span class="n">Define</span><span class="p">(</span><span class="k">new</span> <span class="n">SettingDefinitionContext</span><span class="p">(</span><span class="n">settings</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">settings</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="23-参数值的管理">2.3 参数值的管理</h3>
+<p>当我们构建好参数的定义之后，我们要设置某个参数的值，或者说获取某个参数的值应该怎么操作呢？查看相关的单元测试，看到了 ABP vNext 自身是注入 <code>ISettingProvider</code> ，调用它的 <code>GetOrNullAsync()</code> 获取参数值。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">readonly</span> <span class="n">ISettingProvider</span> <span class="n">_settingProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">settingValue</span> <span class="p">=</span> <span class="k">await</span> <span class="n">_settingProvider</span><span class="p">.</span><span class="n">GetOrNullAsync</span><span class="p">(</span><span class="s">&#34;WebSite.Title&#34;</span><span class="p">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>跳转到接口，发现它有两个实现，这里我们只讲解一下 <code>SettingProvider</code> 类的实现。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---11-user-defined-parameters-and-configuration/1571829369817.png"
+	width="1672"
+	height="509"
+	srcset="/p/abp-vnext-source-code-analysis---11-user-defined-parameters-and-configuration/1571829369817_hu4a6946325e004bb7c47d8fb67f3b86d1_66674_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---11-user-defined-parameters-and-configuration/1571829369817_hu4a6946325e004bb7c47d8fb67f3b86d1_66674_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1571829369817"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="328"
+		data-flex-basis="788px"
+	
+></p>
+<h4 id="231-获取参数值">2.3.1 获取参数值</h4>
+<p>直奔主题，来看一下 <code>ISettingProvider.GetOrNullAsync(string)</code> 方法是怎么来获取参数值的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">SettingProvider</span> <span class="p">:</span> <span class="n">ISettingProvider</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">ISettingDefinitionManager</span> <span class="n">SettingDefinitionManager</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">ISettingEncryptionService</span> <span class="n">SettingEncryptionService</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">ISettingValueProviderManager</span> <span class="n">SettingValueProviderManager</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">SettingProvider</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ISettingDefinitionManager</span> <span class="n">settingDefinitionManager</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ISettingEncryptionService</span> <span class="n">settingEncryptionService</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ISettingValueProviderManager</span> <span class="n">settingValueProviderManager</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">SettingDefinitionManager</span> <span class="p">=</span> <span class="n">settingDefinitionManager</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">SettingEncryptionService</span> <span class="p">=</span> <span class="n">settingEncryptionService</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">SettingValueProviderManager</span> <span class="p">=</span> <span class="n">settingValueProviderManager</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetOrNullAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 根据名称获取参数定义。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">setting</span> <span class="p">=</span> <span class="n">SettingDefinitionManager</span><span class="p">.</span><span class="n">Get</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 从参数值提供者管理器，获得一堆参数值提供者。</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">providers</span> <span class="p">=</span> <span class="n">Enumerable</span>
+</span></span><span class="line"><span class="cl">            <span class="p">.</span><span class="n">Reverse</span><span class="p">(</span><span class="n">SettingValueProviderManager</span><span class="p">.</span><span class="n">Providers</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 过滤符合参数定义的提供者，这里就是用到了之前参数定义的 List&lt;string&gt; Providers 属性。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">setting</span><span class="p">.</span><span class="n">Providers</span><span class="p">.</span><span class="n">Any</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">providers</span> <span class="p">=</span> <span class="n">providers</span><span class="p">.</span><span class="n">Where</span><span class="p">(</span><span class="n">p</span> <span class="p">=&gt;</span> <span class="n">setting</span><span class="p">.</span><span class="n">Providers</span><span class="p">.</span><span class="n">Contains</span><span class="p">(</span><span class="n">p</span><span class="p">.</span><span class="n">Name</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">//TODO: How to implement setting.IsInherited?</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">//TODO: 如何实现 setting.IsInherited 功能?</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="k">value</span> <span class="p">=</span> <span class="k">await</span> <span class="n">GetOrNullValueFromProvidersAsync</span><span class="p">(</span><span class="n">providers</span><span class="p">,</span> <span class="n">setting</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果参数是加密的，则需要进行解密操作。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">setting</span><span class="p">.</span><span class="n">IsEncrypted</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">value</span> <span class="p">=</span> <span class="n">SettingEncryptionService</span><span class="p">.</span><span class="n">Decrypt</span><span class="p">(</span><span class="n">setting</span><span class="p">,</span> <span class="k">value</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetOrNullValueFromProvidersAsync</span><span class="p">(</span><span class="n">IEnumerable</span><span class="p">&lt;</span><span class="n">ISettingValueProvider</span><span class="p">&gt;</span> <span class="n">providers</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">SettingDefinition</span> <span class="n">setting</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 只要从任意 Provider 中，读取到了参数值，就直接进行返回。</span>
+</span></span><span class="line"><span class="cl">        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">provider</span> <span class="k">in</span> <span class="n">providers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="k">value</span> <span class="p">=</span> <span class="k">await</span> <span class="n">provider</span><span class="p">.</span><span class="n">GetOrNullAsync</span><span class="p">(</span><span class="n">setting</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="k">value</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ...</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>所以真正干活的还是 <code>ISettingValueProviderManager</code> 里面存放的一堆 <code>ISettingValueProvider</code> ，这个 <strong>参数值管理器</strong> 的接口很简单，只提供了一个 <code>List&lt;ISettingValueProvider&gt; Providers { get; }</code> 的定义。</p>
+<p>它会从模块配置的 <code>ValueProviders</code> 属性内部，通过 IoC 实例化对应的参数值提供者。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">_lazyProviders</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Lazy</span><span class="p">&lt;</span><span class="n">List</span><span class="p">&lt;</span><span class="n">ISettingValueProvider</span><span class="p">&gt;&gt;(</span>
+</span></span><span class="line"><span class="cl">    <span class="p">()</span> <span class="p">=&gt;</span> <span class="n">Options</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">ValueProviders</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">Select</span><span class="p">(</span><span class="n">type</span> <span class="p">=&gt;</span> <span class="n">serviceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">(</span><span class="n">type</span><span class="p">)</span> <span class="k">as</span> <span class="n">ISettingValueProvider</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">ToList</span><span class="p">(),</span>
+</span></span><span class="line"><span class="cl">    <span class="k">true</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="232-参数值提供者">2.3.2 参数值提供者</h4>
+<p>参数值提供者的接口定义是 <code>ISettingValueProvider</code>，它定义了一个名称和 <code>GetOrNullAsync(SettingDefinition)</code> 方法，后者可以通过参数定义获取存储的值。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">ISettingValueProvider</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">string</span> <span class="n">Name</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetOrNullAsync</span><span class="p">([</span><span class="n">NotNull</span><span class="p">]</span> <span class="n">SettingDefinition</span> <span class="n">setting</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>注意这里的返回值是 <code>Task&lt;string&gt;</code> ，也就是说我们的参数值类型必须是 <code>string</code> 类型的，如果需要存储其他的类型可能就需要从 <code>string</code> 进行类型转换了。</p>
+<p>在这里的 <code>SettingValueProvider</code> 其实类似于我们之前讲过的 <strong>权限提供者</strong>。因为 ABP vNext 考虑到了多种情况，我们的参数值有可能是根据用户获取的，同时也有可能是根据不同的租户进行获取的。所以 ABP vNext 为我们预先定义了四种参数值提供器，他们分别是 <code>DefaultValueSettingValueProvider</code>、<code>GlobalSettingValueProvider</code>、<code>TenantSettingValueProvider</code>、<code>UserSettingValueProvider</code> 。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---11-user-defined-parameters-and-configuration/1571832002740.png"
+	width="1089"
+	height="264"
+	srcset="/p/abp-vnext-source-code-analysis---11-user-defined-parameters-and-configuration/1571832002740_hu4b3fdca76180569e65b207167ecbb9b6_45298_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---11-user-defined-parameters-and-configuration/1571832002740_hu4b3fdca76180569e65b207167ecbb9b6_45298_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1571832002740"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="412"
+		data-flex-basis="990px"
+	
+></p>
+<p>下面我们就来讲讲这几个不同的参数提供者有啥不一样。</p>
+<p><strong><code>DefaultValueSettingValueProvider</code>：</strong></p>
+<p>顾名思义，默认值参数提供者就是使用的参数定义里面的 <code>DefaultValue</code> 属性，当你查询某个参数值的时候，就直接返回了。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetOrNullAsync</span><span class="p">(</span><span class="n">SettingDefinition</span> <span class="n">setting</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">Task</span><span class="p">.</span><span class="n">FromResult</span><span class="p">(</span><span class="n">setting</span><span class="p">.</span><span class="n">DefaultValue</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong><code>GlobalSettingValueProvider</code>：</strong></p>
+<p>这是一种全局的提供者，它没有对应的 Key，也就是说如果数据库能查到 <code>ProviderName</code> 是 <code>G</code> 的记录，就直接返回它的值了。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">GlobalSettingValueProvider</span> <span class="p">:</span> <span class="n">SettingValueProvider</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">const</span> <span class="kt">string</span> <span class="n">ProviderName</span> <span class="p">=</span> <span class="s">&#34;G&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">=&gt;</span> <span class="n">ProviderName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">GlobalSettingValueProvider</span><span class="p">(</span><span class="n">ISettingStore</span> <span class="n">settingStore</span><span class="p">)</span> 
+</span></span><span class="line"><span class="cl">        <span class="p">:</span> <span class="k">base</span><span class="p">(</span><span class="n">settingStore</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetOrNullAsync</span><span class="p">(</span><span class="n">SettingDefinition</span> <span class="n">setting</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">SettingStore</span><span class="p">.</span><span class="n">GetOrNullAsync</span><span class="p">(</span><span class="n">setting</span><span class="p">.</span><span class="n">Name</span><span class="p">,</span> <span class="n">Name</span><span class="p">,</span> <span class="k">null</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong><code>TenantSettingValueProvider</code>：</strong></p>
+<p>租户提供者，则是会将当前登录租户的 Id 结合 <code>T</code> 进行查询，也就是参数值是按照不同的租户进行隔离的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TenantSettingValueProvider</span> <span class="p">:</span> <span class="n">SettingValueProvider</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">const</span> <span class="kt">string</span> <span class="n">ProviderName</span> <span class="p">=</span> <span class="s">&#34;T&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">=&gt;</span> <span class="n">ProviderName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">ICurrentTenant</span> <span class="n">CurrentTenant</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TenantSettingValueProvider</span><span class="p">(</span><span class="n">ISettingStore</span> <span class="n">settingStore</span><span class="p">,</span> <span class="n">ICurrentTenant</span> <span class="n">currentTenant</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">:</span> <span class="k">base</span><span class="p">(</span><span class="n">settingStore</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">CurrentTenant</span> <span class="p">=</span> <span class="n">currentTenant</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetOrNullAsync</span><span class="p">(</span><span class="n">SettingDefinition</span> <span class="n">setting</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">await</span> <span class="n">SettingStore</span><span class="p">.</span><span class="n">GetOrNullAsync</span><span class="p">(</span><span class="n">setting</span><span class="p">.</span><span class="n">Name</span><span class="p">,</span> <span class="n">Name</span><span class="p">,</span> <span class="n">CurrentTenant</span><span class="p">.</span><span class="n">Id</span><span class="p">?.</span><span class="n">ToString</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><strong><code>UserSettingValueProvider</code>：</strong></p>
+<p>用户提供者，则是会将当前用户的 Id 作为查询条件，结合 <code>U</code> 在数据库进行查询匹配的参数值，参数值是根据不同的用户进行隔离的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">UserSettingValueProvider</span> <span class="p">:</span> <span class="n">SettingValueProvider</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">const</span> <span class="kt">string</span> <span class="n">ProviderName</span> <span class="p">=</span> <span class="s">&#34;U&#34;</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">=&gt;</span> <span class="n">ProviderName</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">ICurrentUser</span> <span class="n">CurrentUser</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">UserSettingValueProvider</span><span class="p">(</span><span class="n">ISettingStore</span> <span class="n">settingStore</span><span class="p">,</span> <span class="n">ICurrentUser</span> <span class="n">currentUser</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">:</span> <span class="k">base</span><span class="p">(</span><span class="n">settingStore</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">CurrentUser</span> <span class="p">=</span> <span class="n">currentUser</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetOrNullAsync</span><span class="p">(</span><span class="n">SettingDefinition</span> <span class="n">setting</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">CurrentUser</span><span class="p">.</span><span class="n">Id</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">await</span> <span class="n">SettingStore</span><span class="p">.</span><span class="n">GetOrNullAsync</span><span class="p">(</span><span class="n">setting</span><span class="p">.</span><span class="n">Name</span><span class="p">,</span> <span class="n">Name</span><span class="p">,</span> <span class="n">CurrentUser</span><span class="p">.</span><span class="n">Id</span><span class="p">.</span><span class="n">ToString</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="233-参数值的存储">2.3.3 参数值的存储</h4>
+<p>除了 <code>DefaultValueSettingValueProvider</code> 是直接从参数定义获取值以外，其他的参数值提供者都是通过 <code>ISettingStore</code> 读取参数值的。在该模块的默认实现当中，是直接返回 <code>null</code> 的，只有当你使用了 <strong>Volo.Abp.SettingManagement</strong> 模块，你的参数值才是存储到数据库当中的。</p>
+<p>我这里不再详细解析 <strong>Volo.Abp.SettingManagement</strong> 模块的其他实现，只说一下 <code>ISettingStore</code> 在它内部的实现 <code>SettingStore</code>。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">SettingStore</span> <span class="p">:</span> <span class="n">ISettingStore</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">protected</span> <span class="n">ISettingManagementStore</span> <span class="n">ManagementStore</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">SettingStore</span><span class="p">(</span><span class="n">ISettingManagementStore</span> <span class="n">managementStore</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ManagementStore</span> <span class="p">=</span> <span class="n">managementStore</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">GetOrNullAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="kt">string</span> <span class="n">providerName</span><span class="p">,</span> <span class="kt">string</span> <span class="n">providerKey</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">ManagementStore</span><span class="p">.</span><span class="n">GetOrNullAsync</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">providerName</span><span class="p">,</span> <span class="n">providerKey</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>我们可以看到它也只是个包装，真正的操作类型是 <code>ISettingManagementStore</code>。</p>
+<h4 id="234-参数值的设置">2.3.4 参数值的设置</h4>
+<p>在 ABP vNext 的核心模块当中，是没有提供对参数值的变更的。只有在 <strong>Volo.Abp.SettingManagement</strong> 模块内部，它提供了 <code>ISettingManager</code> 管理器，可以进行参数值的变更。原理很简单，就是对数据库对应的表进行修改而已。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">SetAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="kt">string</span> <span class="k">value</span><span class="p">,</span> <span class="kt">string</span> <span class="n">providerName</span><span class="p">,</span> <span class="kt">string</span> <span class="n">providerKey</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 操作仓储，查询记录。</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">setting</span> <span class="p">=</span> <span class="k">await</span> <span class="n">SettingRepository</span><span class="p">.</span><span class="n">FindAsync</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">providerName</span><span class="p">,</span> <span class="n">providerKey</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// 新增或者更新记录。</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">setting</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">setting</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Setting</span><span class="p">(</span><span class="n">GuidGenerator</span><span class="p">.</span><span class="n">Create</span><span class="p">(),</span> <span class="n">name</span><span class="p">,</span> <span class="k">value</span><span class="p">,</span> <span class="n">providerName</span><span class="p">,</span> <span class="n">providerKey</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">SettingRepository</span><span class="p">.</span><span class="n">InsertAsync</span><span class="p">(</span><span class="n">setting</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">else</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">setting</span><span class="p">.</span><span class="n">Value</span> <span class="p">=</span> <span class="k">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">SettingRepository</span><span class="p">.</span><span class="n">UpdateAsync</span><span class="p">(</span><span class="n">setting</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="三总结">三、总结</h2>
+<p>ABP vNext 提供了多种参数值提供者，我们可以根据自己的需要灵活选择。如果不能够满足你的需求，你也可以自己实现一个参数值提供者。我建议对于用户在界面可更改的参数，都可以使用 <code>SettingDefinition</code> 定义成参数，可以根据不同的情况进行配置读取。</p>
+<p>ABP vNext 其他模块用到的许多参数，也都是使用的 <code>SettingDefinition</code> 进行定义。例如 Identity 模块用到的密码验证规则，就是通过 <code>ISettingProvider</code> 进行读取的，还有当前程序的默认语言。</p>
+<p>需要看其他的 ABP vNext 相关文章？<strong><a class="link" href="https://www.cnblogs.com/myzony/p/10722506.html"  target="_blank" rel="noopener"
+    >点击我</a></strong> 即可跳转到总目录。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/abp-vnext/">ABP vNext</a>
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/asp.net-core/">ASP.NET Core</a>
+        
+            <a href="/tags/asp.net-core-mvc/">ASP.NET Core MVC</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-multi-tenancy/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 多租户</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一简要说明">一、简要说明</a></li>
+    <li><a href="#二源码分析">二、源码分析</a>
+      <ol>
+        <li><a href="#21-模块启动流程">2.1 模块启动流程</a></li>
+        <li><a href="#22-参数的定义">2.2 参数的定义</a>
+          <ol>
+            <li><a href="#221-参数的基本定义">2.2.1 参数的基本定义</a></li>
+            <li><a href="#222-参数定义的扫描">2.2.2 参数定义的扫描</a></li>
+            <li><a href="#223-参数定义的管理">2.2.3 参数定义的管理</a></li>
+          </ol>
+        </li>
+        <li><a href="#23-参数值的管理">2.3 参数值的管理</a>
+          <ol>
+            <li><a href="#231-获取参数值">2.3.1 获取参数值</a></li>
+            <li><a href="#232-参数值提供者">2.3.2 参数值提供者</a></li>
+            <li><a href="#233-参数值的存储">2.3.3 参数值的存储</a></li>
+            <li><a href="#234-参数值的设置">2.3.4 参数值的设置</a></li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+    <li><a href="#三总结">三、总结</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

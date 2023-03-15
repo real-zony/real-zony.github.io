@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='0.背景 在实际项目当中，我们采用的是 Abp 框架，但是 Abp 框架官方并没有针对 Grpc 进行模块封装。基于此我结合 Abp 与 MagicOnion 封装了一个 Abp.Grpc 模块，它包括服务端和调用端两部分的包。通过这两个包，你可以很方便地在 Abp 框架当中集成 Grpc 实现服务内部通讯。
+但是在实际使用当中会出现一个问题，当 A 服务调用 B 服务的时候，A 服务当前登录用户为 admin，调用 B 服务的 IAbpSession 的值仍然为空，这个时候当 B 服务内部实现使用了 IAbpSession 时会出现问题。
+这是因为通过 Grpc 接口调用时，并没有传递诸如 Token 之类的东西，而在 B 服务内部的 IAbpSession 本身附加的数据是从 HttpContext 里面获取的，所以 B 服务当前是没有用户状态的。
+1.解决 所幸 IAbpSession 提供了一个 Use 方法，通过这个方法我们可以临时地改变 IAbpSession 内部的值，当 。定义如下：
+1 IDisposable Use(int? tenantId, long? userId); 使用方法如下：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 public class TestAppService : ITransientDependency { private readonly IAbpSession _abpSession; public TestAppService(IAbpSession abpSession) { _abpSession = abpSession; } public void TestMethod() { using(_abpSession.'><title>Abp &#43; Grpc 如何实现用户会话状态传递</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/how-abp-grpc-implements-user-session-state-transfer/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp &#43; Grpc 如何实现用户会话状态传递'>
+<meta property='og:description' content='0.背景 在实际项目当中，我们采用的是 Abp 框架，但是 Abp 框架官方并没有针对 Grpc 进行模块封装。基于此我结合 Abp 与 MagicOnion 封装了一个 Abp.Grpc 模块，它包括服务端和调用端两部分的包。通过这两个包，你可以很方便地在 Abp 框架当中集成 Grpc 实现服务内部通讯。
+但是在实际使用当中会出现一个问题，当 A 服务调用 B 服务的时候，A 服务当前登录用户为 admin，调用 B 服务的 IAbpSession 的值仍然为空，这个时候当 B 服务内部实现使用了 IAbpSession 时会出现问题。
+这是因为通过 Grpc 接口调用时，并没有传递诸如 Token 之类的东西，而在 B 服务内部的 IAbpSession 本身附加的数据是从 HttpContext 里面获取的，所以 B 服务当前是没有用户状态的。
+1.解决 所幸 IAbpSession 提供了一个 Use 方法，通过这个方法我们可以临时地改变 IAbpSession 内部的值，当 。定义如下：
+1 IDisposable Use(int? tenantId, long? userId); 使用方法如下：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 public class TestAppService : ITransientDependency { private readonly IAbpSession _abpSession; public TestAppService(IAbpSession abpSession) { _abpSession = abpSession; } public void TestMethod() { using(_abpSession.'>
+<meta property='og:url' content='https://real-zony.github.io/p/how-abp-grpc-implements-user-session-state-transfer/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='AspNetBoilerplate' /><meta property='article:tag' content='gRPC' /><meta property='article:published_time' content='2018-08-10T08:02:39&#43;00:00'/><meta property='article:modified_time' content='2018-08-10T08:02:39&#43;00:00'/>
+<meta name="twitter:title" content="Abp &#43; Grpc 如何实现用户会话状态传递">
+<meta name="twitter:description" content="0.背景 在实际项目当中，我们采用的是 Abp 框架，但是 Abp 框架官方并没有针对 Grpc 进行模块封装。基于此我结合 Abp 与 MagicOnion 封装了一个 Abp.Grpc 模块，它包括服务端和调用端两部分的包。通过这两个包，你可以很方便地在 Abp 框架当中集成 Grpc 实现服务内部通讯。
+但是在实际使用当中会出现一个问题，当 A 服务调用 B 服务的时候，A 服务当前登录用户为 admin，调用 B 服务的 IAbpSession 的值仍然为空，这个时候当 B 服务内部实现使用了 IAbpSession 时会出现问题。
+这是因为通过 Grpc 接口调用时，并没有传递诸如 Token 之类的东西，而在 B 服务内部的 IAbpSession 本身附加的数据是从 HttpContext 里面获取的，所以 B 服务当前是没有用户状态的。
+1.解决 所幸 IAbpSession 提供了一个 Use 方法，通过这个方法我们可以临时地改变 IAbpSession 内部的值，当 。定义如下：
+1 IDisposable Use(int? tenantId, long? userId); 使用方法如下：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 public class TestAppService : ITransientDependency { private readonly IAbpSession _abpSession; public TestAppService(IAbpSession abpSession) { _abpSession = abpSession; } public void TestMethod() { using(_abpSession.">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/how-abp-grpc-implements-user-session-state-transfer/">Abp &#43; Grpc 如何实现用户会话状态传递</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Aug 10, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 2 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="0背景">0.背景</h2>
+<p>在实际项目当中，我们采用的是 Abp 框架，但是 Abp 框架官方并没有针对 Grpc 进行模块封装。基于此我结合 Abp 与 MagicOnion 封装了一个 Abp.Grpc 模块，它包括服务端和调用端两部分的包。通过这两个包，你可以很方便地在 Abp 框架当中集成 Grpc 实现服务内部通讯。</p>
+<p>但是在实际使用当中会出现一个问题，当 A 服务调用 B 服务的时候，A 服务当前登录用户为 admin，调用 B 服务的 <code>IAbpSession</code> 的值仍然为空，这个时候当 B 服务内部实现使用了 <code>IAbpSession</code> 时会出现问题。</p>
+<p>这是因为通过 Grpc 接口调用时，并没有传递诸如 Token 之类的东西，而在 B 服务内部的 <code>IAbpSession</code> 本身附加的数据是从 <code>HttpContext</code> 里面获取的，所以 B 服务当前是没有用户状态的。</p>
+<h2 id="1解决">1.解决</h2>
+<p>所幸 <code>IAbpSession</code> 提供了一个 <code>Use</code> 方法，通过这个方法我们可以临时地改变 <code>IAbpSession</code> 内部的值，当 。定义如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">IDisposable</span> <span class="n">Use</span><span class="p">(</span><span class="kt">int?</span> <span class="n">tenantId</span><span class="p">,</span> <span class="kt">long?</span> <span class="n">userId</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>使用方法如下：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TestAppService</span> <span class="p">:</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">IAbpSession</span> <span class="n">_abpSession</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">TestAppService</span><span class="p">(</span><span class="n">IAbpSession</span> <span class="n">abpSession</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="n">_abpSession</span> <span class="p">=</span> <span class="n">abpSession</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">TestMethod</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="n">using</span><span class="p">(</span><span class="n">_abpSession</span><span class="p">.</span><span class="n">Use</span><span class="p">(</span><span class="m">10</span><span class="p">,</span><span class="m">20</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        	<span class="c1">// 其他操作</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="c1">// 出去 using 语句之后会自动释放之前的值</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="2grpc-接口改造">2.Grpc 接口改造</h2>
+<p>这里 Abp.Grpc 库使用的是 MagicOnion 库实现 Grpc 接口的，底层序列化使用的是 MessagePack，速度也不比 Protocol Buffer 差。</p>
+<h3 id="21-服务定义">2.1 服务定义</h3>
+<p>服务定义接口时，必须附加一个 <code>GrpcSession</code> 参数，这个参数用于调用方传递其 <code>IAbpSession</code> 值所使用。例如我有一个接口方法如下，用于返回服务方接收到的用户 Id 值。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">ITestGrpcService</span> <span class="p">:</span> <span class="n">IService</span><span class="p">&lt;</span><span class="n">ITestGrpcService</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 普通的 Grpc 接口定义</span>
+</span></span><span class="line"><span class="cl">    <span class="n">UnaryResult</span><span class="p">&lt;</span><span class="kt">int</span><span class="p">&gt;</span> <span class="n">Sum</span><span class="p">(</span><span class="kt">int</span> <span class="n">x</span><span class="p">,</span> <span class="kt">int</span> <span class="n">y</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 带有 GrpcSession 的接口定义</span>
+</span></span><span class="line"><span class="cl">    <span class="n">UnaryResult</span><span class="p">&lt;</span><span class="kt">long?</span><span class="p">&gt;</span> <span class="n">TestGrpcSession</span><span class="p">(</span><span class="n">GrpcSession</span> <span class="n">session</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-服务提供方">2.2 服务提供方</h3>
+<p>服务提供方在实现 <code>ITestGrpcService</code> 的时候，需要在代码起始点就开始使用 <code>using</code> 语句包裹代码。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TestGrpcService</span> <span class="p">:</span> <span class="n">ServiceBase</span><span class="p">&lt;</span><span class="n">ITestGrpcService</span><span class="p">&gt;,</span> <span class="n">ITestGrpcService</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IAbpSession</span> <span class="n">_abpSession</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">TestGrpcService</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_abpSession</span> <span class="p">=</span> <span class="n">IocManager</span><span class="p">.</span><span class="n">Instance</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IIocManager</span><span class="p">&gt;().</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IAbpSession</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">UnaryResult</span><span class="p">&lt;</span><span class="kt">int</span><span class="p">&gt;</span> <span class="n">Sum</span><span class="p">(</span><span class="kt">int</span> <span class="n">x</span><span class="p">,</span> <span class="kt">int</span> <span class="n">y</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">UnaryResult</span><span class="p">(</span><span class="n">x</span> <span class="p">+</span> <span class="n">y</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">UnaryResult</span><span class="p">&lt;</span><span class="kt">long?</span><span class="p">&gt;</span> <span class="n">TestGrpcSession</span><span class="p">(</span><span class="n">GrpcSession</span> <span class="n">session</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 赋值前 Session 的值</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="n">_abpSession</span><span class="p">.</span><span class="n">UserId</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 临时改变 Session 值</span>
+</span></span><span class="line"><span class="cl">        <span class="k">using</span> <span class="p">(</span><span class="n">_abpSession</span><span class="p">.</span><span class="n">Use</span><span class="p">(</span><span class="n">session</span><span class="p">.</span><span class="n">TenantId</span><span class="p">,</span> <span class="n">session</span><span class="p">.</span><span class="n">UserId</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="n">_abpSession</span><span class="p">.</span><span class="n">UserId</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 离开 using 语句时 Session 的值</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="n">_abpSession</span><span class="p">.</span><span class="n">UserId</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">new</span> <span class="n">UnaryResult</span><span class="p">&lt;</span><span class="kt">long?</span><span class="p">&gt;(</span><span class="m">1000</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="23-服务调用方">2.3 服务调用方</h3>
+<p>服务调用方则直接在调用 Grpc 接口的时候，传递给接口当前服务的 Session 状态。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">TestApplicationService</span> <span class="p">:</span> <span class="n">ApplicationService</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">private</span> <span class="k">readonly</span> <span class="n">IGrpcConnectionUtility</span> <span class="n">_utility</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="n">TestApplicationService</span><span class="p">(</span><span class="n">IGrpcConnectionUtility</span> <span class="n">utility</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="n">_utility</span> <span class="p">=</span> <span class="n">utility</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">void</span> <span class="n">TestAction</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="c1">// 获得指定的 Grpc 服务</span>
+</span></span><span class="line"><span class="cl">    	<span class="kt">var</span> <span class="n">service</span> <span class="p">=</span> <span class="n">_utility</span><span class="p">.</span><span class="n">GetRemoteService</span><span class="p">&lt;</span><span class="n">ITestGrpcService</span><span class="p">&gt;(</span><span class="s">&#34;Grpc 服务名称&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    	<span class="c1">// 调用测试方法，传递当前调用方的 Session 值</span>
+</span></span><span class="line"><span class="cl">    	<span class="kt">var</span> <span class="n">userId</span> <span class="p">=</span> <span class="n">service</span><span class="p">.</span><span class="n">TestGrpcSession</span><span class="p">(</span><span class="n">AbpSession</span> <span class="k">as</span> <span class="n">AbpSessionBase</span><span class="p">).</span><span class="n">GetAwaiter</span><span class="p">().</span><span class="n">GetResult</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    	
+</span></span><span class="line"><span class="cl">        <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&#34;TestGrpcSession 方法结果:&#34;</span> <span class="p">+</span> <span class="n">userId</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="24-最后的效果">2.4 最后的效果</h3>
+<p>当客户端调用 GRPC 接口时，会将自身的 Session 状态通过 GrpcSession 传递到服务端，这样服务端就能够共享客户端的绘画状态。</p>
+<h2 id="3abpgrpc-项目地址">3.Abp.Grpc 项目地址</h2>
+<p>Abp.Grpc 库地址：https://github.com/GameBelial/Abp.Grpc</p>
+<h2 id="4实现的-demo-地址">4.实现的 DEMO 地址</h2>
+<p>服务端：https://github.com/GameBelial/Abp.Grpc.Server.Demo</p>
+<p>客户端：https://github.com/GameBelial/Abp.Grpc.Client.Demo</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/aspnetboilerplate/">AspNetBoilerplate</a>
+        
+            <a href="/tags/grpc/">gRPC</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/why-not-use-async-void/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">为什么不要使用 async void ？</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-mongodb-retrofits-the-default-audit-log-storage-location/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp &#43; MongoDb 改造默认的审计日志存储位置</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-source-code-analysis-seventeen-aspnet-core-integration/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp 源码分析：十七、ASP.NET Core 集成</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/replace-abps-di-framework-with-dryioc/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">使用 DryIoc 替换 Abp 的 DI 框架</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-source-code-analysis-sixteen-background-work-and-background-workers/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp 源码分析：十六、后台工作与后台工作者</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#0背景">0.背景</a></li>
+    <li><a href="#1解决">1.解决</a></li>
+    <li><a href="#2grpc-接口改造">2.Grpc 接口改造</a>
+      <ol>
+        <li><a href="#21-服务定义">2.1 服务定义</a></li>
+        <li><a href="#22-服务提供方">2.2 服务提供方</a></li>
+        <li><a href="#23-服务调用方">2.3 服务调用方</a></li>
+        <li><a href="#24-最后的效果">2.4 最后的效果</a></li>
+      </ol>
+    </li>
+    <li><a href="#3abpgrpc-项目地址">3.Abp.Grpc 项目地址</a></li>
+    <li><a href="#4实现的-demo-地址">4.实现的 DEMO 地址</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

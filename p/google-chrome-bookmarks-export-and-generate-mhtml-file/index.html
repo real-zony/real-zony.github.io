@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='目的 因为某些原因需要将存放在 Google Chrome 内的书签导出到本地，所幸 Google Chrome 提供了导出书签的功能。
+分析 首先在 Google Chrome 浏览器当中输入 chrome://bookmarks 来到书签管理页面，找到最右侧的三个点，选择导出书签，导出的文件是一个 HTML 文件，里面包含了所有书签的层级结构等信息。 使用 Notepad&#43;&#43; 打开该文件之后可以看到里面的内容如下: 粗略一看貌似没什么问题，其实在里面的 &amp;lt;DT&amp;gt; 与 &amp;lt;P&amp;gt; 都缺少了闭合标签，所以在解析的时候需要将其去除掉。去除掉之后的 HTML 文件结构大概像这样:
+1 2 3 4 5 6 7 8 9 10 &amp;lt;DL&amp;gt; &amp;lt;H3&amp;gt;文件夹标题&amp;lt;/H3&amp;gt; &amp;lt;DL&amp;gt; &amp;lt;H3&amp;gt;子文件夹标题&amp;lt;/H3&amp;gt; &amp;lt;A HREF=&amp;#34;书签地址&amp;#34;&amp;gt;子文件夹书签1&amp;lt;/A&amp;gt; &amp;lt;A HREF=&amp;#34;书签地址&amp;#34;&amp;gt;子文件夹书签2&amp;lt;/A&amp;gt; &amp;lt;/DL&amp;gt; &amp;lt;A HREF=&amp;#34;书签地址&amp;#34;&amp;gt;书签1&amp;lt;/A&amp;gt; &amp;lt;A HREF=&amp;#34;书签地址&amp;#34;&amp;gt;书签2&amp;lt;/A&amp;gt; &amp;lt;/DL&amp;gt; 可以很明显看到这里是有一个层级关系的，所以我们可以通过递归来生成一个树形模型，生成之后，再遍历这个模型来根据这个树形结构来创建 MHTML 文件，并且进行归类。
+实现 操作 HTML 文件在 .Net 下有一个很方便的第三方库，名字叫做 HtmlAgilityPack，通过这个库我们可以很方便地操作 HTML 文档，就跟 DOM 一样方便，而且它支持 XPath 选取。
+项目地址:http://html-agility-pack.net/ GitHub 地址:https://github.com/zzzprojects/html-agility-pack Nuget 地址:https://www.'><title>Google Chrome 书签导出并生成 MHTML 文件</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/google-chrome-bookmarks-export-and-generate-mhtml-file/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Google Chrome 书签导出并生成 MHTML 文件'>
+<meta property='og:description' content='目的 因为某些原因需要将存放在 Google Chrome 内的书签导出到本地，所幸 Google Chrome 提供了导出书签的功能。
+分析 首先在 Google Chrome 浏览器当中输入 chrome://bookmarks 来到书签管理页面，找到最右侧的三个点，选择导出书签，导出的文件是一个 HTML 文件，里面包含了所有书签的层级结构等信息。 使用 Notepad&#43;&#43; 打开该文件之后可以看到里面的内容如下: 粗略一看貌似没什么问题，其实在里面的 &amp;lt;DT&amp;gt; 与 &amp;lt;P&amp;gt; 都缺少了闭合标签，所以在解析的时候需要将其去除掉。去除掉之后的 HTML 文件结构大概像这样:
+1 2 3 4 5 6 7 8 9 10 &amp;lt;DL&amp;gt; &amp;lt;H3&amp;gt;文件夹标题&amp;lt;/H3&amp;gt; &amp;lt;DL&amp;gt; &amp;lt;H3&amp;gt;子文件夹标题&amp;lt;/H3&amp;gt; &amp;lt;A HREF=&amp;#34;书签地址&amp;#34;&amp;gt;子文件夹书签1&amp;lt;/A&amp;gt; &amp;lt;A HREF=&amp;#34;书签地址&amp;#34;&amp;gt;子文件夹书签2&amp;lt;/A&amp;gt; &amp;lt;/DL&amp;gt; &amp;lt;A HREF=&amp;#34;书签地址&amp;#34;&amp;gt;书签1&amp;lt;/A&amp;gt; &amp;lt;A HREF=&amp;#34;书签地址&amp;#34;&amp;gt;书签2&amp;lt;/A&amp;gt; &amp;lt;/DL&amp;gt; 可以很明显看到这里是有一个层级关系的，所以我们可以通过递归来生成一个树形模型，生成之后，再遍历这个模型来根据这个树形结构来创建 MHTML 文件，并且进行归类。
+实现 操作 HTML 文件在 .Net 下有一个很方便的第三方库，名字叫做 HtmlAgilityPack，通过这个库我们可以很方便地操作 HTML 文档，就跟 DOM 一样方便，而且它支持 XPath 选取。
+项目地址:http://html-agility-pack.net/ GitHub 地址:https://github.com/zzzprojects/html-agility-pack Nuget 地址:https://www.'>
+<meta property='og:url' content='https://real-zony.github.io/p/google-chrome-bookmarks-export-and-generate-mhtml-file/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Chrome' /><meta property='article:tag' content='C#' /><meta property='article:published_time' content='2018-03-02T14:15:00&#43;00:00'/><meta property='article:modified_time' content='2018-03-02T14:15:00&#43;00:00'/>
+<meta name="twitter:title" content="Google Chrome 书签导出并生成 MHTML 文件">
+<meta name="twitter:description" content="目的 因为某些原因需要将存放在 Google Chrome 内的书签导出到本地，所幸 Google Chrome 提供了导出书签的功能。
+分析 首先在 Google Chrome 浏览器当中输入 chrome://bookmarks 来到书签管理页面，找到最右侧的三个点，选择导出书签，导出的文件是一个 HTML 文件，里面包含了所有书签的层级结构等信息。 使用 Notepad&#43;&#43; 打开该文件之后可以看到里面的内容如下: 粗略一看貌似没什么问题，其实在里面的 &amp;lt;DT&amp;gt; 与 &amp;lt;P&amp;gt; 都缺少了闭合标签，所以在解析的时候需要将其去除掉。去除掉之后的 HTML 文件结构大概像这样:
+1 2 3 4 5 6 7 8 9 10 &amp;lt;DL&amp;gt; &amp;lt;H3&amp;gt;文件夹标题&amp;lt;/H3&amp;gt; &amp;lt;DL&amp;gt; &amp;lt;H3&amp;gt;子文件夹标题&amp;lt;/H3&amp;gt; &amp;lt;A HREF=&amp;#34;书签地址&amp;#34;&amp;gt;子文件夹书签1&amp;lt;/A&amp;gt; &amp;lt;A HREF=&amp;#34;书签地址&amp;#34;&amp;gt;子文件夹书签2&amp;lt;/A&amp;gt; &amp;lt;/DL&amp;gt; &amp;lt;A HREF=&amp;#34;书签地址&amp;#34;&amp;gt;书签1&amp;lt;/A&amp;gt; &amp;lt;A HREF=&amp;#34;书签地址&amp;#34;&amp;gt;书签2&amp;lt;/A&amp;gt; &amp;lt;/DL&amp;gt; 可以很明显看到这里是有一个层级关系的，所以我们可以通过递归来生成一个树形模型，生成之后，再遍历这个模型来根据这个树形结构来创建 MHTML 文件，并且进行归类。
+实现 操作 HTML 文件在 .Net 下有一个很方便的第三方库，名字叫做 HtmlAgilityPack，通过这个库我们可以很方便地操作 HTML 文档，就跟 DOM 一样方便，而且它支持 XPath 选取。
+项目地址:http://html-agility-pack.net/ GitHub 地址:https://github.com/zzzprojects/html-agility-pack Nuget 地址:https://www.">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/google-chrome-bookmarks-export-and-generate-mhtml-file/">Google Chrome 书签导出并生成 MHTML 文件</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Mar 02, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 3 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="目的">目的</h2>
+<p>因为某些原因需要将存放在 Google Chrome 内的书签导出到本地，所幸 Google Chrome 提供了导出书签的功能。</p>
+<h2 id="分析">分析</h2>
+<p>首先在 Google Chrome 浏览器当中输入 <code>chrome://bookmarks</code> 来到书签管理页面，找到最右侧的三个点，选择导出书签，导出的文件是一个 HTML 文件，里面包含了所有书签的层级结构等信息。
+使用 Notepad++ 打开该文件之后可以看到里面的内容如下:
+<img src="/p/google-chrome-bookmarks-export-and-generate-mhtml-file/5b2eb28ad92da.png"
+	width="1797"
+	height="516"
+	srcset="/p/google-chrome-bookmarks-export-and-generate-mhtml-file/5b2eb28ad92da_hu0a1311da7ff8df5f25b2862cb1df2583_75943_480x0_resize_box_3.png 480w, /p/google-chrome-bookmarks-export-and-generate-mhtml-file/5b2eb28ad92da_hu0a1311da7ff8df5f25b2862cb1df2583_75943_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="https://i.loli.net/2018/06/24/5b2eb28ad92da.png"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="348"
+		data-flex-basis="835px"
+	
+>
+粗略一看貌似没什么问题，其实在里面的 <code>&lt;DT&gt;</code> 与 <code>&lt;P&gt;</code> 都缺少了闭合标签，所以在解析的时候需要将其去除掉。去除掉之后的 HTML 文件结构大概像这样:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-html" data-lang="html"><span class="line"><span class="cl"><span class="p">&lt;</span><span class="nt">DL</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">&lt;</span><span class="nt">H3</span><span class="p">&gt;</span>文件夹标题<span class="p">&lt;/</span><span class="nt">H3</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">&lt;</span><span class="nt">DL</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">&lt;</span><span class="nt">H3</span><span class="p">&gt;</span>子文件夹标题<span class="p">&lt;/</span><span class="nt">H3</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">&lt;</span><span class="nt">A</span> <span class="na">HREF</span><span class="o">=</span><span class="s">&#34;书签地址&#34;</span><span class="p">&gt;</span>子文件夹书签1<span class="p">&lt;/</span><span class="nt">A</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">&lt;</span><span class="nt">A</span> <span class="na">HREF</span><span class="o">=</span><span class="s">&#34;书签地址&#34;</span><span class="p">&gt;</span>子文件夹书签2<span class="p">&lt;/</span><span class="nt">A</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">&lt;/</span><span class="nt">DL</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">&lt;</span><span class="nt">A</span> <span class="na">HREF</span><span class="o">=</span><span class="s">&#34;书签地址&#34;</span><span class="p">&gt;</span>书签1<span class="p">&lt;/</span><span class="nt">A</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">&lt;</span><span class="nt">A</span> <span class="na">HREF</span><span class="o">=</span><span class="s">&#34;书签地址&#34;</span><span class="p">&gt;</span>书签2<span class="p">&lt;/</span><span class="nt">A</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">&lt;/</span><span class="nt">DL</span><span class="p">&gt;</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以很明显看到这里是有一个层级关系的，所以我们可以通过递归来生成一个树形模型，生成之后，再遍历这个模型来根据这个树形结构来创建 MHTML 文件，并且进行归类。</p>
+<h2 id="实现">实现</h2>
+<p>操作 HTML 文件在 .Net 下有一个很方便的第三方库，名字叫做 <code>HtmlAgilityPack</code>，通过这个库我们可以很方便地操作 HTML 文档，就跟 DOM 一样方便，而且它支持 XPath 选取。</p>
+<blockquote>
+<p>项目地址:http://html-agility-pack.net/
+GitHub 地址:https://github.com/zzzprojects/html-agility-pack
+Nuget 地址:https://www.nuget.org/packages/HtmlAgilityPack/
+通过 Nuget 安装该包到项目当中，引入 <code>HtmlAgilityPack</code> 命名空间，就可以开始编写代码了。</p>
+</blockquote>
+<h3 id="1编写-htmlresolver-解析器">1.编写 HtmlResolver 解析器</h3>
+<p>建立一个 HtmlResolver 类，该类用于解析 Chrome 导出的书签:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">HtmlResolver</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">HtmlDocument</span> <span class="n">_htmlDocument</span> <span class="p">=</span> <span class="k">new</span> <span class="n">HtmlDocument</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 初始化 HTML 解析器</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;param name=&#34;htmlPath&#34;&gt;Google Chrome 导出的书签 HTML 路径&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">HtmlResolver</span><span class="p">(</span><span class="kt">string</span> <span class="n">htmlPath</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">using</span> <span class="p">(</span><span class="n">FileStream</span> <span class="n">htmlFileStream</span> <span class="p">=</span> <span class="n">File</span><span class="p">.</span><span class="n">Open</span><span class="p">(</span><span class="n">htmlPath</span><span class="p">,</span> <span class="n">FileMode</span><span class="p">.</span><span class="n">Open</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">using</span> <span class="p">(</span><span class="n">StreamReader</span> <span class="n">htmlReader</span> <span class="p">=</span> <span class="k">new</span> <span class="n">StreamReader</span><span class="p">(</span><span class="n">htmlFileStream</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 移除干扰标签</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">string</span> <span class="n">htmlStr</span> <span class="p">=</span> <span class="n">htmlReader</span><span class="p">.</span><span class="n">ReadToEnd</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">                <span class="n">htmlStr</span> <span class="p">=</span> <span class="n">htmlStr</span><span class="p">.</span><span class="n">Replace</span><span class="p">(</span><span class="s">@&#34;&lt;DT&gt;&#34;</span><span class="p">,</span> <span class="kt">string</span><span class="p">.</span><span class="n">Empty</span><span class="p">).</span><span class="n">Replace</span><span class="p">(</span><span class="s">@&#34;&lt;p&gt;&#34;</span><span class="p">,</span> <span class="kt">string</span><span class="p">.</span><span class="n">Empty</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">// 加载 HTML</span>
+</span></span><span class="line"><span class="cl">                <span class="n">_htmlDocument</span><span class="p">.</span><span class="n">LoadHtml</span><span class="p">(</span><span class="n">htmlStr</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在对象初始化的时候要求提供 Google Chrome 导出的书签 HTML 文件路径，并且读入 HTML 文件数据的时候移除掉之前所说的 <code>&lt;DT&gt;</code> 与 <code>&lt;P&gt;</code> 标签，方便后面 <code>HtmlAgilityPack</code> 进行解析，移除之后，<code>HtmlDocument</code> 通过 HTML String 初始化。</p>
+<h3 id="2创建书签模型">2.创建书签模型</h3>
+<p>当我们递归完成之后需要将数据存储在书签模型当中，方便后面生成 MHTML 文件的时候使用。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// 书签模型</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">BookMarkModel</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 初始化书签模型</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;param name=&#34;name&#34;&gt;书签名称&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;param name=&#34;path&#34;&gt;书签路径&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;param name=&#34;url&#34;&gt;绑定的 URL&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;param name=&#34;childNodes&#34;&gt;子节点集合&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">BookMarkModel</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="kt">string</span> <span class="n">path</span><span class="p">,</span> <span class="kt">string</span> <span class="n">url</span> <span class="p">=</span> <span class="k">null</span><span class="p">,</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">BookMarkModel</span><span class="p">&gt;</span> <span class="n">childNodes</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Name</span> <span class="p">=</span> <span class="n">name</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Url</span> <span class="p">=</span> <span class="n">url</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ChildNodes</span> <span class="p">=</span> <span class="n">childNodes</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Path</span> <span class="p">=</span> <span class="n">path</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 书签名称</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 绑定的 URL</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Url</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 书签路径</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Path</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// 子节点集合，如果没有则为 NULL</span>
+</span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">BookMarkModel</span><span class="p">&gt;</span> <span class="n">ChildNodes</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>该模型是一个典型的树形结构，之后我们就开始递归生成书签模型了。</p>
+<h3 id="3递归生成树形模型">3.递归生成树形模型</h3>
+<p>递归算法自己一直不太会写，写好这一个递归方法基本都花费了半天的时间 :P，后面打算恶补数学和算法这块了。下面先上代码再解释原理:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// 递归生成书签模型</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;param name=&#34;node&#34;&gt;父级节点&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;param name=&#34;parentPath&#34;&gt;父级节点 Path&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">BookMarkModel</span><span class="p">&gt;</span> <span class="n">RecursionGenerate</span><span class="p">(</span><span class="n">HtmlNode</span> <span class="n">node</span><span class="p">,</span> <span class="kt">string</span> <span class="n">parentPath</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">List</span><span class="p">&lt;</span><span class="n">BookMarkModel</span><span class="p">&gt;</span> <span class="n">bookMarkModels</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">BookMarkModel</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 获取所有文件夹标题与其下属节点，以便递归查询其子节点</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">bookMarkFolderTitles</span> <span class="p">=</span> <span class="n">node</span><span class="p">.</span><span class="n">SelectNodes</span><span class="p">(</span><span class="s">&#34;h3&#34;</span><span class="p">)?.</span><span class="n">Cast</span><span class="p">&lt;</span><span class="n">HtmlNode</span><span class="p">&gt;().</span><span class="n">ToList</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">bookMarkFolder</span> <span class="p">=</span> <span class="n">node</span><span class="p">.</span><span class="n">SelectNodes</span><span class="p">(</span><span class="s">&#34;dl&#34;</span><span class="p">)?.</span><span class="n">Cast</span><span class="p">&lt;</span><span class="n">HtmlNode</span><span class="p">&gt;().</span><span class="n">ToList</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">htmlBookMarks</span> <span class="p">=</span> <span class="n">node</span><span class="p">.</span><span class="n">SelectNodes</span><span class="p">(</span><span class="s">&#34;a&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果文件夹不存在则直接将所有具体书签返回</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">bookMarkFolderTitles</span> <span class="p">==</span> <span class="k">null</span> <span class="p">||</span> <span class="n">bookMarkFolder</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">GenerateBookMarkModels</span><span class="p">(</span><span class="n">htmlBookMarks</span><span class="p">,</span> <span class="n">parentPath</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 递归构建书签模型</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span> <span class="n">i</span> <span class="p">&lt;</span> <span class="n">bookMarkFolderTitles</span><span class="p">.</span><span class="n">Count</span><span class="p">;</span> <span class="n">i</span><span class="p">++)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">BookMarkModel</span> <span class="n">bookMark</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BookMarkModel</span><span class="p">(</span><span class="n">bookMarkFolderTitles</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">InnerText</span><span class="p">,</span> <span class="s">$@&#34;{parentPath}\{bookMarkFolderTitles[i].InnerText}.mhtml&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">bookMark</span><span class="p">.</span><span class="n">ChildNodes</span> <span class="p">=</span> <span class="n">RecursionGenerate</span><span class="p">(</span><span class="n">bookMarkFolder</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">bookMark</span><span class="p">.</span><span class="n">Path</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">List</span><span class="p">&lt;</span><span class="n">BookMarkModel</span><span class="p">&gt;</span> <span class="n">bookmarks</span> <span class="p">=</span> <span class="n">GenerateBookMarkModels</span><span class="p">(</span><span class="n">htmlBookMarks</span><span class="p">,</span> <span class="n">parentPath</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">bookmarks</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span> <span class="n">bookMark</span><span class="p">.</span><span class="n">ChildNodes</span><span class="p">?.</span><span class="n">AddRange</span><span class="p">(</span><span class="n">bookmarks</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">bookMarkModels</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">bookMark</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">bookMarkModels</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>首先说说 <code>RecursionGenerate(HtmlNode node,string parentPath)</code> 方法，这个方法接收一个节点参数，这个节点就是需要遍历的节点，而 <code>parentPath</code> 则是用于生成路径的，在每次构建书签模型的时候都会根据父级路径来生成新的路径。</p>
+<p>如果要获取某个节点下面的子节点，肯定要拿到该节点下属的所有节点，可以参考上面的大概结构，一般一个书签文件夹下面都会有一个或多个子文件夹，也有可能会有部分书签与这些子文件夹同级。</p>
+<p>所以，我们先提取出当前节点的文件夹名称，也就是 <code>&lt;H3&gt;</code> 标签里面的内容，然后只要有一个 <code>&lt;H3&gt;</code> 标签，那他肯定有一个对应的 <code>&lt;DL&gt;</code> 标签表示包裹着它的子节点内容。如果某个节点它的内部没有子文件夹的话，那直接抓取其内部的具体书签，并返回出来。</p>
+<p>如果某个节点拥有子文件夹的话，遍历其内部，并且再次调用 <code>RecursionGenerate</code> 方法，将其内部节点添加到这个节点的 Childern 当中。</p>
+<p>注意，这里在循环内部还再次进行了获取具体书签的操作，因为有的时候某个节点内部也是拥有具体书签项的，所以这里才会有 <code>List&lt;T&gt;.AddRange(IEnumerable&lt;T&gt; list)</code> 操作。
+具体书签生成:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="cs">/// &lt;summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// 将 A 标签的集合转换为 BookMarkModel 集合</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;/summary&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;param name=&#34;nodes&#34;&gt;A 标签节点集合&lt;/param&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="cs">/// &lt;returns&gt;转换完成的 Node 集合&lt;/returns&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">BookMarkModel</span><span class="p">&gt;</span> <span class="n">GenerateBookMarkModels</span><span class="p">(</span><span class="n">HtmlNodeCollection</span> <span class="n">nodes</span><span class="p">,</span> <span class="kt">string</span> <span class="n">parentPath</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">nodes</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span> <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">List</span><span class="p">&lt;</span><span class="n">BookMarkModel</span><span class="p">&gt;</span> <span class="n">bookmarks</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">BookMarkModel</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">node</span> <span class="k">in</span> <span class="n">nodes</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">bookmarks</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="k">new</span> <span class="n">BookMarkModel</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="n">InnerText</span><span class="p">,</span> <span class="s">$@&#34;{parentPath}\{node.InnerText}.mhtml&#34;</span><span class="p">,</span> <span class="n">node</span><span class="p">.</span><span class="n">Attributes</span><span class="p">[</span><span class="s">&#34;href&#34;</span><span class="p">].</span><span class="n">Value</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">bookmarks</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>具体书签的生成就很简单了，直接构建即可，这里会在其末尾添加 .mhtml 后缀。</p>
+<h3 id="4根据生成的书签模型来产生-mhtml-文件">4.根据生成的书签模型来产生 MHTML 文件</h3>
+<p>这里可以参考以下实现：
+<a class="link" href="https://code.msdn.microsoft.com/windowsdesktop/Creating-a-MHTML-MIME-HTML-61cf5dd1"  target="_blank" rel="noopener"
+    >https://code.msdn.microsoft.com/windowsdesktop/Creating-a-MHTML-MIME-HTML-61cf5dd1</a></p>
+<p>目前程序还没有实现这一个功能，因为使用 CDO 的方法不太方便，而且生成的 MHT 文件样式丢失严重，并不像 Google Chrome 保存的 mht 文件那样完整。</p>
+<p>后续再来填坑。</p>
+<h2 id="结尾">结尾</h2>
+<p>项目地址：http://git.myzony.com/Zony/GoogleBookmarkExportTool</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/chrome/">Chrome</a>
+        
+            <a href="/tags/c#/">C#</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/record-of-problems-encountered-in-cefsharp-developing-touch-screen-terminals/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">CefSharp 开发触屏终端遇到的问题记录</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#目的">目的</a></li>
+    <li><a href="#分析">分析</a></li>
+    <li><a href="#实现">实现</a>
+      <ol>
+        <li><a href="#1编写-htmlresolver-解析器">1.编写 HtmlResolver 解析器</a></li>
+        <li><a href="#2创建书签模型">2.创建书签模型</a></li>
+        <li><a href="#3递归生成树形模型">3.递归生成树形模型</a></li>
+        <li><a href="#4根据生成的书签模型来产生-mhtml-文件">4.根据生成的书签模型来产生 MHTML 文件</a></li>
+      </ol>
+    </li>
+    <li><a href="#结尾">结尾</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='什么是缺页中断? 当一个进程发生缺页中断的时候，进程会陷入内核态，执行以下操作:
+1、检查要访问的虚拟地址是否合法。
+2、查找/分配一个物理页。
+3、填充物理页内容（读取磁盘，或者直接置0，或者啥也不干）。
+4、建立映射关系（虚拟地址到物理地址）。
+重新执行发生缺页中断的那条指令
+如果第3步，需要读取磁盘，那么这次缺页中断就是 majflt，否则就是 minflt。
+内存分配的原理 从操作系统角度来看，进程分配内存有两种方式，分别由两个系统调用完成：brk 和 mmap（不考虑共享内存）。
+brk 是将数据段(.data)的最高地址指针 _edata 往高地址推； mmap 是在进程的虚拟地址空间中（堆和栈中间，称为文件映射区域的地方）找一块空闲的虚拟内存。 这两种方式分配的都是虚拟内存，没有分配物理内存。在第一次访问已分配的虚拟地址空间的时候，发生 缺页中断，操作系统负责分配物理内存，然后建立虚拟内存和物理内存之间的映射关系。
+在标准C库中，提供了malloc/free函数分配释放内存，其实这两个函数底层是由 brk、mmap、munmap 这些系统调用实现的。
+下面以一个例子来说明内存分配的原理： 1.malloc 小于 128k 的内存，使用 brk 分配内存，将 _edata 往高地址推(只分配虚拟空间，不对应物理内存(因此没有初始化)，第一次读/写数据时，引起内核 缺页中断，内核才分配对应的物理内存，然后虚拟地址空间建立映射关系)，如下图：
+进程启动的时候，其（虚拟）内存空间的初始布局如图1所示。
+其中，mmap 内存映射文件是在堆和栈的中间（例如libc-2.2.93.so，其它数据文件等），为了简单起见，省略了内存映射文件。
+_edata 指针（glibc 里面定义）指向数据段的最高地址。
+进程调用 A=malloc(30K)以后，内存空间如图2：
+malloc 函数会调用 brk 系统调用，将 _edata 指针往高地址推30K，就完成虚拟内存分配。
+你可能会问：只要把 _edata&#43;30K 就完成内存分配了？
+事实是这样的，_edata&#43;30K 只是完成虚拟地址的分配，A这块内存现在还是没有物理页与之对应的，等到进程第一次读写A这块内存的时候，发生缺页中断，这个时候，内核才分配A这块内存对应的物理页。也就是说，如果用malloc分配了A这块内容，然后从来不访问它，那么，A 对应的物理页是不会被分配的。
+进程调用 B=malloc(40K) 以后，内存空间如图3。
+2.malloc 大于128k的内存，使用 mmap 分配内存，在堆和栈之间找一块空闲内存分配(对应独立内存，而且初始化为0)，如下图：
+进程调用 C=malloc(200K) 以后，内存空间如图1：
+默认情况下，malloc 函数分配内存，如果请求内存大于 128K（可由M_MMAP_THRESHOLD选项调节），那就不是去推 _edata 指针了，而是利用 mmap 系统调用，从堆和栈的中间分配一块虚拟内存。'><title>malloc 的原理与产生内存碎片的原因</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/the-principle-of-malloc-and-the-reasons-for-memory-fragmentation/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='malloc 的原理与产生内存碎片的原因'>
+<meta property='og:description' content='什么是缺页中断? 当一个进程发生缺页中断的时候，进程会陷入内核态，执行以下操作:
+1、检查要访问的虚拟地址是否合法。
+2、查找/分配一个物理页。
+3、填充物理页内容（读取磁盘，或者直接置0，或者啥也不干）。
+4、建立映射关系（虚拟地址到物理地址）。
+重新执行发生缺页中断的那条指令
+如果第3步，需要读取磁盘，那么这次缺页中断就是 majflt，否则就是 minflt。
+内存分配的原理 从操作系统角度来看，进程分配内存有两种方式，分别由两个系统调用完成：brk 和 mmap（不考虑共享内存）。
+brk 是将数据段(.data)的最高地址指针 _edata 往高地址推； mmap 是在进程的虚拟地址空间中（堆和栈中间，称为文件映射区域的地方）找一块空闲的虚拟内存。 这两种方式分配的都是虚拟内存，没有分配物理内存。在第一次访问已分配的虚拟地址空间的时候，发生 缺页中断，操作系统负责分配物理内存，然后建立虚拟内存和物理内存之间的映射关系。
+在标准C库中，提供了malloc/free函数分配释放内存，其实这两个函数底层是由 brk、mmap、munmap 这些系统调用实现的。
+下面以一个例子来说明内存分配的原理： 1.malloc 小于 128k 的内存，使用 brk 分配内存，将 _edata 往高地址推(只分配虚拟空间，不对应物理内存(因此没有初始化)，第一次读/写数据时，引起内核 缺页中断，内核才分配对应的物理内存，然后虚拟地址空间建立映射关系)，如下图：
+进程启动的时候，其（虚拟）内存空间的初始布局如图1所示。
+其中，mmap 内存映射文件是在堆和栈的中间（例如libc-2.2.93.so，其它数据文件等），为了简单起见，省略了内存映射文件。
+_edata 指针（glibc 里面定义）指向数据段的最高地址。
+进程调用 A=malloc(30K)以后，内存空间如图2：
+malloc 函数会调用 brk 系统调用，将 _edata 指针往高地址推30K，就完成虚拟内存分配。
+你可能会问：只要把 _edata&#43;30K 就完成内存分配了？
+事实是这样的，_edata&#43;30K 只是完成虚拟地址的分配，A这块内存现在还是没有物理页与之对应的，等到进程第一次读写A这块内存的时候，发生缺页中断，这个时候，内核才分配A这块内存对应的物理页。也就是说，如果用malloc分配了A这块内容，然后从来不访问它，那么，A 对应的物理页是不会被分配的。
+进程调用 B=malloc(40K) 以后，内存空间如图3。
+2.malloc 大于128k的内存，使用 mmap 分配内存，在堆和栈之间找一块空闲内存分配(对应独立内存，而且初始化为0)，如下图：
+进程调用 C=malloc(200K) 以后，内存空间如图1：
+默认情况下，malloc 函数分配内存，如果请求内存大于 128K（可由M_MMAP_THRESHOLD选项调节），那就不是去推 _edata 指针了，而是利用 mmap 系统调用，从堆和栈的中间分配一块虚拟内存。'>
+<meta property='og:url' content='https://real-zony.github.io/p/the-principle-of-malloc-and-the-reasons-for-memory-fragmentation/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C' /><meta property='article:tag' content='C&#43;&#43;' /><meta property='article:tag' content='内存' /><meta property='article:published_time' content='2016-02-04T03:38:00&#43;00:00'/><meta property='article:modified_time' content='2016-02-04T03:38:00&#43;00:00'/>
+<meta name="twitter:title" content="malloc 的原理与产生内存碎片的原因">
+<meta name="twitter:description" content="什么是缺页中断? 当一个进程发生缺页中断的时候，进程会陷入内核态，执行以下操作:
+1、检查要访问的虚拟地址是否合法。
+2、查找/分配一个物理页。
+3、填充物理页内容（读取磁盘，或者直接置0，或者啥也不干）。
+4、建立映射关系（虚拟地址到物理地址）。
+重新执行发生缺页中断的那条指令
+如果第3步，需要读取磁盘，那么这次缺页中断就是 majflt，否则就是 minflt。
+内存分配的原理 从操作系统角度来看，进程分配内存有两种方式，分别由两个系统调用完成：brk 和 mmap（不考虑共享内存）。
+brk 是将数据段(.data)的最高地址指针 _edata 往高地址推； mmap 是在进程的虚拟地址空间中（堆和栈中间，称为文件映射区域的地方）找一块空闲的虚拟内存。 这两种方式分配的都是虚拟内存，没有分配物理内存。在第一次访问已分配的虚拟地址空间的时候，发生 缺页中断，操作系统负责分配物理内存，然后建立虚拟内存和物理内存之间的映射关系。
+在标准C库中，提供了malloc/free函数分配释放内存，其实这两个函数底层是由 brk、mmap、munmap 这些系统调用实现的。
+下面以一个例子来说明内存分配的原理： 1.malloc 小于 128k 的内存，使用 brk 分配内存，将 _edata 往高地址推(只分配虚拟空间，不对应物理内存(因此没有初始化)，第一次读/写数据时，引起内核 缺页中断，内核才分配对应的物理内存，然后虚拟地址空间建立映射关系)，如下图：
+进程启动的时候，其（虚拟）内存空间的初始布局如图1所示。
+其中，mmap 内存映射文件是在堆和栈的中间（例如libc-2.2.93.so，其它数据文件等），为了简单起见，省略了内存映射文件。
+_edata 指针（glibc 里面定义）指向数据段的最高地址。
+进程调用 A=malloc(30K)以后，内存空间如图2：
+malloc 函数会调用 brk 系统调用，将 _edata 指针往高地址推30K，就完成虚拟内存分配。
+你可能会问：只要把 _edata&#43;30K 就完成内存分配了？
+事实是这样的，_edata&#43;30K 只是完成虚拟地址的分配，A这块内存现在还是没有物理页与之对应的，等到进程第一次读写A这块内存的时候，发生缺页中断，这个时候，内核才分配A这块内存对应的物理页。也就是说，如果用malloc分配了A这块内容，然后从来不访问它，那么，A 对应的物理页是不会被分配的。
+进程调用 B=malloc(40K) 以后，内存空间如图3。
+2.malloc 大于128k的内存，使用 mmap 分配内存，在堆和栈之间找一块空闲内存分配(对应独立内存，而且初始化为0)，如下图：
+进程调用 C=malloc(200K) 以后，内存空间如图1：
+默认情况下，malloc 函数分配内存，如果请求内存大于 128K（可由M_MMAP_THRESHOLD选项调节），那就不是去推 _edata 指针了，而是利用 mmap 系统调用，从堆和栈的中间分配一块虚拟内存。">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/the-principle-of-malloc-and-the-reasons-for-memory-fragmentation/">malloc 的原理与产生内存碎片的原因</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Feb 04, 2016</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 1 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h3 id="什么是缺页中断">什么是缺页中断?</h3>
+<p>当一个进程发生缺页中断的时候，进程会陷入内核态，执行以下操作:</p>
+<p>1、检查要访问的虚拟地址是否合法。</p>
+<p>2、查找/分配一个物理页。</p>
+<p>3、填充物理页内容（读取磁盘，或者直接置0，或者啥也不干）。</p>
+<p>4、建立映射关系（虚拟地址到物理地址）。</p>
+<p>重新执行发生缺页中断的那条指令</p>
+<p>如果第3步，需要读取磁盘，那么这次缺页中断就是 majflt，否则就是 minflt。</p>
+<h3 id="内存分配的原理">内存分配的原理</h3>
+<p>从操作系统角度来看，进程分配内存有两种方式，分别由两个系统调用完成：<em>brk</em> 和 <em>mmap</em>（不考虑共享内存）。</p>
+<ul>
+<li>brk 是将数据段(.data)的最高地址指针 _edata 往高地址推；</li>
+<li>mmap 是在进程的虚拟地址空间中（堆和栈中间，称为文件映射区域的地方）找一块空闲的虚拟内存。</li>
+</ul>
+<p>这两种方式分配的都是虚拟内存，没有分配物理内存。在第一次访问已分配的虚拟地址空间的时候，发生 <strong>缺页中断</strong>，操作系统负责分配物理内存，然后建立虚拟内存和物理内存之间的映射关系。</p>
+<p>在标准C库中，提供了malloc/free函数分配释放内存，其实这两个函数底层是由 brk、mmap、munmap 这些系统调用实现的。</p>
+<h3 id="下面以一个例子来说明内存分配的原理">下面以一个例子来说明内存分配的原理：</h3>
+<p>1.malloc 小于 128k 的内存，使用 brk 分配内存，将 _edata 往高地址推(只分配虚拟空间，不对应物理内存(因此没有初始化)，第一次读/写数据时，引起内核 <strong>缺页中断</strong>，内核才分配对应的物理内存，然后虚拟地址空间建立映射关系)，如下图：</p>
+<p><img src="/p/the-principle-of-malloc-and-the-reasons-for-memory-fragmentation/3902389137.png"
+	width="1206"
+	height="540"
+	srcset="/p/the-principle-of-malloc-and-the-reasons-for-memory-fragmentation/3902389137_hu915885d5869caaf65f34f118b24619fc_25834_480x0_resize_box_3.png 480w, /p/the-principle-of-malloc-and-the-reasons-for-memory-fragmentation/3902389137_hu915885d5869caaf65f34f118b24619fc_25834_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="bbq.png"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="223"
+		data-flex-basis="536px"
+	
+></p>
+<ul>
+<li>
+<p>进程启动的时候，其（虚拟）内存空间的初始布局如图1所示。</p>
+<p>其中，mmap 内存映射文件是在堆和栈的中间（例如libc-2.2.93.so，其它数据文件等），为了简单起见，省略了内存映射文件。</p>
+<p>_edata 指针（glibc 里面定义）指向数据段的最高地址。</p>
+</li>
+<li>
+<p>进程调用 A=malloc(30K)以后，内存空间如图2：</p>
+<p>malloc 函数会调用 brk 系统调用，将 _edata 指针往高地址推30K，就完成虚拟内存分配。</p>
+<p>你可能会问：只要把 _edata+30K 就完成内存分配了？</p>
+<p>事实是这样的，_edata+30K 只是完成虚拟地址的分配，A这块内存现在还是没有物理页与之对应的，等到进程第一次读写A这块内存的时候，发生缺页中断，这个时候，内核才分配A这块内存对应的物理页。也就是说，如果用malloc分配了A这块内容，然后从来不访问它，那么，A 对应的物理页是不会被分配的。</p>
+</li>
+<li>
+<p>进程调用 B=malloc(40K) 以后，内存空间如图3。</p>
+</li>
+</ul>
+<p>2.malloc 大于128k的内存，使用 mmap 分配内存，在堆和栈之间找一块空闲内存分配(对应独立内存，而且初始化为0)，如下图：</p>
+<p><img src="/p/the-principle-of-malloc-and-the-reasons-for-memory-fragmentation/14466247.png"
+	width="1232"
+	height="1132"
+	srcset="/p/the-principle-of-malloc-and-the-reasons-for-memory-fragmentation/14466247_hub21a3cbafd8c1badc68a6d0aa6d1e10b_51300_480x0_resize_box_3.png 480w, /p/the-principle-of-malloc-and-the-reasons-for-memory-fragmentation/14466247_hub21a3cbafd8c1badc68a6d0aa6d1e10b_51300_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="bbq.png"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="108"
+		data-flex-basis="261px"
+	
+></p>
+<ul>
+<li>
+<p>进程调用 C=malloc(200K) 以后，内存空间如图1：</p>
+<p>默认情况下，malloc 函数分配内存，如果请求内存大于 128K（可由M_MMAP_THRESHOLD选项调节），那就不是去推 _edata 指针了，而是利用 mmap 系统调用，从堆和栈的中间分配一块虚拟内存。</p>
+<p>这样子做主要是因为:</p>
+<p>brk 分配的内存需要等到高地址内存释放以后才能释放（例如，在B释放之前，A是不可能释放的，这就是内存碎片产生的原因，什么时候紧缩看下面），而 mmap 分配的内存可以单独释放。</p>
+<p>当然，还有其它的好处，也有坏处，再具体下去，有兴趣的同学可以去看 glibc 里面 malloc 的代码了。</p>
+</li>
+<li>
+<p>进程调用 D=malloc(100K) 以后，内存空间如图2。</p>
+</li>
+<li>
+<p>进程调用 free(C) 以后，C对应的虚拟内存和物理内存一起释放，图3。</p>
+</li>
+<li>
+<p>进程调用 free(B) 以后，如图4所示：</p>
+<p>B对应的虚拟内存和物理内存都没有释放，因为只有一个 _edata 指针，如果往回推，那么 D 这块内存怎么办呢？</p>
+<p>当然，B 这块内存，是可以重用的，如果这个时候再来一个 40K 的请求，那么 malloc 很可能就把B这块内存返回回去了。</p>
+</li>
+<li>
+<p>进程调用 free(D) 以后，如图5所示：</p>
+<p>B 和 D 连接起来，变成一块140K的空闲内存。</p>
+</li>
+<li>
+<p>默认情况下：</p>
+<p>当最高地址空间的空闲内存超过 128K（可由M_TRIM_THRESHOLD选项调节）时，执行内存紧缩操作（trim）。在上一个步骤free的时候，发现最高地址空闲内存超过128K，于是内存紧缩，变成图6所示。</p>
+</li>
+</ul>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c/">C</a>
+        
+            <a href="/tags/c&#43;&#43;/">C&#43;&#43;</a>
+        
+            <a href="/tags/%E5%86%85%E5%AD%98/">内存</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/eintr---signaled-interrupts-and-slow-system-calls/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">EINTR-信号中断与慢系统调用</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li>
+      <ol>
+        <li><a href="#什么是缺页中断">什么是缺页中断?</a></li>
+        <li><a href="#内存分配的原理">内存分配的原理</a></li>
+        <li><a href="#下面以一个例子来说明内存分配的原理">下面以一个例子来说明内存分配的原理：</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、简要说明 本篇文章主要分析 Abp vNext 当中的模块系统，从类型构造层面上来看，Abp vNext 当中不再只是单纯的通过 AbpModuleManager 来管理其他的模块，它现在则是 IModuleManager 和 IModuleLoader 来协同工作，其他的代码逻辑并无太大变化。
+Abp vNext 规定每个模块必须继承自 IAbpModule 接口，这样 vNext 系统在启动的时候才会扫描到相应的模块。与原来 Abp 框架一样，每个模块可以通过 DependsOnAttribute 特性来确定依赖关系，算法还是使用拓扑排序算法，来根据依赖性确定模块的加载顺序。(从最顶层的模块，依次加载，直到启动模块。)
+'><title>Abp vNext 源码分析 - 2. 模块系统的变化</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/abp-vnext-source-code-analysis---2-changes-in-the-module-system/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp vNext 源码分析 - 2. 模块系统的变化'>
+<meta property='og:description' content='一、简要说明 本篇文章主要分析 Abp vNext 当中的模块系统，从类型构造层面上来看，Abp vNext 当中不再只是单纯的通过 AbpModuleManager 来管理其他的模块，它现在则是 IModuleManager 和 IModuleLoader 来协同工作，其他的代码逻辑并无太大变化。
+Abp vNext 规定每个模块必须继承自 IAbpModule 接口，这样 vNext 系统在启动的时候才会扫描到相应的模块。与原来 Abp 框架一样，每个模块可以通过 DependsOnAttribute 特性来确定依赖关系，算法还是使用拓扑排序算法，来根据依赖性确定模块的加载顺序。(从最顶层的模块，依次加载，直到启动模块。)
+'>
+<meta property='og:url' content='https://real-zony.github.io/p/abp-vnext-source-code-analysis---2-changes-in-the-module-system/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='ABP vNext' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='ASP.NET Core' /><meta property='article:tag' content='ASP.NET Core MVC' /><meta property='article:published_time' content='2019-04-19T02:33:15&#43;00:00'/><meta property='article:modified_time' content='2019-04-19T02:33:15&#43;00:00'/>
+<meta name="twitter:title" content="Abp vNext 源码分析 - 2. 模块系统的变化">
+<meta name="twitter:description" content="一、简要说明 本篇文章主要分析 Abp vNext 当中的模块系统，从类型构造层面上来看，Abp vNext 当中不再只是单纯的通过 AbpModuleManager 来管理其他的模块，它现在则是 IModuleManager 和 IModuleLoader 来协同工作，其他的代码逻辑并无太大变化。
+Abp vNext 规定每个模块必须继承自 IAbpModule 接口，这样 vNext 系统在启动的时候才会扫描到相应的模块。与原来 Abp 框架一样，每个模块可以通过 DependsOnAttribute 特性来确定依赖关系，算法还是使用拓扑排序算法，来根据依赖性确定模块的加载顺序。(从最顶层的模块，依次加载，直到启动模块。)
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-vnext-source-code-analysis---2-changes-in-the-module-system/">Abp vNext 源码分析 - 2. 模块系统的变化</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Apr 19, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 5 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一简要说明">一、简要说明</h2>
+<p>本篇文章主要分析 Abp vNext 当中的模块系统，从类型构造层面上来看，Abp vNext 当中不再只是单纯的通过 <code>AbpModuleManager</code> 来管理其他的模块，它现在则是 <code>IModuleManager</code> 和 <code>IModuleLoader</code> 来协同工作，其他的代码逻辑并无太大变化。</p>
+<p>Abp vNext 规定每个模块必须继承自 <code>IAbpModule</code> 接口，这样 vNext 系统在启动的时候才会扫描到相应的模块。与原来 Abp 框架一样，每个模块可以通过 <code>DependsOnAttribute</code> 特性来确定依赖关系，算法还是使用拓扑排序算法，来根据依赖性确定模块的加载顺序。(从最顶层的模块，依次加载，直到启动模块。)</p>
+<p><img src="/p/abp-vnext-source-code-analysis---2-changes-in-the-module-system/1555576475508.png"
+	width="1308"
+	height="756"
+	srcset="/p/abp-vnext-source-code-analysis---2-changes-in-the-module-system/1555576475508_hu5d6de9c744f197311e431fde2d4146fc_36316_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---2-changes-in-the-module-system/1555576475508_hu5d6de9c744f197311e431fde2d4146fc_36316_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1555576475508"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="173"
+		data-flex-basis="415px"
+	
+></p>
+<p>以我们的 Demo 项目为例，这里通过拓扑排序之后的依赖关系如上图，这样最开始执行的即 <code>AbpDataModule</code> 模块，然后再是 <code>AbpAuditingModule</code> 以此类推，直到我们的启动模块 <code>DemoAppModule</code>。</p>
+<p>在 Abp vNext 当中，所有的组件库/第三方库都是以模块的形式呈现的，模块负责管理整个库的生命周期，包括注册组件，配置组件，销毁组件等。</p>
+<p>在最开始的 Abp 框架当中，一个模块有 4 个生命周期，它们都是在抽象基类 <code>AbpModule</code> 当中定义的，分别是 <strong>预加载</strong>、<strong>初始化</strong>、<strong>初始化完成</strong>、<strong>销毁</strong>。前三个生命周期是依次执行的 预加载-&gt;初始化-&gt;初始化完成，而最后一个销毁动作则是在程序终止的时候，通过 <code>AbpModuleManager</code> 遍历模块，调用其 <code>ShutDown()</code> 方法进行销毁动作。</p>
+<p><img src="/p/abp-vnext-source-code-analysis---2-changes-in-the-module-system/1555577457170.png"
+	width="1303"
+	height="883"
+	srcset="/p/abp-vnext-source-code-analysis---2-changes-in-the-module-system/1555577457170_hu0800c19d570680ca643feb3eff73468d_151845_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---2-changes-in-the-module-system/1555577457170_hu0800c19d570680ca643feb3eff73468d_151845_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1555577457170"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="147"
+		data-flex-basis="354px"
+	
+></p>
+<p>新的 Abp vNext 框架除了原有的四个生命周期以外，还抽象出了 <code>IOnPreApplicationInitialization</code>、<code>IOnApplicationInitialization</code>、<code>IOnPostApplicationInitialization</code>、<code>IOnApplicationShutdown</code>。从名字就可以看出来，新的四个生命周期是基于应用程序级别的，而不是模块级别。</p>
+<p>这是什么意思呢？在 Abp vNext 框架当中，模块按照功能用途划分为两种类型的模块。第一种是 <strong>框架模块</strong>，它是框架的核心模块，比如缓存、EF Core 等基础设施就属于框架模块，其模块的逻辑与处理基本都在传统的三个生命周期进行处理。</p>
+<p>在我们的 <code>services.AddApplication（）</code> 阶段就已经完成所有初始化，可以给 <strong>应用程序模块</strong> 提供服务。</p>
+<p>第二种则是 <strong>应用程序模块</strong>，这种模块则是实现了特定的业务/功能，例如身份管理、租户管理等，而新增加的四个生命周期基本是为这种类型的模块服务的。</p>
+<p>在代码和结构上来说，两者并没有区别，在这里仅仅是按用途进行了一次分类。单就模块系统来说，其基本的作用就类似于一个配置类，配置某种组件的各种参数和一些默认逻辑。</p>
+<h2 id="二源码分析">二、源码分析</h2>
+<h3 id="21-模块系统的基础设施">2.1 模块系统的基础设施</h3>
+<p>模块的初始化动作是在 <code>AbpApplicationBase</code> 基类开始的，在该基类当中除了注入模块相关的基础设施以外。还定义了模块的初始化方法，即 <code>LoadModules()</code> 方法，在该方法内部是调用的 <code>IModuleLoader</code> 去执行具体的加载操作。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">internal</span> <span class="n">AbpApplicationBase</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl"><span class="na">	[NotNull]</span> <span class="n">Type</span> <span class="n">startupModuleType</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"><span class="na">	[NotNull]</span> <span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"><span class="na">	[CanBeNull]</span> <span class="n">Action</span><span class="p">&lt;</span><span class="n">AbpApplicationCreationOptions</span><span class="p">&gt;</span> <span class="n">optionsAction</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="n">startupModuleType</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">startupModuleType</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="n">services</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">services</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 配置当前系统的启动模块，以便按照依赖关系进行查找。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">StartupModuleType</span> <span class="p">=</span> <span class="n">startupModuleType</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Services</span> <span class="p">=</span> <span class="n">services</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">TryAddObjectAccessor</span><span class="p">&lt;</span><span class="n">IServiceProvider</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">options</span> <span class="p">=</span> <span class="k">new</span> <span class="n">AbpApplicationCreationOptions</span><span class="p">(</span><span class="n">services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="n">optionsAction</span><span class="p">?.</span><span class="n">Invoke</span><span class="p">(</span><span class="n">options</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 当前的 Application 就是一个模块容器。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">AddSingleton</span><span class="p">&lt;</span><span class="n">IAbpApplication</span><span class="p">&gt;(</span><span class="k">this</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">AddSingleton</span><span class="p">&lt;</span><span class="n">IModuleContainer</span><span class="p">&gt;(</span><span class="k">this</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">AddCoreServices</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 注入模块加载类，以及模块的四个应用程序生命周期。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">AddCoreAbpServices</span><span class="p">(</span><span class="k">this</span><span class="p">,</span> <span class="n">options</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 遍历所有模块，并按照预加载、初始化、初始化完成的顺序执行其生命周期方法。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Modules</span> <span class="p">=</span> <span class="n">LoadModules</span><span class="p">(</span><span class="n">services</span><span class="p">,</span> <span class="n">options</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">IAbpModuleDescriptor</span><span class="p">&gt;</span> <span class="n">LoadModules</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> <span class="n">AbpApplicationCreationOptions</span> <span class="n">options</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 从 IoC 容器当中得到模块加载器。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">services</span>
+</span></span><span class="line"><span class="cl">		<span class="p">.</span><span class="n">GetSingletonInstance</span><span class="p">&lt;</span><span class="n">IModuleLoader</span><span class="p">&gt;()</span>
+</span></span><span class="line"><span class="cl">		<span class="p">.</span><span class="n">LoadModules</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">			<span class="n">services</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			<span class="n">StartupModuleType</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			<span class="n">options</span><span class="p">.</span><span class="n">PlugInSources</span>
+</span></span><span class="line"><span class="cl">		<span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-模块的初始化">2.2 模块的初始化</h3>
+<p>进入 <code>IModuleLoader</code> 的默认实现 <code>ModuleLoader</code>，在它的 <code>LoadModules()</code> 方法中，基本逻辑如下：</p>
+<ol>
+<li>扫描当前应用程序的所有模块类，并构建模块描述对象。</li>
+<li>基于模块描述对象，使用拓扑排序算法来按照模块的依赖性进行排序。</li>
+<li>排序完成之后，遍历排序完成的模块描述对象，依次执行它们的三个生命周期方法。</li>
+</ol>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">IAbpModuleDescriptor</span><span class="p">[]</span> <span class="n">LoadModules</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Type</span> <span class="n">startupModuleType</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">PlugInSourceList</span> <span class="n">plugInSources</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 验证参数的有效性。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="n">services</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">services</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="n">startupModuleType</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">startupModuleType</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Check</span><span class="p">.</span><span class="n">NotNull</span><span class="p">(</span><span class="n">plugInSources</span><span class="p">,</span> <span class="n">nameof</span><span class="p">(</span><span class="n">plugInSources</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 扫描模块类型，并构建模块描述对象集合。</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">modules</span> <span class="p">=</span> <span class="n">GetDescriptors</span><span class="p">(</span><span class="n">services</span><span class="p">,</span> <span class="n">startupModuleType</span><span class="p">,</span> <span class="n">plugInSources</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 按照模块的依赖性重新排序。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">modules</span> <span class="p">=</span> <span class="n">SortByDependency</span><span class="p">(</span><span class="n">modules</span><span class="p">,</span> <span class="n">startupModuleType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1">// 调用模块的三个生命周期方法。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">ConfigureServices</span><span class="p">(</span><span class="n">modules</span><span class="p">,</span> <span class="n">services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">modules</span><span class="p">.</span><span class="n">ToArray</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在搜索模块类型的时候，是使用的 <code>AbpModuleHelper</code> 工具类提供的 <code>.FindAllModuleTypes()</code> 方法。该方法会将我们的启动模块传入，根据模块上面的 <code>DependsOn()</code> 标签递归构建 <strong>模块描述对象</strong> 的集合。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">IAbpModuleDescriptor</span><span class="p">&gt;</span> <span class="n">GetDescriptors</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">	<span class="n">Type</span> <span class="n">startupModuleType</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">PlugInSourceList</span> <span class="n">plugInSources</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 创建一个空的模块描述对象集合。</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">modules</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">AbpModuleDescriptor</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 按照启动模块，递归构建模块描述对象集合。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">FillModules</span><span class="p">(</span><span class="n">modules</span><span class="p">,</span> <span class="n">services</span><span class="p">,</span> <span class="n">startupModuleType</span><span class="p">,</span> <span class="n">plugInSources</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 设置每个模块的依赖项。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">SetDependencies</span><span class="p">(</span><span class="n">modules</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 返回结果。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">modules</span><span class="p">.</span><span class="n">Cast</span><span class="p">&lt;</span><span class="n">IAbpModuleDescriptor</span><span class="p">&gt;().</span><span class="n">ToList</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">FillModules</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">	<span class="n">List</span><span class="p">&lt;</span><span class="n">AbpModuleDescriptor</span><span class="p">&gt;</span> <span class="n">modules</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Type</span> <span class="n">startupModuleType</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">PlugInSourceList</span> <span class="n">plugInSources</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 调用 AbpModuleHelper 提供的搜索方法。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">moduleType</span> <span class="k">in</span> <span class="n">AbpModuleHelper</span><span class="p">.</span><span class="n">FindAllModuleTypes</span><span class="p">(</span><span class="n">startupModuleType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">modules</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">CreateModuleDescriptor</span><span class="p">(</span><span class="n">services</span><span class="p">,</span> <span class="n">moduleType</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>走进 <code>AbpModuleHelper</code> 静态类，其代码与结构与原有的 Abp 框架类似，首先看下它的 <code>FindAllModuleTypes()</code> 方法，根据启动模块的类型递归查找所有的模块类型，并添加到一个集合当中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;</span> <span class="n">FindAllModuleTypes</span><span class="p">(</span><span class="n">Type</span> <span class="n">startupModuleType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">moduleTypes</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 递归构建模块类型集合。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">AddModuleAndDependenciesResursively</span><span class="p">(</span><span class="n">moduleTypes</span><span class="p">,</span> <span class="n">startupModuleType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">moduleTypes</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">static</span> <span class="k">void</span> <span class="n">AddModuleAndDependenciesResursively</span><span class="p">(</span><span class="n">List</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;</span> <span class="n">moduleTypes</span><span class="p">,</span> <span class="n">Type</span> <span class="n">moduleType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 检测传入的类型是否是模块类。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">AbpModule</span><span class="p">.</span><span class="n">CheckAbpModuleType</span><span class="p">(</span><span class="n">moduleType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 集合已经包含了类型定义，则返回。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">moduleTypes</span><span class="p">.</span><span class="n">Contains</span><span class="p">(</span><span class="n">moduleType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">moduleTypes</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">moduleType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 遍历其 DependsOn 特性定义的类型，递归将其类型添加到集合当中。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">dependedModuleType</span> <span class="k">in</span> <span class="n">FindDependedModuleTypes</span><span class="p">(</span><span class="n">moduleType</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">AddModuleAndDependenciesResursively</span><span class="p">(</span><span class="n">moduleTypes</span><span class="p">,</span> <span class="n">dependedModuleType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">static</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;</span> <span class="n">FindDependedModuleTypes</span><span class="p">(</span><span class="n">Type</span> <span class="n">moduleType</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">AbpModule</span><span class="p">.</span><span class="n">CheckAbpModuleType</span><span class="p">(</span><span class="n">moduleType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">dependencies</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 从传入的类型当中，获得 DependsOn 特性。</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">dependencyDescriptors</span> <span class="p">=</span> <span class="n">moduleType</span>
+</span></span><span class="line"><span class="cl">		<span class="p">.</span><span class="n">GetCustomAttributes</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">		<span class="p">.</span><span class="n">OfType</span><span class="p">&lt;</span><span class="n">IDependedTypesProvider</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 可能有多个特性标签，遍历。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">descriptor</span> <span class="k">in</span> <span class="n">dependencyDescriptors</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 根据特性存储的类型，将其添加到返回结果当中。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">dependedModuleType</span> <span class="k">in</span> <span class="n">descriptor</span><span class="p">.</span><span class="n">GetDependedTypes</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">dependencies</span><span class="p">.</span><span class="n">AddIfNotContains</span><span class="p">(</span><span class="n">dependedModuleType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">dependencies</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>以上操作完成之后，我们就能获得一个平级的模块描述对象集合，我们如果要使用拓扑排序来重新针对这个集合进行排序，就需要知道每个模块的依赖项，根据 <code>IAbpModuleDescriptor</code> 的定义，我们可以看到它有一个 <code>Dependencies</code> 集合来存储它的依赖项。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IAbpModuleDescriptor</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 模块的具体类型。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Type</span> <span class="n">Type</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 模块所在的程序集。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">Assembly</span> <span class="n">Assembly</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 模块的单例实例。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IAbpModule</span> <span class="n">Instance</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 是否是一个插件。</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">bool</span> <span class="n">IsLoadedAsPlugIn</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 依赖的其他模块。</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IReadOnlyList</span><span class="p">&lt;</span><span class="n">IAbpModuleDescriptor</span><span class="p">&gt;</span> <span class="n">Dependencies</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>而 <code>SetDependencies(List&lt;AbpModuleDescriptor&gt; modules)</code> 方法就是来设置每个模块的依赖项的，代码逻辑很简单。遍历之前的平级模块描述对象集合，根据当前模块的类型定义，找到其依赖项的类型定义。根据这个类型定义去平级的模块描述对象集合搜索，将搜索到的结果存储到当前的模块描述对象中的 <code>Dependencies</code> 属性当中。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">SetDependencies</span><span class="p">(</span><span class="n">List</span><span class="p">&lt;</span><span class="n">AbpModuleDescriptor</span><span class="p">&gt;</span> <span class="n">modules</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 遍历整个模块描述对象集合。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">module</span> <span class="k">in</span> <span class="n">modules</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">SetDependencies</span><span class="p">(</span><span class="n">modules</span><span class="p">,</span> <span class="n">module</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">SetDependencies</span><span class="p">(</span><span class="n">List</span><span class="p">&lt;</span><span class="n">AbpModuleDescriptor</span><span class="p">&gt;</span> <span class="n">modules</span><span class="p">,</span> <span class="n">AbpModuleDescriptor</span> <span class="n">module</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 根据当前模块描述对象存储的 Type 类型，获得 DependsOn 标签依赖的类型。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">dependedModuleType</span> <span class="k">in</span> <span class="n">AbpModuleHelper</span><span class="p">.</span><span class="n">FindDependedModuleTypes</span><span class="p">(</span><span class="n">module</span><span class="p">.</span><span class="n">Type</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 在模块描述对象中，按照 Type 类型搜索。</span>
+</span></span><span class="line"><span class="cl">		<span class="kt">var</span> <span class="n">dependedModule</span> <span class="p">=</span> <span class="n">modules</span><span class="p">.</span><span class="n">FirstOrDefault</span><span class="p">(</span><span class="n">m</span> <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="n">Type</span> <span class="p">==</span> <span class="n">dependedModuleType</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">dependedModule</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">throw</span> <span class="k">new</span> <span class="n">AbpException</span><span class="p">(</span><span class="s">&#34;Could not find a depended module &#34;</span> <span class="p">+</span> <span class="n">dependedModuleType</span><span class="p">.</span><span class="n">AssemblyQualifiedName</span> <span class="p">+</span> <span class="s">&#34; for &#34;</span> <span class="p">+</span> <span class="n">module</span><span class="p">.</span><span class="n">Type</span><span class="p">.</span><span class="n">AssemblyQualifiedName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="c1">// 搜索到结果，则添加到当前模块描述对象的 Dependencies 属性。</span>
+</span></span><span class="line"><span class="cl">		<span class="n">module</span><span class="p">.</span><span class="n">AddDependency</span><span class="p">(</span><span class="n">dependedModule</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>最后的拓扑排序就不在赘述，关于拓扑排序的算法，可以在我的 <strong><a class="link" href="https://blog.myzony.com/shi-yong-c-dai-ma-shi-xian-tuo-bu-pai-xu/"  target="_blank" rel="noopener"
+    >这篇</a></strong> 博文当中找到。</p>
+<p>关于模块的最后操作，就是执行模块的三个生命周期方法了，这块代码在 <code>ConfigureServices()</code> 方法当中，没什么特别的的处理，遍历整个模块描述对象集合，依次执行几个方法就完了。</p>
+<p>只是在这里的生命周期方法与之前的不一样了，这里会为每个方法传入一个服务上下文对象，主要是可以通过 <code>IServiceCollection</code> 来配置各个模块的参数，而不是原来的 <code>Configuration</code> 属性。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">ConfigureServices</span><span class="p">(</span><span class="n">List</span><span class="p">&lt;</span><span class="n">IAbpModuleDescriptor</span><span class="p">&gt;</span> <span class="n">modules</span><span class="p">,</span> <span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 构造一个服务上下文，并将其添加到 IoC 容器当中。</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">var</span> <span class="n">context</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ServiceConfigurationContext</span><span class="p">(</span><span class="n">services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">AddSingleton</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">module</span> <span class="k">in</span> <span class="n">modules</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">module</span><span class="p">.</span><span class="n">Instance</span> <span class="k">is</span> <span class="n">AbpModule</span> <span class="n">abpModule</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">abpModule</span><span class="p">.</span><span class="n">ServiceConfigurationContext</span> <span class="p">=</span> <span class="n">context</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 执行预加载方法 PreConfigureServices。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">module</span> <span class="k">in</span> <span class="n">modules</span><span class="p">.</span><span class="n">Where</span><span class="p">(</span><span class="n">m</span> <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="n">Instance</span> <span class="k">is</span> <span class="n">IPreConfigureServices</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="p">((</span><span class="n">IPreConfigureServices</span><span class="p">)</span><span class="n">module</span><span class="p">.</span><span class="n">Instance</span><span class="p">).</span><span class="n">PreConfigureServices</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 执行初始化方法 ConfigureServices。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">module</span> <span class="k">in</span> <span class="n">modules</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">module</span><span class="p">.</span><span class="n">Instance</span> <span class="k">is</span> <span class="n">AbpModule</span> <span class="n">abpModule</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(!</span><span class="n">abpModule</span><span class="p">.</span><span class="n">SkipAutoServiceRegistration</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="n">services</span><span class="p">.</span><span class="n">AddAssembly</span><span class="p">(</span><span class="n">module</span><span class="p">.</span><span class="n">Type</span><span class="p">.</span><span class="n">Assembly</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">		<span class="n">module</span><span class="p">.</span><span class="n">Instance</span><span class="p">.</span><span class="n">ConfigureServices</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 执行初始化完成方法 PostConfigureServices。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">module</span> <span class="k">in</span> <span class="n">modules</span><span class="p">.</span><span class="n">Where</span><span class="p">(</span><span class="n">m</span> <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="n">Instance</span> <span class="k">is</span> <span class="n">IPostConfigureServices</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="p">((</span><span class="n">IPostConfigureServices</span><span class="p">)</span><span class="n">module</span><span class="p">.</span><span class="n">Instance</span><span class="p">).</span><span class="n">PostConfigureServices</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 将服务上下文置为 NULL。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">module</span> <span class="k">in</span> <span class="n">modules</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">module</span><span class="p">.</span><span class="n">Instance</span> <span class="k">is</span> <span class="n">AbpModule</span> <span class="n">abpModule</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">abpModule</span><span class="p">.</span><span class="n">ServiceConfigurationContext</span> <span class="p">=</span> <span class="k">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>以上动作都是在 <code>Startup</code> 类当中的 <code>ConfigureService()</code> 方法中执行，你可能会奇怪，剩下的四个应用程序生命周期的方法在哪儿执行的呢？</p>
+<p>这几个方法是被抽象成了 <code>IModuleLifecycleContributor</code> 类型，在前面的 <code>AddCoreAbpService()</code> 方法的内部就被添加到了配置项里面。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">internal</span> <span class="k">static</span> <span class="k">void</span> <span class="n">AddCoreAbpServices</span><span class="p">(</span><span class="k">this</span> <span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IAbpApplication</span> <span class="n">abpApplication</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">	<span class="n">AbpApplicationCreationOptions</span> <span class="n">applicationCreationOptions</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="n">services</span><span class="p">.</span><span class="n">Configure</span><span class="p">&lt;</span><span class="n">ModuleLifecycleOptions</span><span class="p">&gt;(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">options</span><span class="p">.</span><span class="n">Contributors</span><span class="p">.</span><span class="n">Add</span><span class="p">&lt;</span><span class="n">OnPreApplicationInitializationModuleLifecycleContributor</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">options</span><span class="p">.</span><span class="n">Contributors</span><span class="p">.</span><span class="n">Add</span><span class="p">&lt;</span><span class="n">OnApplicationInitializationModuleLifecycleContributor</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">options</span><span class="p">.</span><span class="n">Contributors</span><span class="p">.</span><span class="n">Add</span><span class="p">&lt;</span><span class="n">OnPostApplicationInitializationModuleLifecycleContributor</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">		<span class="n">options</span><span class="p">.</span><span class="n">Contributors</span><span class="p">.</span><span class="n">Add</span><span class="p">&lt;</span><span class="n">OnApplicationShutdownModuleLifecycleContributor</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">	<span class="p">});</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>执行的话，则是在 <code>Startup</code> 类的 <code>Configure()</code> 方法当中，它会调用 <code>AbpApplicationBase</code> 基类的 <code>InitializeModules()</code> 方法，在该方法内部也是遍历所有的 <code>Contributor</code> (生命周期)，再将所有的模块对应的方法调用一次而已。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">InitializeModules</span><span class="p">(</span><span class="n">ApplicationInitializationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">LogListOfModules</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 遍历应用程序的几个生命周期。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">Contributor</span> <span class="k">in</span> <span class="n">_lifecycleContributors</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 遍历所有的模块，将模块实例传入具体的 Contributor，方便在其内部调用具体的生命周期方法。</span>
+</span></span><span class="line"><span class="cl">		<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">module</span> <span class="k">in</span> <span class="n">_moduleContainer</span><span class="p">.</span><span class="n">Modules</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">Contributor</span><span class="p">.</span><span class="n">Initialize</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">module</span><span class="p">.</span><span class="n">Instance</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">_logger</span><span class="p">.</span><span class="n">LogInformation</span><span class="p">(</span><span class="s">&#34;Initialized all modules.&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里操作可能有点看不懂，不是说调用模块的生命周期方法么，为啥还将实例传递给 Contributor 呢？我们找到一个 Contributor 的定义就知道了。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">OnApplicationInitializationModuleLifecycleContributor</span> <span class="p">:</span> <span class="n">ModuleLifecycleContributorBase</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">Initialize</span><span class="p">(</span><span class="n">ApplicationInitializationContext</span> <span class="n">context</span><span class="p">,</span> <span class="n">IAbpModule</span> <span class="n">module</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 使用模块实例转换为 IOnApplicationInitialization 对象，调用其生命周期方法。</span>
+</span></span><span class="line"><span class="cl">		<span class="p">(</span><span class="n">module</span> <span class="k">as</span> <span class="n">IOnApplicationInitialization</span><span class="p">)?.</span><span class="n">OnApplicationInitialization</span><span class="p">(</span><span class="n">context</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里我认为 Abp vNext 把 Contributor 抽象出来可能是为了后面方便扩展吧，如果你也有自己的看法不妨在评论区留言。</p>
+<h2 id="三总结">三、总结</h2>
+<p>至此，整个模块系统的解析就结束了，如果看过 Abp 框架源码解析的朋友就可以很明显的感觉到，新框架的模块系统除了生命周期多了几个以外，其他的变化很少，基本没太大的变化。</p>
+<p>在 Abp vNext 框架里面，模块系统是整个框架的基石，了解了模块系统以后，对于剩下的设计就很好理解了。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/abp-vnext/">ABP vNext</a>
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/asp.net-core/">ASP.NET Core</a>
+        
+            <a href="/tags/asp.net-core-mvc/">ASP.NET Core MVC</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-multi-tenancy/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 多租户</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一简要说明">一、简要说明</a></li>
+    <li><a href="#二源码分析">二、源码分析</a>
+      <ol>
+        <li><a href="#21-模块系统的基础设施">2.1 模块系统的基础设施</a></li>
+        <li><a href="#22-模块的初始化">2.2 模块的初始化</a></li>
+      </ol>
+    </li>
+    <li><a href="#三总结">三、总结</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

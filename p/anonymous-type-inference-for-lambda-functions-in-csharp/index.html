@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='举个栗子：
+1 2 3 4 5 6 7 8 9 10 delegate T MyFunc&amp;lt;T&amp;gt;(); static void WriteResult&amp;lt;T&amp;gt;(MyFunc&amp;lt;T&amp;gt; function) { Console.WritleLine(function()); } ... WriteResult(delegate { return 5; }); 在C#2.0当中以上代码会报错，因为C#2的类型推断是单独针对每一个实参来进行的，从一个实参推断出的类型无法直接用于另外一个实参。在本例当中，function的输入值是T，返回值也是T，C#2.0的简单规则似乎无法为我们解决问题。 这个时候有两种解决办法：
+1 2 WriteResult&amp;lt;int&amp;gt;(delegate { return 5; }); // 显示指定类型实参 WriteResult((MyFunc&amp;lt;int&amp;gt;)delegate { return 5; }); // 将匿名委托强制转换为具体的委托类型，而不是泛型委托 而C#3则做了更为精致的工作，他能够像处理隐式类型数组一样来处理匿名委托的返回类型。
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 delegate T MyFunc&amp;lt;T&amp;gt;(); static void WriteResult&amp;lt;T&amp;gt;(MyFunc&amp;lt;T&amp;gt; function) { Console.'><title>C# 当中 Lambda 函数的匿名类型推断</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/anonymous-type-inference-for-lambda-functions-in-csharp/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='C# 当中 Lambda 函数的匿名类型推断'>
+<meta property='og:description' content='举个栗子：
+1 2 3 4 5 6 7 8 9 10 delegate T MyFunc&amp;lt;T&amp;gt;(); static void WriteResult&amp;lt;T&amp;gt;(MyFunc&amp;lt;T&amp;gt; function) { Console.WritleLine(function()); } ... WriteResult(delegate { return 5; }); 在C#2.0当中以上代码会报错，因为C#2的类型推断是单独针对每一个实参来进行的，从一个实参推断出的类型无法直接用于另外一个实参。在本例当中，function的输入值是T，返回值也是T，C#2.0的简单规则似乎无法为我们解决问题。 这个时候有两种解决办法：
+1 2 WriteResult&amp;lt;int&amp;gt;(delegate { return 5; }); // 显示指定类型实参 WriteResult((MyFunc&amp;lt;int&amp;gt;)delegate { return 5; }); // 将匿名委托强制转换为具体的委托类型，而不是泛型委托 而C#3则做了更为精致的工作，他能够像处理隐式类型数组一样来处理匿名委托的返回类型。
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 delegate T MyFunc&amp;lt;T&amp;gt;(); static void WriteResult&amp;lt;T&amp;gt;(MyFunc&amp;lt;T&amp;gt; function) { Console.'>
+<meta property='og:url' content='https://real-zony.github.io/p/anonymous-type-inference-for-lambda-functions-in-csharp/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='Lambda' /><meta property='article:published_time' content='2017-04-12T14:02:00&#43;00:00'/><meta property='article:modified_time' content='2017-04-12T14:02:00&#43;00:00'/>
+<meta name="twitter:title" content="C# 当中 Lambda 函数的匿名类型推断">
+<meta name="twitter:description" content="举个栗子：
+1 2 3 4 5 6 7 8 9 10 delegate T MyFunc&amp;lt;T&amp;gt;(); static void WriteResult&amp;lt;T&amp;gt;(MyFunc&amp;lt;T&amp;gt; function) { Console.WritleLine(function()); } ... WriteResult(delegate { return 5; }); 在C#2.0当中以上代码会报错，因为C#2的类型推断是单独针对每一个实参来进行的，从一个实参推断出的类型无法直接用于另外一个实参。在本例当中，function的输入值是T，返回值也是T，C#2.0的简单规则似乎无法为我们解决问题。 这个时候有两种解决办法：
+1 2 WriteResult&amp;lt;int&amp;gt;(delegate { return 5; }); // 显示指定类型实参 WriteResult((MyFunc&amp;lt;int&amp;gt;)delegate { return 5; }); // 将匿名委托强制转换为具体的委托类型，而不是泛型委托 而C#3则做了更为精致的工作，他能够像处理隐式类型数组一样来处理匿名委托的返回类型。
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 delegate T MyFunc&amp;lt;T&amp;gt;(); static void WriteResult&amp;lt;T&amp;gt;(MyFunc&amp;lt;T&amp;gt; function) { Console.">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/anonymous-type-inference-for-lambda-functions-in-csharp/">C# 当中 Lambda 函数的匿名类型推断</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Apr 12, 2017</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 1 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <p>举个栗子：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">delegate</span> <span class="n">T</span> <span class="n">MyFunc</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="k">void</span> <span class="n">WriteResult</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;(</span><span class="n">MyFunc</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span> <span class="n">function</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Console</span><span class="p">.</span><span class="n">WritleLine</span><span class="p">(</span><span class="n">function</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="p">...</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">WriteResult</span><span class="p">(</span><span class="k">delegate</span> <span class="p">{</span> <span class="k">return</span> <span class="m">5</span><span class="p">;</span> <span class="p">});</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在C#2.0当中以上代码会报错，因为C#2的类型推断是单独针对每一个实参来进行的，从一个实参推断出的类型无法直接用于另外一个实参。在本例当中，function的输入值是T，返回值也是T，C#2.0的简单规则似乎无法为我们解决问题。
+这个时候有两种解决办法：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">WriteResult</span><span class="p">&lt;</span><span class="kt">int</span><span class="p">&gt;(</span><span class="k">delegate</span> <span class="p">{</span> <span class="k">return</span> <span class="m">5</span><span class="p">;</span> <span class="p">});</span> <span class="c1">// 显示指定类型实参</span>
+</span></span><span class="line"><span class="cl"><span class="n">WriteResult</span><span class="p">((</span><span class="n">MyFunc</span><span class="p">&lt;</span><span class="kt">int</span><span class="p">&gt;)</span><span class="k">delegate</span> <span class="p">{</span> <span class="k">return</span> <span class="m">5</span><span class="p">;</span> <span class="p">});</span> <span class="c1">// 将匿名委托强制转换为具体的委托类型，而不是泛型委托</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>而C#3则做了更为精致的工作，他能够像处理隐式类型数组一样来处理匿名委托的返回类型。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">delegate</span> <span class="n">T</span> <span class="n">MyFunc</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="k">void</span> <span class="n">WriteResult</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;(</span><span class="n">MyFunc</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span> <span class="n">function</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">   <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="n">function</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">WriteResult</span><span class="p">(</span><span class="k">delegate</span> 
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">   <span class="k">if</span><span class="p">(</span><span class="n">DateTime</span><span class="p">.</span><span class="n">Now</span><span class="p">.</span><span class="n">Hour</span> <span class="p">&lt;</span> <span class="m">12</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">   <span class="p">{</span>
+</span></span><span class="line"><span class="cl">       <span class="k">return</span> <span class="m">10</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">   <span class="p">}</span><span class="k">else</span>
+</span></span><span class="line"><span class="cl">   <span class="p">{</span>
+</span></span><span class="line"><span class="cl">       <span class="k">return</span> <span class="k">new</span> <span class="kt">object</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">   <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">});</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这个时候编译器会构建一个集合，包含了匿名委托当中return 当中的所有返回类型，并且检查这个集合当中所有的类型都能够隐式转换为其中一个类型。在上面的例子当中，则是int和object，int-&gt;object通过装箱会存在一个隐式类型转换，而object到int则不可能，所以Object被推断为这个匿名委托的返回类型。</p>
+<p>辣么，我们下一个例子更加复杂的解释了两个非固定的变量如何被成功推断出来的：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">static</span> <span class="k">void</span> <span class="n">PrintConvertedValue</span><span class="p">&lt;</span><span class="n">TInput</span><span class="p">,</span><span class="n">TOutput</span><span class="p">&gt;(</span><span class="n">TInput</span> <span class="n">input</span><span class="p">,</span><span class="n">Converter</span><span class="p">&lt;</span><span class="n">TInput</span><span class="p">,</span><span class="n">TOutput</span><span class="p">&gt;</span> <span class="n">converter</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">   <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="n">convertrt</span><span class="p">(</span><span class="n">input</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">...</span>
+</span></span><span class="line"><span class="cl"><span class="n">PrintConverter</span><span class="p">(</span><span class="s">&#34;I am a string.&#34;</span><span class="p">,</span><span class="n">x</span><span class="p">=&gt;</span><span class="n">x</span><span class="p">.</span><span class="n">Length</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>以上代码需要经过一下几步推断：
+1.第一个参数是TInput类型，实参传递的是string类型，辣么我们可以推断出TOutput肯定存在到TInput的转换。
+2.第二个参数是Converter&lt;TInput,TOutput&gt;类型，第二个实参则是一个饮食类型的Lambda表达式，此时不进行任何推断。
+3.TInput不依赖任何非固定类型参数，所以被确定为string类型。
+4.第二个实参现在有一个固定的输入类型，但是有一个非固定的输出类型，即<code>(string x)=&gt;x.Length</code>，并推断出其返回类型为int，因此int到TOutput必定会发生一个饮食类型转换。
+直到没有推断出非固定类型为止。</p>
+<p>辣么我们再来看一个更加复杂的例子：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">static</span> <span class="k">void</span> <span class="n">ConvertTwice</span><span class="p">&lt;</span><span class="n">TInput</span><span class="p">,</span><span class="n">TMiddle</span><span class="p">,</span><span class="n">TOutput</span><span class="p">&gt;(</span><span class="n">TInput</span> <span class="n">input</span><span class="p">,</span><span class="n">Converter</span><span class="p">&lt;</span><span class="n">TInput</span><span class="p">,</span><span class="n">TMiddle</span><span class="p">&gt;</span> <span class="n">firstConversion</span><span class="p">,</span><span class="n">Converter</span><span class="p">&lt;</span><span class="n">TMiddle</span><span class="p">,</span><span class="n">TOutput</span><span class="p">&gt;</span> <span class="n">secondConversion</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">   <span class="n">TMiddle</span> <span class="n">middle</span> <span class="p">=</span> <span class="n">firstConverstion</span><span class="p">(</span><span class="n">input</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">   <span class="n">TOutput</span> <span class="n">output</span> <span class="p">=</span> <span class="n">secondConversion</span><span class="p">(</span><span class="n">middle</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">   <span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="n">output</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">...</span>
+</span></span><span class="line"><span class="cl"><span class="n">ConvertTwice</span><span class="p">(</span><span class="s">&#34;Another string&#34;</span><span class="p">,</span><span class="n">text</span><span class="p">=&gt;</span><span class="n">text</span><span class="p">.</span><span class="n">Length</span><span class="p">,</span><span class="n">lenght</span><span class="p">=&gt;</span><span class="n">Math</span><span class="p">.</span><span class="n">Sqrt</span><span class="p">(</span><span class="n">lenght</span><span class="p">));</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>乍看一下十分复杂，其实很简单，我们这个函数获取一个字符串，并计算出它的长度，将这个长度进行求平方根操作。
+无非都是根据string这个固定变量逐步推断出TMiddle与TOutput的类型。</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/lambda/">Lambda</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/general-usage-of-linq-in-csharp-lambda-method/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">C# 当中 LINQ 的常规用法 (Lambda 方式)</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

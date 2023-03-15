@@ -1,0 +1,1742 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='0.简介 Abp 框架为我们自带了审计日志功能，审计日志可以方便地查看每次请求接口所耗的时间，能够帮助我们快速定位到某些性能有问题的接口。除此之外，审计日志信息还包含有每次调用接口时客户端请求的参数信息，客户端的 IP 与客户端使用的浏览器。有了这些数据之后，我们就可以很方便地复现接口产生 BUG 时的一些环境信息。
+当然如果你脑洞更大的话，可以根据这些数据来开发一个可视化的图形界面，方便开发与测试人员来快速定位问题。
+PS:
+如果使用了 Abp.Zero 模块则自带的审计记录实现是存储到数据库当中的，但是在使用 EF Core &#43; MySQL(EF Provider 为 Pomelo.EntityFrameworkCore.MySql) 在高并发的情况下会有数据库连接超时的问题，这块推荐是重写实现，自己采用 Redis 或者其他存储方式。
+如果需要禁用审计日志功能，则需要在任意模块的预加载方法(PreInitialize()) 当中增加如下代码关闭审计日志功能。
+1 2 3 4 5 6 7 8 public class XXXStartupModule { public override PreInitialize() { // 禁用审计日志 Configuration.Auditing.IsEnabled = false; } } '><title>Abp 源码分析：十五、自动审计记录</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/abp-source-code-analysis-15-automatic-audit-records/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp 源码分析：十五、自动审计记录'>
+<meta property='og:description' content='0.简介 Abp 框架为我们自带了审计日志功能，审计日志可以方便地查看每次请求接口所耗的时间，能够帮助我们快速定位到某些性能有问题的接口。除此之外，审计日志信息还包含有每次调用接口时客户端请求的参数信息，客户端的 IP 与客户端使用的浏览器。有了这些数据之后，我们就可以很方便地复现接口产生 BUG 时的一些环境信息。
+当然如果你脑洞更大的话，可以根据这些数据来开发一个可视化的图形界面，方便开发与测试人员来快速定位问题。
+PS:
+如果使用了 Abp.Zero 模块则自带的审计记录实现是存储到数据库当中的，但是在使用 EF Core &#43; MySQL(EF Provider 为 Pomelo.EntityFrameworkCore.MySql) 在高并发的情况下会有数据库连接超时的问题，这块推荐是重写实现，自己采用 Redis 或者其他存储方式。
+如果需要禁用审计日志功能，则需要在任意模块的预加载方法(PreInitialize()) 当中增加如下代码关闭审计日志功能。
+1 2 3 4 5 6 7 8 public class XXXStartupModule { public override PreInitialize() { // 禁用审计日志 Configuration.Auditing.IsEnabled = false; } } '>
+<meta property='og:url' content='https://real-zony.github.io/p/abp-source-code-analysis-15-automatic-audit-records/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='AspNetBoilerplate' /><meta property='article:tag' content='性能分析' /><meta property='article:published_time' content='2018-09-29T09:12:11&#43;00:00'/><meta property='article:modified_time' content='2018-09-29T09:12:11&#43;00:00'/>
+<meta name="twitter:title" content="Abp 源码分析：十五、自动审计记录">
+<meta name="twitter:description" content="0.简介 Abp 框架为我们自带了审计日志功能，审计日志可以方便地查看每次请求接口所耗的时间，能够帮助我们快速定位到某些性能有问题的接口。除此之外，审计日志信息还包含有每次调用接口时客户端请求的参数信息，客户端的 IP 与客户端使用的浏览器。有了这些数据之后，我们就可以很方便地复现接口产生 BUG 时的一些环境信息。
+当然如果你脑洞更大的话，可以根据这些数据来开发一个可视化的图形界面，方便开发与测试人员来快速定位问题。
+PS:
+如果使用了 Abp.Zero 模块则自带的审计记录实现是存储到数据库当中的，但是在使用 EF Core &#43; MySQL(EF Provider 为 Pomelo.EntityFrameworkCore.MySql) 在高并发的情况下会有数据库连接超时的问题，这块推荐是重写实现，自己采用 Redis 或者其他存储方式。
+如果需要禁用审计日志功能，则需要在任意模块的预加载方法(PreInitialize()) 当中增加如下代码关闭审计日志功能。
+1 2 3 4 5 6 7 8 public class XXXStartupModule { public override PreInitialize() { // 禁用审计日志 Configuration.Auditing.IsEnabled = false; } } ">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-source-code-analysis-15-automatic-audit-records/">Abp 源码分析：十五、自动审计记录</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Sep 29, 2018</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 8 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="0简介">0.简介</h2>
+<p>Abp 框架为我们自带了审计日志功能，审计日志可以方便地查看每次请求接口所耗的时间，能够帮助我们快速定位到某些性能有问题的接口。除此之外，审计日志信息还包含有每次调用接口时客户端请求的参数信息，客户端的 IP 与客户端使用的浏览器。有了这些数据之后，我们就可以很方便地复现接口产生 BUG 时的一些环境信息。</p>
+<p>当然如果你脑洞更大的话，可以根据这些数据来开发一个可视化的图形界面，方便开发与测试人员来快速定位问题。</p>
+<blockquote>
+<p><strong>PS:</strong></p>
+<p><strong>如果使用了 Abp.Zero 模块则自带的审计记录实现是存储到数据库当中的，但是在使用 EF Core + MySQL(EF Provider 为 Pomelo.EntityFrameworkCore.MySql) 在高并发的情况下会有数据库连接超时的问题，这块推荐是重写实现，自己采用 Redis 或者其他存储方式。</strong></p>
+</blockquote>
+<p>如果需要禁用审计日志功能，则需要在任意模块的预加载方法(<code>PreInitialize()</code>) 当中增加如下代码关闭审计日志功能。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">XXXStartupModule</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="n">PreInitialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 禁用审计日志</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Configuration</span><span class="p">.</span><span class="n">Auditing</span><span class="p">.</span><span class="n">IsEnabled</span> <span class="p">=</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="1启动流程">1.启动流程</h2>
+<p>审计组件与参数校验组件一样，都是通过 MVC 过滤器与 Castle 拦截器来实现记录的。也就是说，在每次调用接口/方法时都会进入 过滤器/拦截器 并将其写入到数据库表 <code>AbpAuditLogs</code> 当中。</p>
+<p>其核心思想十分简单，就是在执行具体接口方法的时候，先使用 StopWatch 对象来记录执行完一个方法所需要的时间，并且还能够通过 <code>HttpContext</code> 来获取到一些客户端的关键信息。</p>
+<p><img src="/p/abp-source-code-analysis-15-automatic-audit-records/Img1.png"
+	width="902"
+	height="445"
+	srcset="/p/abp-source-code-analysis-15-automatic-audit-records/Img1_hu8e0f19fdcd508a919b8e57733ca0fcdf_24256_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-15-automatic-audit-records/Img1_hu8e0f19fdcd508a919b8e57733ca0fcdf_24256_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="Img1"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="202"
+		data-flex-basis="486px"
+	
+></p>
+<h3 id="21-过滤器注入">2.1 过滤器注入</h3>
+<p>同上一篇文章所讲的一样，过滤器是在 <code>AddAbp()</code> 方法内部的 <code>ConfigureAspNetCore()</code> 方法注入的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">private</span> <span class="k">static</span> <span class="k">void</span> <span class="n">ConfigureAspNetCore</span><span class="p">(</span><span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">,</span> <span class="n">IIocResolver</span> <span class="n">iocResolver</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">//Configure MVC</span>
+</span></span><span class="line"><span class="cl">    <span class="n">services</span><span class="p">.</span><span class="n">Configure</span><span class="p">&lt;</span><span class="n">MvcOptions</span><span class="p">&gt;(</span><span class="n">mvcOptions</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">mvcOptions</span><span class="p">.</span><span class="n">AddAbp</span><span class="p">(</span><span class="n">services</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">});</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>而下面就是过滤器的注入方法：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">internal</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">AbpMvcOptionsExtensions</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">void</span> <span class="n">AddAbp</span><span class="p">(</span><span class="k">this</span> <span class="n">MvcOptions</span> <span class="n">options</span><span class="p">,</span> <span class="n">IServiceCollection</span> <span class="n">services</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AddFilters</span><span class="p">(</span><span class="n">options</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">static</span> <span class="k">void</span> <span class="n">AddFilters</span><span class="p">(</span><span class="n">MvcOptions</span> <span class="n">options</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// ... 其他过滤器注入</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="c1">// 注入审计日志过滤器</span>
+</span></span><span class="line"><span class="cl">        <span class="n">options</span><span class="p">.</span><span class="n">Filters</span><span class="p">.</span><span class="n">AddService</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AbpAuditActionFilter</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="c1">// ... 其他过滤器注入</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-拦截器注入">2.2 拦截器注入</h3>
+<p>注入拦截器的地方与 DTO 自动验证的拦截器的位置一样，都是在 <code>AbpBootstrapper</code> 对象被构造的时候进行注册。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpBootstrapper</span> <span class="p">:</span> <span class="n">IDisposable</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="n">AbpBootstrapper</span><span class="p">([</span><span class="n">NotNull</span><span class="p">]</span> <span class="n">Type</span> <span class="n">startupModule</span><span class="p">,</span> <span class="p">[</span><span class="n">CanBeNull</span><span class="p">]</span> <span class="n">Action</span><span class="p">&lt;</span><span class="n">AbpBootstrapperOptions</span><span class="p">&gt;</span> <span class="n">optionsAction</span> <span class="p">=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(!</span><span class="n">options</span><span class="p">.</span><span class="n">DisableAllInterceptors</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">AddInterceptorRegistrars</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 添加各种拦截器</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">void</span> <span class="n">AddInterceptorRegistrars</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ValidationInterceptorRegistrar</span><span class="p">.</span><span class="n">Initialize</span><span class="p">(</span><span class="n">IocManager</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AuditingInterceptorRegistrar</span><span class="p">.</span><span class="n">Initialize</span><span class="p">(</span><span class="n">IocManager</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">EntityHistoryInterceptorRegistrar</span><span class="p">.</span><span class="n">Initialize</span><span class="p">(</span><span class="n">IocManager</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">UnitOfWorkRegistrar</span><span class="p">.</span><span class="n">Initialize</span><span class="p">(</span><span class="n">IocManager</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AuthorizationInterceptorRegistrar</span><span class="p">.</span><span class="n">Initialize</span><span class="p">(</span><span class="n">IocManager</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>转到 <code>AuditingInterceptorRegistrar</code> 的具体实现可以发现，他在内部针对于审计日志拦截器的注入是区分了类型的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">internal</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">AuditingInterceptorRegistrar</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">static</span> <span class="k">void</span> <span class="n">Initialize</span><span class="p">(</span><span class="n">IIocManager</span> <span class="n">iocManager</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">iocManager</span><span class="p">.</span><span class="n">IocContainer</span><span class="p">.</span><span class="n">Kernel</span><span class="p">.</span><span class="n">ComponentRegistered</span> <span class="p">+=</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">handler</span><span class="p">)</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 如果审计日志配置类没有被注入，则直接跳过</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(!</span><span class="n">iocManager</span><span class="p">.</span><span class="n">IsRegistered</span><span class="p">&lt;</span><span class="n">IAuditingConfiguration</span><span class="p">&gt;())</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">auditingConfiguration</span> <span class="p">=</span> <span class="n">iocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IAuditingConfiguration</span><span class="p">&gt;();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="c1">// 判断当前 DI 所注入的类型是否应该为其绑定审计日志拦截器</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">ShouldIntercept</span><span class="p">(</span><span class="n">auditingConfiguration</span><span class="p">,</span> <span class="n">handler</span><span class="p">.</span><span class="n">ComponentModel</span><span class="p">.</span><span class="n">Implementation</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">handler</span><span class="p">.</span><span class="n">ComponentModel</span><span class="p">.</span><span class="n">Interceptors</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="k">new</span> <span class="n">InterceptorReference</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AuditingInterceptor</span><span class="p">)));</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">};</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// 本方法主要用于判断当前类型是否符合绑定拦截器的条件</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">static</span> <span class="kt">bool</span> <span class="n">ShouldIntercept</span><span class="p">(</span><span class="n">IAuditingConfiguration</span> <span class="n">auditingConfiguration</span><span class="p">,</span> <span class="n">Type</span> <span class="n">type</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 首先判断当前类型是否在配置类的注册类型之中，如果是，则进行拦截器绑定</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">auditingConfiguration</span><span class="p">.</span><span class="n">Selectors</span><span class="p">.</span><span class="n">Any</span><span class="p">(</span><span class="n">selector</span> <span class="p">=&gt;</span> <span class="n">selector</span><span class="p">.</span><span class="n">Predicate</span><span class="p">(</span><span class="n">type</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 当前类型如果拥有 Audited 特性，则进行拦截器绑定</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">type</span><span class="p">.</span><span class="n">GetTypeInfo</span><span class="p">().</span><span class="n">IsDefined</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AuditedAttribute</span><span class="p">),</span> <span class="k">true</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 如果当前类型内部的所有方法当中有一个方法拥有 Audited 特性，则进行拦截器绑定</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">type</span><span class="p">.</span><span class="n">GetMethods</span><span class="p">().</span><span class="n">Any</span><span class="p">(</span><span class="n">m</span> <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="n">IsDefined</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AuditedAttribute</span><span class="p">),</span> <span class="k">true</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 都不满足则返回 false,不对当前类型进行绑定</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到在判断是否绑定拦截器的时候，Abp 使用了 <code>auditingConfiguration.Selectors</code> 的属性来进行判断，那么默认 Abp 为我们添加了哪些类型是必定有审计日志的呢？</p>
+<p>通过代码追踪，我们来到了 <code>AbpKernalModule</code> 类的内部，在其预加载方法里面有一个 <code>AddAuditingSelectors()</code> 的方法，该方法的作用就是添加了一个针对于应用服务类型的一个选择器对象。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">sealed</span> <span class="k">class</span> <span class="nc">AbpKernelModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">PreInitialize</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">AddAuditingSelectors</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">void</span> <span class="n">AddAuditingSelectors</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Configuration</span><span class="p">.</span><span class="n">Auditing</span><span class="p">.</span><span class="n">Selectors</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="k">new</span> <span class="n">NamedTypeSelector</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="s">&#34;Abp.ApplicationServices&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">type</span> <span class="p">=&gt;</span> <span class="k">typeof</span><span class="p">(</span><span class="n">IApplicationService</span><span class="p">).</span><span class="n">IsAssignableFrom</span><span class="p">(</span><span class="n">type</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>我们先看一下 <code>NamedTypeSelector</code> 的一个作用是什么，其基本类型定义由一个 <code>string</code> 和 <code>Func&lt;Type, bool&gt;</code> 组成，十分简单，重点就出在这个断言委托上面。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">NamedTypeSelector</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 选择器名称</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="kt">string</span> <span class="n">Name</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// 断言委托</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">Func</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">,</span> <span class="kt">bool</span><span class="p">&gt;</span> <span class="n">Predicate</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">NamedTypeSelector</span><span class="p">(</span><span class="kt">string</span> <span class="n">name</span><span class="p">,</span> <span class="n">Func</span><span class="p">&lt;</span><span class="n">Type</span><span class="p">,</span> <span class="kt">bool</span><span class="p">&gt;</span> <span class="n">predicate</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Name</span> <span class="p">=</span> <span class="n">name</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Predicate</span> <span class="p">=</span> <span class="n">predicate</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>回到最开始的地方，当 Abp 为 Selectors 添加了一个名字为 &ldquo;Abp.ApplicationServices&rdquo; 的类型选择器。其断言委托的大体意思就是传入的 **type ** 参数是继承自 <code>IApplicationService</code> 接口的话，则返回 <code>true</code>,否则返回 <code>false</code>。</p>
+<p>这样在程序启动的时候，首先注入类型的时候，会首先进入上文所述的拦截器绑定类当中，这个时候会使用 Selectors 内部的类型选择器来调用这个集合内部的断言委托，只要这些选择器对象有一个返回 <code>true</code>,那么就直接与当前注入的 type 绑定拦截器。</p>
+<h2 id="2代码分析">2.代码分析</h2>
+<h3 id="21-过滤器代码分析">2.1 过滤器代码分析</h3>
+<p>首先查看这个过滤器的整体类型结构，一个标准的过滤器，肯定要实现 <code>IAsyncActionFilter</code> 接口。从下面的代码我们可以看到其注入了 <code>IAbpAspNetCoreConfiguration</code> 和一个 <code>IAuditingHelper</code> 对象。这两个对象的作用分别是判断是否记录日志，另一个则是用来真正写入日志所使用的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpAuditActionFilter</span> <span class="p">:</span> <span class="n">IAsyncActionFilter</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 审计日志组件配置对象</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IAbpAspNetCoreConfiguration</span> <span class="n">_configuration</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 真正用来写入审计日志的工具类</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IAuditingHelper</span> <span class="n">_auditingHelper</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">AbpAuditActionFilter</span><span class="p">(</span><span class="n">IAbpAspNetCoreConfiguration</span> <span class="n">configuration</span><span class="p">,</span> <span class="n">IAuditingHelper</span> <span class="n">auditingHelper</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_configuration</span> <span class="p">=</span> <span class="n">configuration</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_auditingHelper</span> <span class="p">=</span> <span class="n">auditingHelper</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">OnActionExecutionAsync</span><span class="p">(</span><span class="n">ActionExecutingContext</span> <span class="n">context</span><span class="p">,</span> <span class="n">ActionExecutionDelegate</span> <span class="n">next</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// ... 代码实现</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>接着看 <code>AbpAuditActionFilter()</code> 方法内部的实现，进入这个过滤器的时候，通过 <code>ShouldSaveAudit()</code> 方法来判断是否要写审计日志。</p>
+<p>之后呢与 DTO 自动验证的过滤器一样，通过 <code>AbpCrossCuttingConcerns.Applying()</code> 方法为当前的对象增加了一个标识，用来告诉拦截器说我已经处理过了，你就不要再重复处理了。</p>
+<p>再往下就是创建审计信息，执行具体接口方法，并且如果产生了异常的话，也会存放到审计信息当中。</p>
+<p>最后接口无论是否执行成功，还是说出现了异常信息，都会将其性能计数信息同审计信息一起，通过 <code>IAuditingHelper</code> 存储起来。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">OnActionExecutionAsync</span><span class="p">(</span><span class="n">ActionExecutingContext</span> <span class="n">context</span><span class="p">,</span> <span class="n">ActionExecutionDelegate</span> <span class="n">next</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 判断是否写日志</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">ShouldSaveAudit</span><span class="p">(</span><span class="n">context</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">await</span> <span class="n">next</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 为当前类型打上标识</span>
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="p">(</span><span class="n">AbpCrossCuttingConcerns</span><span class="p">.</span><span class="n">Applying</span><span class="p">(</span><span class="n">context</span><span class="p">.</span><span class="n">Controller</span><span class="p">,</span> <span class="n">AbpCrossCuttingConcerns</span><span class="p">.</span><span class="n">Auditing</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 构造审计信息(AuditInfo)</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">auditInfo</span> <span class="p">=</span> <span class="n">_auditingHelper</span><span class="p">.</span><span class="n">CreateAuditInfo</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">context</span><span class="p">.</span><span class="n">ActionDescriptor</span><span class="p">.</span><span class="n">AsControllerActionDescriptor</span><span class="p">().</span><span class="n">ControllerTypeInfo</span><span class="p">.</span><span class="n">AsType</span><span class="p">(),</span>
+</span></span><span class="line"><span class="cl">            <span class="n">context</span><span class="p">.</span><span class="n">ActionDescriptor</span><span class="p">.</span><span class="n">AsControllerActionDescriptor</span><span class="p">().</span><span class="n">MethodInfo</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">context</span><span class="p">.</span><span class="n">ActionArguments</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// 开始性能计数</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">var</span> <span class="n">stopwatch</span> <span class="p">=</span> <span class="n">Stopwatch</span><span class="p">.</span><span class="n">StartNew</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">try</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 尝试调用接口方法</span>
+</span></span><span class="line"><span class="cl">            <span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="k">await</span> <span class="n">next</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            
+</span></span><span class="line"><span class="cl">            <span class="c1">// 产生异常之后，将其异常信息存放在审计信息之中</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">result</span><span class="p">.</span><span class="n">Exception</span> <span class="p">!=</span> <span class="k">null</span> <span class="p">&amp;&amp;</span> <span class="p">!</span><span class="n">result</span><span class="p">.</span><span class="n">ExceptionHandled</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">auditInfo</span><span class="p">.</span><span class="n">Exception</span> <span class="p">=</span> <span class="n">result</span><span class="p">.</span><span class="n">Exception</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 产生异常之后，将其异常信息存放在审计信息之中</span>
+</span></span><span class="line"><span class="cl">            <span class="n">auditInfo</span><span class="p">.</span><span class="n">Exception</span> <span class="p">=</span> <span class="n">ex</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="k">throw</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="k">finally</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="c1">// 停止计数，并且存储审计信息</span>
+</span></span><span class="line"><span class="cl">            <span class="n">stopwatch</span><span class="p">.</span><span class="n">Stop</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">            <span class="n">auditInfo</span><span class="p">.</span><span class="n">ExecutionDuration</span> <span class="p">=</span> <span class="n">Convert</span><span class="p">.</span><span class="n">ToInt32</span><span class="p">(</span><span class="n">stopwatch</span><span class="p">.</span><span class="n">Elapsed</span><span class="p">.</span><span class="n">TotalMilliseconds</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">await</span> <span class="n">_auditingHelper</span><span class="p">.</span><span class="n">SaveAsync</span><span class="p">(</span><span class="n">auditInfo</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="22-拦截器代码分析">2.2 拦截器代码分析</h3>
+<p>拦截器处理时的总体思路与过滤器类似，其核心都是通过 <code>IAuditingHelper</code> 来创建审计信息和持久化审计信息的。只不过呢由于拦截器不仅仅是处理 MVC 接口，也会处理内部的一些类型的方法，所以针对同步方法与异步方法的处理肯定会复杂一点。</p>
+<p>拦截器呢，我们关心一下他的核心方法 <code>Intercept()</code> 就行了。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span><span class="lnt">75
+</span><span class="lnt">76
+</span><span class="lnt">77
+</span><span class="lnt">78
+</span><span class="lnt">79
+</span><span class="lnt">80
+</span><span class="lnt">81
+</span><span class="lnt">82
+</span><span class="lnt">83
+</span><span class="lnt">84
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">void</span> <span class="n">Intercept</span><span class="p">(</span><span class="n">IInvocation</span> <span class="n">invocation</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 判断过滤器是否已经处理了过了</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">AbpCrossCuttingConcerns</span><span class="p">.</span><span class="n">IsApplied</span><span class="p">(</span><span class="n">invocation</span><span class="p">.</span><span class="n">InvocationTarget</span><span class="p">,</span> <span class="n">AbpCrossCuttingConcerns</span><span class="p">.</span><span class="n">Auditing</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">invocation</span><span class="p">.</span><span class="n">Proceed</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 通过 IAuditingHelper 来判断当前方法是否需要记录审计日志信息</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">_auditingHelper</span><span class="p">.</span><span class="n">ShouldSaveAudit</span><span class="p">(</span><span class="n">invocation</span><span class="p">.</span><span class="n">MethodInvocationTarget</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">invocation</span><span class="p">.</span><span class="n">Proceed</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 构造审计信息</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">auditInfo</span> <span class="p">=</span> <span class="n">_auditingHelper</span><span class="p">.</span><span class="n">CreateAuditInfo</span><span class="p">(</span><span class="n">invocation</span><span class="p">.</span><span class="n">TargetType</span><span class="p">,</span> <span class="n">invocation</span><span class="p">.</span><span class="n">MethodInvocationTarget</span><span class="p">,</span> <span class="n">invocation</span><span class="p">.</span><span class="n">Arguments</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 判断方法的类型，同步方法与异步方法的处理逻辑不一样</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">invocation</span><span class="p">.</span><span class="n">Method</span><span class="p">.</span><span class="n">IsAsync</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">PerformAsyncAuditing</span><span class="p">(</span><span class="n">invocation</span><span class="p">,</span> <span class="n">auditInfo</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">else</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">PerformSyncAuditing</span><span class="p">(</span><span class="n">invocation</span><span class="p">,</span> <span class="n">auditInfo</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 同步方法的处理逻辑与 MVC 过滤器逻辑相似</span>
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">void</span> <span class="n">PerformSyncAuditing</span><span class="p">(</span><span class="n">IInvocation</span> <span class="n">invocation</span><span class="p">,</span> <span class="n">AuditInfo</span> <span class="n">auditInfo</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">stopwatch</span> <span class="p">=</span> <span class="n">Stopwatch</span><span class="p">.</span><span class="n">StartNew</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">try</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">invocation</span><span class="p">.</span><span class="n">Proceed</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">auditInfo</span><span class="p">.</span><span class="n">Exception</span> <span class="p">=</span> <span class="n">ex</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">finally</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">stopwatch</span><span class="p">.</span><span class="n">Stop</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">auditInfo</span><span class="p">.</span><span class="n">ExecutionDuration</span> <span class="p">=</span> <span class="n">Convert</span><span class="p">.</span><span class="n">ToInt32</span><span class="p">(</span><span class="n">stopwatch</span><span class="p">.</span><span class="n">Elapsed</span><span class="p">.</span><span class="n">TotalMilliseconds</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_auditingHelper</span><span class="p">.</span><span class="n">Save</span><span class="p">(</span><span class="n">auditInfo</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 异步方法处理</span>
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">void</span> <span class="n">PerformAsyncAuditing</span><span class="p">(</span><span class="n">IInvocation</span> <span class="n">invocation</span><span class="p">,</span> <span class="n">AuditInfo</span> <span class="n">auditInfo</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">stopwatch</span> <span class="p">=</span> <span class="n">Stopwatch</span><span class="p">.</span><span class="n">StartNew</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">invocation</span><span class="p">.</span><span class="n">Proceed</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">invocation</span><span class="p">.</span><span class="n">Method</span><span class="p">.</span><span class="n">ReturnType</span> <span class="p">==</span> <span class="k">typeof</span><span class="p">(</span><span class="n">Task</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">invocation</span><span class="p">.</span><span class="n">ReturnValue</span> <span class="p">=</span> <span class="n">InternalAsyncHelper</span><span class="p">.</span><span class="n">AwaitTaskWithFinally</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="p">(</span><span class="n">Task</span><span class="p">)</span> <span class="n">invocation</span><span class="p">.</span><span class="n">ReturnValue</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">exception</span> <span class="p">=&gt;</span> <span class="n">SaveAuditInfo</span><span class="p">(</span><span class="n">auditInfo</span><span class="p">,</span> <span class="n">stopwatch</span><span class="p">,</span> <span class="n">exception</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">else</span> <span class="c1">//Task&lt;TResult&gt;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">invocation</span><span class="p">.</span><span class="n">ReturnValue</span> <span class="p">=</span> <span class="n">InternalAsyncHelper</span><span class="p">.</span><span class="n">CallAwaitTaskWithFinallyAndGetResult</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">            <span class="n">invocation</span><span class="p">.</span><span class="n">Method</span><span class="p">.</span><span class="n">ReturnType</span><span class="p">.</span><span class="n">GenericTypeArguments</span><span class="p">[</span><span class="m">0</span><span class="p">],</span>
+</span></span><span class="line"><span class="cl">            <span class="n">invocation</span><span class="p">.</span><span class="n">ReturnValue</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">exception</span> <span class="p">=&gt;</span> <span class="n">SaveAuditInfo</span><span class="p">(</span><span class="n">auditInfo</span><span class="p">,</span> <span class="n">stopwatch</span><span class="p">,</span> <span class="n">exception</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">private</span> <span class="k">void</span> <span class="n">SaveAuditInfo</span><span class="p">(</span><span class="n">AuditInfo</span> <span class="n">auditInfo</span><span class="p">,</span> <span class="n">Stopwatch</span> <span class="n">stopwatch</span><span class="p">,</span> <span class="n">Exception</span> <span class="n">exception</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">stopwatch</span><span class="p">.</span><span class="n">Stop</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">auditInfo</span><span class="p">.</span><span class="n">Exception</span> <span class="p">=</span> <span class="n">exception</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">auditInfo</span><span class="p">.</span><span class="n">ExecutionDuration</span> <span class="p">=</span> <span class="n">Convert</span><span class="p">.</span><span class="n">ToInt32</span><span class="p">(</span><span class="n">stopwatch</span><span class="p">.</span><span class="n">Elapsed</span><span class="p">.</span><span class="n">TotalMilliseconds</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">_auditingHelper</span><span class="p">.</span><span class="n">Save</span><span class="p">(</span><span class="n">auditInfo</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>这里异步方法的处理在很早之前的工作单元拦截器就有过讲述，这里就不再重复说明了。</p>
+<h3 id="23-核心的-iauditinghelper">2.3 核心的 IAuditingHelper</h3>
+<p>从代码上我们就可以看到，不论是拦截器还是过滤器都是最终都是通过 <code>IAuditingHelper</code> 对象来储存审计日志的。Abp 依旧为我们实现了一个默认的 <code>AuditingHelper</code> ，实现了其接口的所有方法。我们先查看一下这个接口的定义：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IAuditingHelper</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 判断当前方法是否需要存储审计日志信息</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">bool</span> <span class="n">ShouldSaveAudit</span><span class="p">(</span><span class="n">MethodInfo</span> <span class="n">methodInfo</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">defaultValue</span> <span class="p">=</span> <span class="k">false</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 根据参数集合创建一个审计信息，一般用于拦截器</span>
+</span></span><span class="line"><span class="cl">    <span class="n">AuditInfo</span> <span class="n">CreateAuditInfo</span><span class="p">(</span><span class="n">Type</span> <span class="n">type</span><span class="p">,</span> <span class="n">MethodInfo</span> <span class="n">method</span><span class="p">,</span> <span class="kt">object</span><span class="p">[]</span> <span class="n">arguments</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 根据一个参数字典类来创建一个审计信息，一般用于 MVC 过滤器</span>
+</span></span><span class="line"><span class="cl">    <span class="n">AuditInfo</span> <span class="n">CreateAuditInfo</span><span class="p">(</span><span class="n">Type</span> <span class="n">type</span><span class="p">,</span> <span class="n">MethodInfo</span> <span class="n">method</span><span class="p">,</span> <span class="n">IDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;</span> <span class="n">arguments</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 同步保存审计信息</span>
+</span></span><span class="line"><span class="cl">    <span class="k">void</span> <span class="n">Save</span><span class="p">(</span><span class="n">AuditInfo</span> <span class="n">auditInfo</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 异步保存审计信息</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Task</span> <span class="n">SaveAsync</span><span class="p">(</span><span class="n">AuditInfo</span> <span class="n">auditInfo</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>我们来到其默认实现 <code>AuditingHelper</code> 类型，先看一下其内部注入了哪些接口。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AuditingHelper</span> <span class="p">:</span> <span class="n">IAuditingHelper</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 日志记录器，用于记录日志</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">ILogger</span> <span class="n">Logger</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 用于获取当前登录用户的信息</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IAbpSession</span> <span class="n">AbpSession</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 用于持久话审计日志信息</span>
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">IAuditingStore</span> <span class="n">AuditingStore</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 主要作用是填充审计信息的客户端调用信息</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IAuditInfoProvider</span> <span class="n">_auditInfoProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 审计日志组件的配置相关</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IAuditingConfiguration</span> <span class="n">_configuration</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 在调用 AuditingStore 进行持久化的时候使用，创建一个工作单元</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IUnitOfWorkManager</span> <span class="n">_unitOfWorkManager</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 用于序列化参数信息为 JSON 字符串</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IAuditSerializer</span> <span class="n">_auditSerializer</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">AuditingHelper</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IAuditInfoProvider</span> <span class="n">auditInfoProvider</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IAuditingConfiguration</span> <span class="n">configuration</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IUnitOfWorkManager</span> <span class="n">unitOfWorkManager</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">IAuditSerializer</span> <span class="n">auditSerializer</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_auditInfoProvider</span> <span class="p">=</span> <span class="n">auditInfoProvider</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_configuration</span> <span class="p">=</span> <span class="n">configuration</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_unitOfWorkManager</span> <span class="p">=</span> <span class="n">unitOfWorkManager</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_auditSerializer</span> <span class="p">=</span> <span class="n">auditSerializer</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">AbpSession</span> <span class="p">=</span> <span class="n">NullAbpSession</span><span class="p">.</span><span class="n">Instance</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Logger</span> <span class="p">=</span> <span class="n">NullLogger</span><span class="p">.</span><span class="n">Instance</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">AuditingStore</span> <span class="p">=</span> <span class="n">SimpleLogAuditingStore</span><span class="p">.</span><span class="n">Instance</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他实现的接口</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="231-判断是否创建审计信息">2.3.1 判断是否创建审计信息</h4>
+<p>首先分析一下其内部的 <code>ShouldSaveAudit()</code> 方法，整个方法的核心作用就是根据传入的方法类型来判定是否为其创建审计信息。</p>
+<p>其实在这一串 if 当中，你可以发现有一句代码对方法是否标注了 <code>DisableAuditingAttribute</code> 特性进行了判断，如果标注了该特性，则不为该方法创建审计信息。所以我们就可以通过该特性来控制自己应用服务类，控制里面的的接口是否要创建审计信息。同理，我们也可以通过显式标注 <code>AuditedAttribute</code> 特性来让拦截器为这个方法创建审计信息。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="kt">bool</span> <span class="n">ShouldSaveAudit</span><span class="p">(</span><span class="n">MethodInfo</span> <span class="n">methodInfo</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">defaultValue</span> <span class="p">=</span> <span class="k">false</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">_configuration</span><span class="p">.</span><span class="n">IsEnabled</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">_configuration</span><span class="p">.</span><span class="n">IsEnabledForAnonymousUsers</span> <span class="p">&amp;&amp;</span> <span class="p">(</span><span class="n">AbpSession</span><span class="p">?.</span><span class="n">UserId</span> <span class="p">==</span> <span class="k">null</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">methodInfo</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(!</span><span class="n">methodInfo</span><span class="p">.</span><span class="n">IsPublic</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">methodInfo</span><span class="p">.</span><span class="n">IsDefined</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AuditedAttribute</span><span class="p">),</span> <span class="k">true</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">methodInfo</span><span class="p">.</span><span class="n">IsDefined</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">DisableAuditingAttribute</span><span class="p">),</span> <span class="k">true</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">classType</span> <span class="p">=</span> <span class="n">methodInfo</span><span class="p">.</span><span class="n">DeclaringType</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">classType</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">classType</span><span class="p">.</span><span class="n">GetTypeInfo</span><span class="p">().</span><span class="n">IsDefined</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">AuditedAttribute</span><span class="p">),</span> <span class="k">true</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">classType</span><span class="p">.</span><span class="n">GetTypeInfo</span><span class="p">().</span><span class="n">IsDefined</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">DisableAuditingAttribute</span><span class="p">),</span> <span class="k">true</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">_configuration</span><span class="p">.</span><span class="n">Selectors</span><span class="p">.</span><span class="n">Any</span><span class="p">(</span><span class="n">selector</span> <span class="p">=&gt;</span> <span class="n">selector</span><span class="p">.</span><span class="n">Predicate</span><span class="p">(</span><span class="n">classType</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">defaultValue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h4 id="232-创建审计信息">2.3.2 创建审计信息</h4>
+<p>审计信息在创建的时候，就为我们将当前调用接口时的用户信息存放在了审计信息当中，之后通过 <code>IAuditInfoProvider</code> 的 <code>Fill()</code> 方法填充了客户端 IP 与浏览器信息。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="n">AuditInfo</span> <span class="n">CreateAuditInfo</span><span class="p">(</span><span class="n">Type</span> <span class="n">type</span><span class="p">,</span> <span class="n">MethodInfo</span> <span class="n">method</span><span class="p">,</span> <span class="n">IDictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;</span> <span class="n">arguments</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 构建一个审计信息对象</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">auditInfo</span> <span class="p">=</span> <span class="k">new</span> <span class="n">AuditInfo</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">TenantId</span> <span class="p">=</span> <span class="n">AbpSession</span><span class="p">.</span><span class="n">TenantId</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">UserId</span> <span class="p">=</span> <span class="n">AbpSession</span><span class="p">.</span><span class="n">UserId</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ImpersonatorUserId</span> <span class="p">=</span> <span class="n">AbpSession</span><span class="p">.</span><span class="n">ImpersonatorUserId</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ImpersonatorTenantId</span> <span class="p">=</span> <span class="n">AbpSession</span><span class="p">.</span><span class="n">ImpersonatorTenantId</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ServiceName</span> <span class="p">=</span> <span class="n">type</span> <span class="p">!=</span> <span class="k">null</span>
+</span></span><span class="line"><span class="cl">            <span class="p">?</span> <span class="n">type</span><span class="p">.</span><span class="n">FullName</span>
+</span></span><span class="line"><span class="cl">            <span class="p">:</span> <span class="s">&#34;&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">MethodName</span> <span class="p">=</span> <span class="n">method</span><span class="p">.</span><span class="n">Name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 将参数转换为 JSON 字符串</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Parameters</span> <span class="p">=</span> <span class="n">ConvertArgumentsToJson</span><span class="p">(</span><span class="n">arguments</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ExecutionTime</span> <span class="p">=</span> <span class="n">Clock</span><span class="p">.</span><span class="n">Now</span>
+</span></span><span class="line"><span class="cl">    <span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">try</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 填充客户 IP 与浏览器信息等</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_auditInfoProvider</span><span class="p">.</span><span class="n">Fill</span><span class="p">(</span><span class="n">auditInfo</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">ex</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">Logger</span><span class="p">.</span><span class="n">Warn</span><span class="p">(</span><span class="n">ex</span><span class="p">.</span><span class="n">ToString</span><span class="p">(),</span> <span class="n">ex</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">auditInfo</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="24-审计信息持久化">2.4 审计信息持久化</h3>
+<p>通过上一小节我们知道了在调用审计信息保存接口的时候，实际上是调用的 <code>IAuditingStore</code> 所提供的 <code>SaveAsync(AuditInfo auditInfo)</code> 方法来持久化这些审计日志信息的。</p>
+<p>如果你没有集成 Abp.Zero 项目的话，则使用的是默认的实现，就是简单通过 <code>ILogger </code>输出审计信息到日志当中。</p>
+<p><img src="/p/abp-source-code-analysis-15-automatic-audit-records/1538200681972.png"
+	width="633"
+	height="118"
+	srcset="/p/abp-source-code-analysis-15-automatic-audit-records/1538200681972_hu8da9be9622e1039c97b549dc0b4ec964_16034_480x0_resize_box_3.png 480w, /p/abp-source-code-analysis-15-automatic-audit-records/1538200681972_hu8da9be9622e1039c97b549dc0b4ec964_16034_1024x0_resize_box_3.png 1024w"
+	loading="lazy"
+	
+		alt="1538200681972"
+	
+	
+		class="gallery-image" 
+		data-flex-grow="536"
+		data-flex-basis="1287px"
+	
+></p>
+<p>默认有这两种实现，至于第一种是 Abp 的单元测试项目所使用的。</p>
+<p>这里我们就简单将一下 <code>AuditingStore</code> 这个实现吧，其实很简单的，就是注入了一个仓储，在保存的时候往审计日志表插入一条数据即可。</p>
+<p>这里使用了 <code>AuditLog.CreateFromAuditInfo()</code> 方法将 <code>AuditInfo</code> 类型的审计信息转换为数据库实体，用于仓储进行插入操作。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AuditingStore</span> <span class="p">:</span> <span class="n">IAuditingStore</span><span class="p">,</span> <span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">private</span> <span class="k">readonly</span> <span class="n">IRepository</span><span class="p">&lt;</span><span class="n">AuditLog</span><span class="p">,</span> <span class="kt">long</span><span class="p">&gt;</span> <span class="n">_auditLogRepository</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="n">AuditingStore</span><span class="p">(</span><span class="n">IRepository</span><span class="p">&lt;</span><span class="n">AuditLog</span><span class="p">,</span> <span class="kt">long</span><span class="p">&gt;</span> <span class="n">auditLogRepository</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">_auditLogRepository</span> <span class="p">=</span> <span class="n">auditLogRepository</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">public</span> <span class="k">virtual</span> <span class="n">Task</span> <span class="n">SaveAsync</span><span class="p">(</span><span class="n">AuditInfo</span> <span class="n">auditInfo</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    	<span class="c1">// 向表中插入数据</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">_auditLogRepository</span><span class="p">.</span><span class="n">InsertAsync</span><span class="p">(</span><span class="n">AuditLog</span><span class="p">.</span><span class="n">CreateFromAuditInfo</span><span class="p">(</span><span class="n">auditInfo</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>同样，这里建议重新实现一个 <code>AuditingStore</code>，存储在 Redis 或者其他地方。</p>
+<h2 id="3-后记">3. 后记</h2>
+<p>前几天发现 Abp 的团队有开了一个新坑，叫做 Abp vNext 框架，该框架全部基于 .NET Core 进行开发，而且会针对微服务项目进行专门的设计，有兴趣的朋友可以持续关注。</p>
+<p>其 GitHub 地址为：https://github.com/abpframework/abp/</p>
+<p>官方地址为：https://abp.io/</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/aspnetboilerplate/">AspNetBoilerplate</a>
+        
+            <a href="/tags/%E6%80%A7%E8%83%BD%E5%88%86%E6%9E%90/">性能分析</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/why-not-use-async-void/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">为什么不要使用 async void ？</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-mongodb-retrofits-the-default-audit-log-storage-location/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp &#43; MongoDb 改造默认的审计日志存储位置</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-source-code-analysis-seventeen-aspnet-core-integration/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp 源码分析：十七、ASP.NET Core 集成</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/replace-abps-di-framework-with-dryioc/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">使用 DryIoc 替换 Abp 的 DI 框架</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-source-code-analysis-sixteen-background-work-and-background-workers/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp 源码分析：十六、后台工作与后台工作者</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#0简介">0.简介</a></li>
+    <li><a href="#1启动流程">1.启动流程</a>
+      <ol>
+        <li><a href="#21-过滤器注入">2.1 过滤器注入</a></li>
+        <li><a href="#22-拦截器注入">2.2 拦截器注入</a></li>
+      </ol>
+    </li>
+    <li><a href="#2代码分析">2.代码分析</a>
+      <ol>
+        <li><a href="#21-过滤器代码分析">2.1 过滤器代码分析</a></li>
+        <li><a href="#22-拦截器代码分析">2.2 拦截器代码分析</a></li>
+        <li><a href="#23-核心的-iauditinghelper">2.3 核心的 IAuditingHelper</a>
+          <ol>
+            <li><a href="#231-判断是否创建审计信息">2.3.1 判断是否创建审计信息</a></li>
+            <li><a href="#232-创建审计信息">2.3.2 创建审计信息</a></li>
+          </ol>
+        </li>
+        <li><a href="#24-审计信息持久化">2.4 审计信息持久化</a></li>
+      </ol>
+    </li>
+    <li><a href="#3-后记">3. 后记</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

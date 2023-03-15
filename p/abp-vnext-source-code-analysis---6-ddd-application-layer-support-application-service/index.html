@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='一、简要介绍 ABP vNext 针对于应用服务层，为我们单独设计了一个模块进行实现，即 Volo.Abp.Ddd.Application 模块。
+PS：最近博主也是在恶补 DDD 相关的知识，这里推荐大家看一下 ThoughtWorks 的 DDD 相关文章。
+关于 DDD 相关的著作，我这儿还是推荐经典的那三本**《领域驱动设计：软件核心复杂性应对之道》、《实现领域驱动设计》、《领域驱动设计精粹》**。
+DDD 的学习整体来说是比较枯燥的，而且偏理论化的知识。所以需要结合大量实例来看，反复对照书中的概念加深理解。不仅要看别人的实例，自己也要尝试运用 DDD 的战略方法和战术方法进行设计。
+应用服务层在 DDD 分层架构里面是最顶层的，一般与前端（展示层）打交道的都是应用服务层。常规的开发人员，如果没有遵循 DDD 理论来进行开发的话，应用服务层是十分臃肿的，里面全是业务逻辑。而领域层里面则是空无一物，全是贫血的领域模型对象。这种模式被称之为 贫血领域模型模式，这是一个 反模式。
+这里我就不再赘述应用服务层与 DDD 之间的关系了，在这里你可以看作它是一个 API 接口实现类，你所有对外开放的接口都是通过应用服务层暴露的，接口的方法应该与用例相对应。
+'><title>Abp vNext 源码分析 - 6. DDD 的应用层支持 (应用服务)</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/abp-vnext-source-code-analysis---6-ddd-application-layer-support-application-service/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp vNext 源码分析 - 6. DDD 的应用层支持 (应用服务)'>
+<meta property='og:description' content='一、简要介绍 ABP vNext 针对于应用服务层，为我们单独设计了一个模块进行实现，即 Volo.Abp.Ddd.Application 模块。
+PS：最近博主也是在恶补 DDD 相关的知识，这里推荐大家看一下 ThoughtWorks 的 DDD 相关文章。
+关于 DDD 相关的著作，我这儿还是推荐经典的那三本**《领域驱动设计：软件核心复杂性应对之道》、《实现领域驱动设计》、《领域驱动设计精粹》**。
+DDD 的学习整体来说是比较枯燥的，而且偏理论化的知识。所以需要结合大量实例来看，反复对照书中的概念加深理解。不仅要看别人的实例，自己也要尝试运用 DDD 的战略方法和战术方法进行设计。
+应用服务层在 DDD 分层架构里面是最顶层的，一般与前端（展示层）打交道的都是应用服务层。常规的开发人员，如果没有遵循 DDD 理论来进行开发的话，应用服务层是十分臃肿的，里面全是业务逻辑。而领域层里面则是空无一物，全是贫血的领域模型对象。这种模式被称之为 贫血领域模型模式，这是一个 反模式。
+这里我就不再赘述应用服务层与 DDD 之间的关系了，在这里你可以看作它是一个 API 接口实现类，你所有对外开放的接口都是通过应用服务层暴露的，接口的方法应该与用例相对应。
+'>
+<meta property='og:url' content='https://real-zony.github.io/p/abp-vnext-source-code-analysis---6-ddd-application-layer-support-application-service/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='ABP vNext' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='ASP.NET Core' /><meta property='article:tag' content='ASP.NET Core MVC' /><meta property='article:published_time' content='2019-07-25T12:10:32&#43;00:00'/><meta property='article:modified_time' content='2019-07-25T12:10:32&#43;00:00'/>
+<meta name="twitter:title" content="Abp vNext 源码分析 - 6. DDD 的应用层支持 (应用服务)">
+<meta name="twitter:description" content="一、简要介绍 ABP vNext 针对于应用服务层，为我们单独设计了一个模块进行实现，即 Volo.Abp.Ddd.Application 模块。
+PS：最近博主也是在恶补 DDD 相关的知识，这里推荐大家看一下 ThoughtWorks 的 DDD 相关文章。
+关于 DDD 相关的著作，我这儿还是推荐经典的那三本**《领域驱动设计：软件核心复杂性应对之道》、《实现领域驱动设计》、《领域驱动设计精粹》**。
+DDD 的学习整体来说是比较枯燥的，而且偏理论化的知识。所以需要结合大量实例来看，反复对照书中的概念加深理解。不仅要看别人的实例，自己也要尝试运用 DDD 的战略方法和战术方法进行设计。
+应用服务层在 DDD 分层架构里面是最顶层的，一般与前端（展示层）打交道的都是应用服务层。常规的开发人员，如果没有遵循 DDD 理论来进行开发的话，应用服务层是十分臃肿的，里面全是业务逻辑。而领域层里面则是空无一物，全是贫血的领域模型对象。这种模式被称之为 贫血领域模型模式，这是一个 反模式。
+这里我就不再赘述应用服务层与 DDD 之间的关系了，在这里你可以看作它是一个 API 接口实现类，你所有对外开放的接口都是通过应用服务层暴露的，接口的方法应该与用例相对应。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-vnext-source-code-analysis---6-ddd-application-layer-support-application-service/">Abp vNext 源码分析 - 6. DDD 的应用层支持 (应用服务)</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Jul 25, 2019</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 3 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="一简要介绍">一、简要介绍</h2>
+<p>ABP vNext 针对于应用服务层，为我们单独设计了一个模块进行实现，即 <strong>Volo.Abp.Ddd.Application</strong> 模块。</p>
+<blockquote>
+<p>PS：最近博主也是在恶补 DDD 相关的知识，这里推荐大家看一下 <a class="link" href="https://insights.thoughtworks.cn/"  target="_blank" rel="noopener"
+    >ThoughtWorks</a> 的 DDD 相关文章。</p>
+<p>关于 DDD 相关的著作，我这儿还是推荐经典的那三本**《领域驱动设计：软件核心复杂性应对之道》、《实现领域驱动设计》、《领域驱动设计精粹》**。</p>
+<p>DDD 的学习整体来说是比较枯燥的，而且偏理论化的知识。所以需要结合大量实例来看，反复对照书中的概念加深理解。不仅要看别人的实例，自己也要尝试运用 DDD 的战略方法和战术方法进行设计。</p>
+</blockquote>
+<p>应用服务层在 DDD 分层架构里面是最顶层的，一般与前端（展示层）打交道的都是应用服务层。常规的开发人员，如果没有遵循 DDD 理论来进行开发的话，应用服务层是十分臃肿的，里面全是业务逻辑。而领域层里面则是空无一物，全是贫血的领域模型对象。这种模式被称之为 <strong>贫血领域模型模式</strong>，这是一个 <strong>反模式</strong>。</p>
+<p>这里我就不再赘述应用服务层与 DDD 之间的关系了，在这里你可以看作它是一个 API 接口实现类，你所有对外开放的接口都是通过应用服务层暴露的，接口的方法应该与用例相对应。</p>
+<h2 id="二源码分析">二、源码分析</h2>
+<p>应用服务层模块里面比较简单，只有两个文件夹，分别存放了数据传输模型（Dtos）和应用服务基类定义（Services）。</p>
+<h3 id="21-启动模块">2.1 启动模块</h3>
+<p>首先我们还是按照之前的顺序，看一个模块先看他的模块类。这里我们先看一下 <code>AbpDddApplicationModule</code> 的代码。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="na">[DependsOn(
+</span></span></span><span class="line"><span class="cl"><span class="na">	typeof(AbpDddDomainModule),
+</span></span></span><span class="line"><span class="cl"><span class="na">	typeof(AbpSecurityModule),
+</span></span></span><span class="line"><span class="cl"><span class="na">	typeof(AbpObjectMappingModule),
+</span></span></span><span class="line"><span class="cl"><span class="na">	typeof(AbpValidationModule),
+</span></span></span><span class="line"><span class="cl"><span class="na">	typeof(AbpAuthorizationModule),
+</span></span></span><span class="line"><span class="cl"><span class="na">	typeof(AbpHttpAbstractionsModule),
+</span></span></span><span class="line"><span class="cl"><span class="na">	typeof(AbpSettingsModule),
+</span></span></span><span class="line"><span class="cl"><span class="na">	typeof(AbpFeaturesModule)
+</span></span></span><span class="line"><span class="cl"><span class="na">	)]</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 不要看上面依赖这么多模块，主要是因为基类会用到很多基础组件。</span>
+</span></span><span class="line"><span class="cl"><span class="k">public</span> <span class="k">class</span> <span class="nc">AbpDddApplicationModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">ConfigureServices</span><span class="p">(</span><span class="n">ServiceConfigurationContext</span> <span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 配置接口类型。</span>
+</span></span><span class="line"><span class="cl">		<span class="n">Configure</span><span class="p">&lt;</span><span class="n">ApiDescriptionModelOptions</span><span class="p">&gt;(</span><span class="n">options</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl">		<span class="p">{</span>
+</span></span><span class="line"><span class="cl">			<span class="n">options</span><span class="p">.</span><span class="n">IgnoredInterfaces</span><span class="p">.</span><span class="n">AddIfNotContains</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">IRemoteService</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">			<span class="n">options</span><span class="p">.</span><span class="n">IgnoredInterfaces</span><span class="p">.</span><span class="n">AddIfNotContains</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">IApplicationService</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">			<span class="n">options</span><span class="p">.</span><span class="n">IgnoredInterfaces</span><span class="p">.</span><span class="n">AddIfNotContains</span><span class="p">(</span><span class="k">typeof</span><span class="p">(</span><span class="n">IUnitOfWorkEnabled</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">		<span class="p">});</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到，在上述代码里面，只做了一件事情，就是调用 <code>ApiDescriptionModelOptions</code> ，往里面添加了 <code>IRemoteService</code>、<code>IApplicationService</code>、<code>IUnitOfWOrkEnabled</code> 三种接口类型。添加了三种类型之后，ABP vNext 根据应用服务类创建控制器时，就会从这个 <code>IgnoredInterfaces</code> 判断哪些类型不被忽略 (即只会自动注册实现了三种接口的类型成为控制器)。</p>
+<h3 id="22-应用服务基类">2.2 应用服务基类</h3>
+<p>ABP vNext 提供了标准基类 <code>ApplicationService</code> 和简单 Crud 基类 <code>CrudAppService</code> 给我们使用，前者只是继承了 <code>IApplicationService</code> 接口，并提供了基本组件的简单基类。而后者则是定义了 Crud 操作所需要的所有 API 方法，你只需要继承这个基类对象，填充相应的泛型参数，就可以快速实现一个 Crud 接口。</p>
+<h4 id="221-简单基类">2.2.1 简单基类</h4>
+<p>简单基类里面我们首先需要注意的是它实现的接口，你可以发现 <code>ApplicationService</code> 实现了诸多接口，不过这些接口更多的是类似于标识接口。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">ApplicationService</span> <span class="p">:</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IApplicationService</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IAvoidDuplicateCrossCuttingConcerns</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IValidationEnabled</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IUnitOfWorkEnabled</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IAuditingEnabled</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">ITransientDependency</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>所有应用服务都必须继承 <code>IApplicationService</code>，这个是肯定的，不然 ABP vNext 不会为我们生成需要的控制器。</p>
+<p>其次是 <code>IAvoidDuplicateCrossCuttingConcerns</code> 接口，这个接口最早可以追溯到老版本 ABP 框架里面。它的主要作用是防止拦截器进行重复执行。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">interface</span> <span class="nc">IAvoidDuplicateCrossCuttingConcerns</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">List</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">AppliedCrossCuttingConcerns</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>例如调用购买这个 API 接口，首先会进入 ASP.NET Core 的审计日志 Filter，在 Filter 里面会将这个 API 接口归属的类型的 <code>List</code> 容器(接口里面定义的 List )里面写入一条记录，说明已经通过审计日志过滤器记录了。</p>
+<p>写了审计日志之后，又会进入审计日志拦截器，这个时候拦截器就会对指定的类型进行判断，看是否已经被执行过了，因为这个类型的 <code>List</code> 容器有了之前过滤器的记录，所以不会重复执行。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">override</span> <span class="k">void</span> <span class="n">Intercept</span><span class="p">(</span><span class="n">IAbpMethodInvocation</span> <span class="n">invocation</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(!</span><span class="n">ShouldIntercept</span><span class="p">(</span><span class="n">invocation</span><span class="p">,</span> <span class="k">out</span> <span class="kt">var</span> <span class="n">auditLog</span><span class="p">,</span> <span class="k">out</span> <span class="kt">var</span> <span class="n">auditLogAction</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">invocation</span><span class="p">.</span><span class="n">Proceed</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 审计日志记录。</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="kt">bool</span> <span class="n">ShouldIntercept</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">	<span class="n">IAbpMethodInvocation</span> <span class="n">invocation</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">	<span class="k">out</span> <span class="n">AuditLogInfo</span> <span class="n">auditLog</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">	<span class="k">out</span> <span class="n">AuditLogActionInfo</span> <span class="n">auditLogAction</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 判断实例的 List 容器里面，是否写入了 AbpCrossCuttingConcerns.Auditing。</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">AbpCrossCuttingConcerns</span><span class="p">.</span><span class="n">IsApplied</span><span class="p">(</span><span class="n">invocation</span><span class="p">.</span><span class="n">TargetObject</span><span class="p">,</span> <span class="n">AbpCrossCuttingConcerns</span><span class="p">.</span><span class="n">Auditing</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他代码</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>剩余的 <code>IValidationEnabled</code>、<code>IUnitOfWorkEnabled</code>、<code>IAuditingEnabled</code>、<code>ITransientDependency</code> 接口类似于一个启用标识，只要类型继承了该接口，就会执行一些特殊的操作。</p>
+<p>回到之前的简单基类里面，ABP vNext 为我们注入了大量基础设施，例如获取当前用户的 <code>ICurrentUser</code> 组件，获取当前租户的 <code>ICurrentTenant</code> 组件，还有日志组件等。</p>
+<p>除了基础组件，ABP vNext 在简单基类里面还提供了一个权限检测方法，用户检测当前用户是否具备某些权限。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">protected</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">CheckPolicyAsync</span><span class="p">([</span><span class="n">CanBeNull</span><span class="p">]</span> <span class="kt">string</span> <span class="n">policyName</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="kt">string</span><span class="p">.</span><span class="n">IsNullOrEmpty</span><span class="p">(</span><span class="n">policyName</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">await</span> <span class="n">AuthorizationService</span><span class="p">.</span><span class="n">CheckAsync</span><span class="p">(</span><span class="n">policyName</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>在不具备权限的时候，ABP vNext 会抛出 <code>AbpAuthorizationException</code> 异常。</p>
+<h4 id="222-crud-基类">2.2.2 Crud 基类</h4>
+<p>Crud 基类可以极大减少对于某些简单对象的代码编写，例如我有个客户管理接口，只需要简单地增删改查操作。那么我就可以直接继承自 Crud 基类，给它填写和是的泛型参数之后，ABP vNext 就会为我们生成带有增删改查操作的应用服务对象。</p>
+<p>这个 Crud 基类拥有多个泛型定义与实现，除了真正的实现以外，其他的都是简单的调用基类方法而已。我们直接进入主题，看一下类型签名为 <code>public abstract class CrudAppService&lt;TEntity, TGetOutputDto, TGetListOutputDto, TKey, TGetListInput, TCreateInput, TUpdateInput&gt;</code> 的基类。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">public</span> <span class="k">abstract</span> <span class="k">class</span> <span class="nc">CrudAppService</span><span class="p">&lt;</span><span class="n">TEntity</span><span class="p">,</span> <span class="n">TGetOutputDto</span><span class="p">,</span> <span class="n">TGetListOutputDto</span><span class="p">,</span> <span class="n">TKey</span><span class="p">,</span> <span class="n">TGetListInput</span><span class="p">,</span> <span class="n">TCreateInput</span><span class="p">,</span> <span class="n">TUpdateInput</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">   <span class="p">:</span> <span class="n">ApplicationService</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">ICrudAppService</span><span class="p">&lt;</span><span class="n">TGetOutputDto</span><span class="p">,</span> <span class="n">TGetListOutputDto</span><span class="p">,</span> <span class="n">TKey</span><span class="p">,</span> <span class="n">TGetListInput</span><span class="p">,</span> <span class="n">TCreateInput</span><span class="p">,</span> <span class="n">TUpdateInput</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">where</span> <span class="n">TEntity</span> <span class="p">:</span> <span class="n">class</span><span class="p">,</span> <span class="n">IEntity</span><span class="p">&lt;</span><span class="n">TKey</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">where</span> <span class="n">TGetOutputDto</span> <span class="p">:</span> <span class="n">IEntityDto</span><span class="p">&lt;</span><span class="n">TKey</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">where</span> <span class="n">TGetListOutputDto</span> <span class="p">:</span> <span class="n">IEntityDto</span><span class="p">&lt;</span><span class="n">TKey</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">TGetOutputDto</span><span class="p">&gt;</span> <span class="n">GetAsync</span><span class="p">(</span><span class="n">TKey</span> <span class="n">id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 具体代码。</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">PagedResultDto</span><span class="p">&lt;</span><span class="n">TGetListOutputDto</span><span class="p">&gt;&gt;</span> <span class="n">GetListAsync</span><span class="p">(</span><span class="n">TGetListInput</span> <span class="n">input</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 具体代码。</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">TGetOutputDto</span><span class="p">&gt;</span> <span class="n">CreateAsync</span><span class="p">(</span><span class="n">TCreateInput</span> <span class="n">input</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 具体代码。</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">TGetOutputDto</span><span class="p">&gt;</span> <span class="n">UpdateAsync</span><span class="p">(</span><span class="n">TKey</span> <span class="n">id</span><span class="p">,</span> <span class="n">TUpdateInput</span> <span class="n">input</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 具体代码。</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="k">public</span> <span class="k">virtual</span> <span class="k">async</span> <span class="n">Task</span> <span class="n">DeleteAsync</span><span class="p">(</span><span class="n">TKey</span> <span class="n">id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 具体代码。</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>从上述代码可以看到基类根据传入的泛型参数，将会为我们实现常规的增删改查逻辑。我们也可以随时重写这些方法，来达到一些个性化的操作。</p>
+<p>ABP vNext 抽象了公用接口以外，在内部还编写了诸如 <code>MapToEntity()</code> 和 <code>MapToEntity()</code> 等内部共用方法，这里就不再详细赘述，这些方法都是 <code>protected</code> 修饰的，你也可以随时重写来达到自己的目的。</p>
+<h3 id="23-数据传输对象">2.3 数据传输对象</h3>
+<p>一般来说，应用服务层返回给展示层的数据肯定是某个实体对象的部分属性，或者是多个聚合的整体，这个时候就需要 DTO 来帮我们处理应用服务层与外部的数据交换了。</p>
+<p>ABP vNext 在应用服务模块定义了常用的一些 DTO 对象，例如实体 DTO 和分页查询 DTO，关于这些 DTO 你只需将其看作一个数据容器即可，不需要太多关注，这里也没有太多要讲的。</p>
+<h2 id="三总结">三、总结</h2>
+<p>ABP vNext 提供的应用服务层模块还是比较简单的，里面主要是针对应用服务基类进行了预定义。方便我们开发人员进行业务开发，而不需要自己实现这些繁杂的基类。</p>
+<p>在 DDD 当中，应用服务是表达 <strong>用户用例</strong> 和 <strong>用户故事</strong> 的主要手段，应用服务只是通过领域对象/领域服务来表达需求用例的一个组件。<strong>不要将业务逻辑泄漏到应用服务当中</strong>，这种设计最终会导致贫血领域模型。</p>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/c#/">C#</a>
+        
+            <a href="/tags/abp/">ABP</a>
+        
+            <a href="/tags/abp-vnext/">ABP vNext</a>
+        
+            <a href="/tags/.net-core/">.NET Core</a>
+        
+            <a href="/tags/asp.net-core/">ASP.NET Core</a>
+        
+            <a href="/tags/asp.net-core-mvc/">ASP.NET Core MVC</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+<aside class="related-content--wrapper">
+    <h2 class="section-title">相关文章</h2>
+    <div class="related-content">
+        <div class="flex article-list--tile">
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 单元测试</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</h2>
+        </div>
+    </a>
+</article>
+
+            
+                
+<article class="">
+    <a href="/p/abp-vnext-source-code-analysis---19-multi-tenancy/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Abp vNext 源码分析 - 19. 多租户</h2>
+        </div>
+    </a>
+</article>
+
+            
+        </div>
+    </div>
+</aside>
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#一简要介绍">一、简要介绍</a></li>
+    <li><a href="#二源码分析">二、源码分析</a>
+      <ol>
+        <li><a href="#21-启动模块">2.1 启动模块</a></li>
+        <li><a href="#22-应用服务基类">2.2 应用服务基类</a>
+          <ol>
+            <li><a href="#221-简单基类">2.2.1 简单基类</a></li>
+            <li><a href="#222-crud-基类">2.2.2 Crud 基类</a></li>
+          </ol>
+        </li>
+        <li><a href="#23-数据传输对象">2.3 数据传输对象</a></li>
+      </ol>
+    </li>
+    <li><a href="#三总结">三、总结</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>
