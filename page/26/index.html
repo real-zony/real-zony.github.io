@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-cn" dir="ltr">
     <head>
-	<meta name="generator" content="Hugo 0.113.0"><meta charset='utf-8'>
+	<meta name="generator" content="Hugo 0.121.1"><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='A .NET Developer'><title>Zony 的博客</title>
 
 <link rel='canonical' href='https://real-zony.github.io/'>
@@ -10,7 +10,7 @@
 <meta property='og:description' content='A .NET Developer'>
 <meta property='og:url' content='https://real-zony.github.io/'>
 <meta property='og:site_name' content='Zony 的博客'>
-<meta property='og:type' content='website'><meta property='og:updated_time' content=' 2023-06-12T23:43:00&#43;00:00 '/>
+<meta property='og:type' content='website'><meta property='og:updated_time' content=' 2023-12-28T22:29:00&#43;00:00 '/>
 <meta name="twitter:title" content="Zony 的博客">
 <meta name="twitter:description" content="A .NET Developer"><link rel="alternate" type="application/rss&#43;xml" href="https://real-zony.github.io/index.xml">
     </head>
@@ -251,6 +251,75 @@
     
 
     <section class="article-list">
+        
+            
+<article class="">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/abp-work-unit/">ABP 工作单元</a>
+        </h2>
+
+        
+        <div class="article-subtitle">
+            ABP在其内部实现了工作单元模式，统一地进行事务与连接管理。 其核心就是通过 Castle 的 Dynamic Proxy 进行动态代理，在组件注册的时候进行拦截器注入，拦截到实现了 Unit Of Work 特性的方法进行操作，在执行完方法之后就会关闭掉工作单元。
+一、大致处理流程 1 2 3 4 5 6 7 8 9 10 11 12 13 拦截器初始化=&gt;start: 拦截器初始化 注入UOW特性=&gt;operation: 注入UOW特性方法 Begin=&gt;operation: Begin() realAction=&gt;operation: realAction() 真实业务方法 complete=&gt;operation: complete() 执行完成 dispose=&gt;inputoutput: dispose() 销毁并检测 是否销毁条件=&gt;condition: 是否销毁成功? rollback=&gt;operation: 回退结果 e=&gt;end: 结束 拦截器初始化-&gt;注入UOW特性-&gt;Begin-&gt;realAction-&gt;complete-&gt;dispose-&gt;是否销毁条件 是否销毁条件(yes)-&gt;e 是否销毁条件(no)-&gt;rollback-&gt;e 首先UOW拦截器先被注入到了需要UOW的类当中。 ABP在执行标注了UOW的方法(或者是显示式IUnitOfWorkManager包裹的方法)的时候，UOW拦截器首先以这种方式来执行代码：
+1 2 3 A[begin]--&gt;B[realaction_method] B--&gt;C[complete method] C--&gt;D[dispose method] UOW拦截器是通过using这种方式调用IUnitOfWork的某个具体实现，这就确保begin 和 dispose也总是会被执行的。Complete()方法不一定会被执行，比如在complete方法被调用前方法的执行产生了异常。
+当执行一连串的操作时（A方法-&gt;B方法-&gt;C方法，假设这三个方法都标注了UnitOfWork特性），ABP在执行A方法前会调用Begin方法创建整个过程中唯一的IUnitOfWork对象，该对象会启动.NET事务。在执行到B，C方法只会创建InnerUnitOfWorkCompleteHandle。
+InnerUnitOfWorkCompleteHandle和IUnitOfWork对象的差异在于它不会创建真实的事务。但ABP会调用其complete，以告知ABP其对应的方法以成功完成，可以提交事务。 事务可以回滚的关键关键在于IUnitOfWork对象在被dispose时候会检查complete方法有没有被执行，没有的话就认为这个UOW标注的方法没有顺利完成，从而导致事务的回滚操作。
+整个事务的提交是通过第一个UOW（也是唯一个）的complete方法执行时提交的。
+二、文件结构说明 文件名称 说明 UnitOfWorkRegistrar 注册拦截器，实现两种默认的UnitOfWork UnitOfWorkInterceptor Unit of Work拦截器，实现以AOP的方式进行注入单元控制 IUnitOfWorkManager UnitOfWork管理对象 UnitOfWorkManager IUnitOfWorkManager默认实现 ICurrentUnitOfWorkProvider 当前UnitOfWork管理对象 CallContextCurrentUnitOfWorkProvider ICurrentUnitOfWorkProvider默认实现 IUnitOfWork 工作单元对象（Begin、SaveChanges、Complete、Dispose） UnitOfWorkBase IUnitOfWork抽象实现类，封装实际操作的前后置操作及异常处理 IActiveUnitOfWork IUnitOfWork操作对象，不包含Begin与Complete操作 IUnitOfWorkCompleteHandle 工作单元完成对象，用于实现继承工作单元功能 InnerUnitOfWorkCompleteHandle IUnitOfWorkCompleteHandle实现之一，用于继承外部工作单元 IUnitOfWorkDefaultOptions UnitOfWork默认设置 UnitOfWorkDefaultOptions IUnitOfWorkDefaultOptions默认实现 UnitOfWorkOptions UnitOfWork配置对象 UnitOfWorkAttribute 标记工作单元的特性 UnitOfWorkFailedEventArgs UnitOfWork的Failed事件参数 UnitOfWorkHelper 工具类 AbpDataFilters 数据过滤相关 DataFilterConfiguration 数据过滤相关 三、注册工作单元 Abp在AbpBootstrapper的private void AddInterceptorRegistrars()方法当中对UnitOfWorkRegistrar 调用了其初始化操作。 初始化操作代码如下：
+            </h3>
+        </div>
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+            <time class="article-time--published">Oct 23, 2017</time>
+        </div>
+        
+
+        
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+            <time class="article-time--reading">
+                阅读时长: 9 分钟
+            </time>
+        </div>
+        <div>
+            <a href="/p/abp-work-unit/">Read More…</a>
+        </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+</article>
         
             
 <article class="">
@@ -508,70 +577,6 @@
 </header>
 </article>
         
-            
-<article class="">
-    <header class="article-header">
-
-    <div class="article-details">
-    
-
-    <div class="article-title-wrapper">
-        <h2 class="article-title">
-            <a href="/p/implementation-of-automatic-sql-conditional-statement-splicing/">自动SQL条件语句拼接实现</a>
-        </h2>
-
-        
-        <div class="article-subtitle">
-            在某个项目当中，使用的使Dapper+WebApi进行构建的，在进行一些列表查询的时候需要根据不同的State来构建不同的SQL语句。之前是直接使用的switch来一个个匹配，需求增加的话，又得再加一个case。长久以往，整个查询接口臃肿不堪，离职前夕终于看不下去了，重构了一番，兹此记录。
-原结构 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 using System; using System.Collections.Generic; using System.Linq; using System.Text; using System.Threading.Tasks; namespace ConsoleTest { public class Product { public string Name { get; set; } public double Price { get; set; } } class Program { static void Main(string[] args) { } public List&lt;Product&gt; GetByStateToList(int ConditionState) { StringBuilder _queryString = new StringBuilder(); switch (ConditionState) { case 1: _queryString.
-            </h3>
-        </div>
-        
-    </div>
-
-    
-    <footer class="article-time">
-        
-        <div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
-  <circle cx="18" cy="18" r="4" />
-  <path d="M15 3v4" />
-  <path d="M7 3v4" />
-  <path d="M3 11h16" />
-  <path d="M18 16.496v1.504l1 1" />
-</svg>
-            <time class="article-time--published">Sep 21, 2017</time>
-        </div>
-        
-
-        
-        <div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="12" cy="12" r="9" />
-  <polyline points="12 7 12 12 15 15" />
-</svg>
-
-
-
-            <time class="article-time--reading">
-                阅读时长: 3 分钟
-            </time>
-        </div>
-        <div>
-            <a href="/p/implementation-of-automatic-sql-conditional-statement-splicing/">Read More…</a>
-        </div>
-        
-    </footer>
-    
-
-    
-</div>
-</header>
-</article>
-        
     </section>
     <nav class='pagination'>
         
@@ -757,7 +762,11 @@
                 
             
             
-                    <a class='page-link' href='/page/44/'>44</a>
+                    
+                
+            
+            
+                    <a class='page-link' href='/page/45/'>45</a>
                 
             
     </nav>
@@ -823,7 +832,7 @@
                     <a href="/archives/#2023">
                         
                             <span class="year">2023</span>
-                            <span class="count">1</span>
+                            <span class="count">2</span>
                         
                     </a> 
                 </div>
