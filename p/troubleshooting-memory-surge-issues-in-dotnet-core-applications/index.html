@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='0. 问题 新版本上线之后，发现内存猛涨，入站流量猛增，不清楚具体原因，部分接口提示 OOM 异常，随后 Pod 直接崩溃无限重启。
+'><title>排查 dotNET Core 程序内存暴涨的问题</title>
+
+<link rel='canonical' href='https://real-zony.github.io/p/troubleshooting-memory-surge-issues-in-dotnet-core-applications/'>
+
+<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='排查 dotNET Core 程序内存暴涨的问题'>
+<meta property='og:description' content='0. 问题 新版本上线之后，发现内存猛涨，入站流量猛增，不清楚具体原因，部分接口提示 OOM 异常，随后 Pod 直接崩溃无限重启。
+'>
+<meta property='og:url' content='https://real-zony.github.io/p/troubleshooting-memory-surge-issues-in-dotnet-core-applications/'>
+<meta property='og:site_name' content='Zony 的博客'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Linux' /><meta property='article:tag' content='dotNET' /><meta property='article:tag' content='GC' /><meta property='article:tag' content='内存泄漏' /><meta property='article:tag' content='Dump' /><meta property='article:published_time' content='2024-03-08T15:30:00&#43;00:00'/><meta property='article:modified_time' content='2024-03-08T15:30:00&#43;00:00'/>
+<meta name="twitter:title" content="排查 dotNET Core 程序内存暴涨的问题">
+<meta name="twitter:description" content="0. 问题 新版本上线之后，发现内存猛涨，入站流量猛增，不清楚具体原因，部分接口提示 OOM 异常，随后 Pod 直接崩溃无限重启。
+">
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
+            <h2 class="site-description">A .NET Developer</h2>
+        </div>
+    </header><ol class="social-menu">
+            
+                <li>
+                    <a 
+                        href='https://github.com/real-zony'
+                        target="_blank"
+                        title="GitHub"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>存档</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+
+        <li >
+            <a href='/links/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>Links</span>
+            </a>
+        </li>
+        
+
+        <div class="menu-bottom-section">
+                <li id="i18n-switch">  
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
+                        
+                            <option value="https://real-zony.github.io/en/" >English</option>
+                        
+                            <option value="https://real-zony.github.io/" selected>中文</option>
+                        
+                    </select>
+                </li>
+            
+            
+            
+                <li id="dark-mode-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                    <span>暗色模式</span>
+                </li>
+            
+        </div>
+    </ol>
+</aside>
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/troubleshooting-memory-surge-issues-in-dotnet-core-applications/">排查 dotNET Core 程序内存暴涨的问题</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Mar 08, 2024</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 12 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+</header>
+
+    <section class="article-content">
+    
+    
+    <h2 id="0-问题">0. 问题</h2>
+<p>新版本上线之后，发现内存猛涨，入站流量猛增，不清楚具体原因，部分接口提示 OOM 异常，随后 Pod 直接崩溃无限重启。</p>
+<h2 id="1-准备">1. 准备</h2>
+<p>Pod 已经接入了 NewRelic 和 Graylog，但是仍然没有办法找到真正的罪魁祸手，此时只能进入 Pod 容器当中抓取内存 Dump 信息。我们容器的基础镜像是基于 Apline-3.18 的，进入容器之后执行了以下命令开始安装相应的工具。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl"><span class="c1"># 我们的镜像是基于 runtime 的，因此需要手动安装一下 SDK，以便后续操作。</span>
+</span></span><span class="line"><span class="cl"><span class="c1"># 这里还安装了 bash，后续会使用 bash 进行交互操作，自带的 sh 不好用。</span>
+</span></span><span class="line"><span class="cl">apk add dotnet6-sdk bash
+</span></span><span class="line"><span class="cl"><span class="c1"># 安装 Dump 工具</span>
+</span></span><span class="line"><span class="cl">dotnet tool install --global dotnet-dump
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>因为容器的 <strong>ENTRYPOINT</strong> 就是直接运行的 dotNET 程序，一般来说其 PID 都是 1，如果你不清楚具体的进程 ID，可以执行</p>
+<p>尝试运行 <code>dotnet-dump collect -p 1</code> 收集 Dump 信息，但是得到了以下错误:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">/build# dotnet-dump collect -p <span class="m">1</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Writing full to /build/core_20240307_090401
+</span></span><span class="line"><span class="cl">Write dump failed - HRESULT: 0x00000000.
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>搜索一番之后，得知这是 Pod 没有足够的权限去执行 Dump 操作，因此修改了 Rollouts(或者 Deplotment) 的 YAML 定义，添加对应的 <code>securityContext</code> 应用即可，随后便能够正确地获取 Dump 文件。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">securityContext</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">capabilities</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">add</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span>- <span class="l">SYS_PTRACE</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span>- <span class="l">SYS_ADMIN</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">seccompProfile</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l">RuntimeDefault</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>再次执行 <code>dotnet-dump collect -p 1</code> 获取到了对应的 Dump 文件，将文件拷贝到挂载的 NFS 卷当中，随即下载到本地以便进行调试排查问题。</p>
+<h2 id="2-调查">2. 调查</h2>
+<p>得到 Dump 文件之后，我们可以使用多种工具来分析 Dump 文件，这里我使用的是 <code>dotnet-dump</code> 命令。因为我是 macOS 的机器，使用 <code>dotnet-dump</code> 我可以直接开始进行分析，你也可以使用 Visual Studio 、dotnetMemory、WinDBG 来打开 Dump 的文件，具体看你的喜好了。</p>
+<p>使用 <code>dotnet dump analyze &lt;dump file path&gt;</code> 进入交互式页面:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">Loading core dump: D:\dotNET_Dumps\\core_20240307_142201 ...
+</span></span><span class="line"><span class="cl">Ready to process analysis commands. Type &#39;help&#39; to list available commands or &#39;help [command]&#39; to get detailed help on a command.
+</span></span><span class="line"><span class="cl">Type &#39;quit&#39; or &#39;exit&#39; to exit the session.
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>首先我们可以看一下目前 GC 堆的信息:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">&gt; eeheap -gc
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">========================================
+</span></span><span class="line"><span class="cl">Number of GC Heaps: 3
+</span></span><span class="line"><span class="cl">----------------------------------------
+</span></span><span class="line"><span class="cl">Heap 0 (00007faa2a73b6b0)
+</span></span><span class="line"><span class="cl">generation 0 starts at 7fa2495932e8
+</span></span><span class="line"><span class="cl">generation 1 starts at 7fa2458279f0
+</span></span><span class="line"><span class="cl">generation 2 starts at 7fa232703000
+</span></span><span class="line"><span class="cl">ephemeral segment allocation context: none
+</span></span><span class="line"><span class="cl">Small object heap
+</span></span><span class="line"><span class="cl">         segment            begin        allocated        committed allocated size         committed size
+</span></span><span class="line"><span class="cl">    7fa232702000     7fa232703000     7fa249be4020     7fa252174000 0x174e1020 (390991904) 0x1fa72000 (531046400)
+</span></span><span class="line"><span class="cl">Large object heap starts at 7fa3b2703000
+</span></span><span class="line"><span class="cl">         segment            begin        allocated        committed allocated size         committed size
+</span></span><span class="line"><span class="cl">    7fa3b2702000     7fa3b2703000     7fa3e3dfc348     7fa3e3dfd000 0x316f9348 (829395784) 0x316fb000 (829403136)
+</span></span><span class="line"><span class="cl">Pinned object heap starts at 7fa6b2703000
+</span></span><span class="line"><span class="cl">         segment            begin        allocated        committed allocated size         committed size
+</span></span><span class="line"><span class="cl">    7fa6b2702000     7fa6b2703000     7fa6b27d4bb8     7fa6b27d5000 0xd1bb8 (859064)       0xd3000 (864256)
+</span></span><span class="line"><span class="cl">------------------------------
+</span></span><span class="line"><span class="cl">Heap 1 (00007faa2a68b6e0)
+</span></span><span class="line"><span class="cl">generation 0 starts at 7fa2c75ae080
+</span></span><span class="line"><span class="cl">generation 1 starts at 7fa2c40eec00
+</span></span><span class="line"><span class="cl">generation 2 starts at 7fa2b2703000
+</span></span><span class="line"><span class="cl">ephemeral segment allocation context: none
+</span></span><span class="line"><span class="cl">Small object heap
+</span></span><span class="line"><span class="cl">         segment            begin        allocated        committed allocated size         committed size
+</span></span><span class="line"><span class="cl">    7fa2b2702000     7fa2b2703000     7fa2c9b1ebb0     7fa2d00b8000 0x1741bbb0 (390183856) 0x1d9b6000 (496721920)
+</span></span><span class="line"><span class="cl">Large object heap starts at 7fa4b2703000
+</span></span><span class="line"><span class="cl">         segment            begin        allocated        committed allocated size         committed size
+</span></span><span class="line"><span class="cl">    7fa4b2702000     7fa4b2703000     7fa4e3f804f0     7fa4e3f81000 0x3187d4f0 (830985456) 0x3187f000 (830992384)
+</span></span><span class="line"><span class="cl">Pinned object heap starts at 7fa7b2703000
+</span></span><span class="line"><span class="cl">         segment            begin        allocated        committed allocated size         committed size
+</span></span><span class="line"><span class="cl">    7fa7b2702000     7fa7b2703000     7fa7b2703018     7fa7b2704000 0x18 (24)              0x2000 (8192)
+</span></span><span class="line"><span class="cl">------------------------------
+</span></span><span class="line"><span class="cl">Heap 2 (00007faa2a5db720)
+</span></span><span class="line"><span class="cl">generation 0 starts at 7fa3466d0298
+</span></span><span class="line"><span class="cl">generation 1 starts at 7fa343173ee0
+</span></span><span class="line"><span class="cl">generation 2 starts at 7fa332703000
+</span></span><span class="line"><span class="cl">ephemeral segment allocation context: none
+</span></span><span class="line"><span class="cl">Small object heap
+</span></span><span class="line"><span class="cl">         segment            begin        allocated        committed allocated size         committed size
+</span></span><span class="line"><span class="cl">    7fa332702000     7fa332703000     7fa348631878     7fa34f736000 0x15f2e878 (368240760) 0x1d034000 (486752256)
+</span></span><span class="line"><span class="cl">Large object heap starts at 7fa5b2703000
+</span></span><span class="line"><span class="cl">         segment            begin        allocated        committed allocated size         committed size
+</span></span><span class="line"><span class="cl">    7fa5b2702000     7fa5b2703000     7fa5e519c3b0     7fa5e519d000 0x32a993b0 (849974192) 0x32a9b000 (849981440)
+</span></span><span class="line"><span class="cl">Pinned object heap starts at 7fa8b2703000
+</span></span><span class="line"><span class="cl">         segment            begin        allocated        committed allocated size         committed size
+</span></span><span class="line"><span class="cl">    7fa8b2702000     7fa8b2703000     7fa8b270c0f0     7fa8b2714000 0x90f0 (37104)         0x12000 (73728)
+</span></span><span class="line"><span class="cl">------------------------------
+</span></span><span class="line"><span class="cl">GC Allocated Heap Size:    Size: 0xda315cf0 (3660668144) bytes.
+</span></span><span class="line"><span class="cl">GC Committed Heap Size:    Size: 0xeff58000 (4025843712) bytes.
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到有 3 个 GC 堆，并且大部分内存占用都在 LOH 上，我们使用 <code>dumpheap -stat -min 85000</code> 搜索一下大小大于 85000 字节的对象有多少？</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">&gt; dumpheap -stat -min <span class="m">85000</span>
+</span></span><span class="line"><span class="cl">Statistics:
+</span></span><span class="line"><span class="cl">          MT Count     TotalSize Class Name
+</span></span><span class="line"><span class="cl">7fa9b9be29c0     <span class="m">1</span>        85,112 Serilog.Events.LogEventPropertyValue<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">7fa9ba87d710     <span class="m">1</span>       117,464 Microsoft.AspNetCore.Routing.Matching.DfaState<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">7fa9b327b110     <span class="m">2</span>       261,648 System.Object<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">7fa9b3348080     <span class="m">2</span>       849,380 System.Int32<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">7fa9bb1e29f8     <span class="m">5</span>     1,441,912 ***.Core.***.*************<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">7fa9b334d2e0     <span class="m">6</span>     1,939,370 System.String
+</span></span><span class="line"><span class="cl">7fa9bb3589a0     <span class="m">1</span>     2,097,176 ***.Core.***.***.***<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">7fa9b5200528     <span class="m">9</span>     2,228,440 ***.Core.***.***<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">7fa9b5206200    <span class="m">20</span>     3,670,496 ***.Core.***.***<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">7fa9bb3625e8     <span class="m">1</span>     4,506,048 System.Collections.Generic.Dictionary&lt;System.String, ***.***.***.***.***&gt;+Entry<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">7fa9b338edd0    <span class="m">20</span>     9,716,748 System.Char<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">7faa2cb14350    <span class="m">76</span>    13,295,160 Free
+</span></span><span class="line"><span class="cl">7fa9b3d60c98 1,100 2,464,160,840 System.Byte<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">Total 1,244 objects, 2,504,369,794 bytes
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>可以看到这里面有 1100 个对象的大小都超过了 85000 字节，总共加起来快 2.3GB 了，所以问题出在这里。随后使用 <code>dumpheap -type System.Byte[]</code> 查看这些具体的对象列表，以便得到具体对象的地址:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">  1
+</span><span class="lnt">  2
+</span><span class="lnt">  3
+</span><span class="lnt">  4
+</span><span class="lnt">  5
+</span><span class="lnt">  6
+</span><span class="lnt">  7
+</span><span class="lnt">  8
+</span><span class="lnt">  9
+</span><span class="lnt"> 10
+</span><span class="lnt"> 11
+</span><span class="lnt"> 12
+</span><span class="lnt"> 13
+</span><span class="lnt"> 14
+</span><span class="lnt"> 15
+</span><span class="lnt"> 16
+</span><span class="lnt"> 17
+</span><span class="lnt"> 18
+</span><span class="lnt"> 19
+</span><span class="lnt"> 20
+</span><span class="lnt"> 21
+</span><span class="lnt"> 22
+</span><span class="lnt"> 23
+</span><span class="lnt"> 24
+</span><span class="lnt"> 25
+</span><span class="lnt"> 26
+</span><span class="lnt"> 27
+</span><span class="lnt"> 28
+</span><span class="lnt"> 29
+</span><span class="lnt"> 30
+</span><span class="lnt"> 31
+</span><span class="lnt"> 32
+</span><span class="lnt"> 33
+</span><span class="lnt"> 34
+</span><span class="lnt"> 35
+</span><span class="lnt"> 36
+</span><span class="lnt"> 37
+</span><span class="lnt"> 38
+</span><span class="lnt"> 39
+</span><span class="lnt"> 40
+</span><span class="lnt"> 41
+</span><span class="lnt"> 42
+</span><span class="lnt"> 43
+</span><span class="lnt"> 44
+</span><span class="lnt"> 45
+</span><span class="lnt"> 46
+</span><span class="lnt"> 47
+</span><span class="lnt"> 48
+</span><span class="lnt"> 49
+</span><span class="lnt"> 50
+</span><span class="lnt"> 51
+</span><span class="lnt"> 52
+</span><span class="lnt"> 53
+</span><span class="lnt"> 54
+</span><span class="lnt"> 55
+</span><span class="lnt"> 56
+</span><span class="lnt"> 57
+</span><span class="lnt"> 58
+</span><span class="lnt"> 59
+</span><span class="lnt"> 60
+</span><span class="lnt"> 61
+</span><span class="lnt"> 62
+</span><span class="lnt"> 63
+</span><span class="lnt"> 64
+</span><span class="lnt"> 65
+</span><span class="lnt"> 66
+</span><span class="lnt"> 67
+</span><span class="lnt"> 68
+</span><span class="lnt"> 69
+</span><span class="lnt"> 70
+</span><span class="lnt"> 71
+</span><span class="lnt"> 72
+</span><span class="lnt"> 73
+</span><span class="lnt"> 74
+</span><span class="lnt"> 75
+</span><span class="lnt"> 76
+</span><span class="lnt"> 77
+</span><span class="lnt"> 78
+</span><span class="lnt"> 79
+</span><span class="lnt"> 80
+</span><span class="lnt"> 81
+</span><span class="lnt"> 82
+</span><span class="lnt"> 83
+</span><span class="lnt"> 84
+</span><span class="lnt"> 85
+</span><span class="lnt"> 86
+</span><span class="lnt"> 87
+</span><span class="lnt"> 88
+</span><span class="lnt"> 89
+</span><span class="lnt"> 90
+</span><span class="lnt"> 91
+</span><span class="lnt"> 92
+</span><span class="lnt"> 93
+</span><span class="lnt"> 94
+</span><span class="lnt"> 95
+</span><span class="lnt"> 96
+</span><span class="lnt"> 97
+</span><span class="lnt"> 98
+</span><span class="lnt"> 99
+</span><span class="lnt">100
+</span><span class="lnt">101
+</span><span class="lnt">102
+</span><span class="lnt">103
+</span><span class="lnt">104
+</span><span class="lnt">105
+</span><span class="lnt">106
+</span><span class="lnt">107
+</span><span class="lnt">108
+</span><span class="lnt">109
+</span><span class="lnt">110
+</span><span class="lnt">111
+</span><span class="lnt">112
+</span><span class="lnt">113
+</span><span class="lnt">114
+</span><span class="lnt">115
+</span><span class="lnt">116
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">    7fa5d5175480     7fa9b3d60c98     18,749,311
+</span></span><span class="line"><span class="cl">    7fa5d6356c20     7fa9b3d60c98      6,734,857
+</span></span><span class="line"><span class="cl">    7fa5d69c3050     7fa9b3d60c98        878,704
+</span></span><span class="line"><span class="cl">    7fa5d6a998e0     7fa9b3d60c98        174,565
+</span></span><span class="line"><span class="cl">    7fa5d6ad21c0     7fa9b3d60c98     18,749,311
+</span></span><span class="line"><span class="cl">    7fa5d7cb3960     7fa9b3d60c98      6,734,857
+</span></span><span class="line"><span class="cl">    7fa5d831fd90     7fa9b3d60c98     10,670,254
+</span></span><span class="line"><span class="cl">    7fa5d8d4ce60     7fa9b3d60c98     10,670,254
+</span></span><span class="line"><span class="cl">    7fa5d9779f30     7fa9b3d60c98     18,749,311
+</span></span><span class="line"><span class="cl">    7fa5da95b6d0     7fa9b3d60c98     18,749,311
+</span></span><span class="line"><span class="cl">    7fa5dbb3ce70     7fa9b3d60c98      1,931,776
+</span></span><span class="line"><span class="cl">    7fa5dbd6b8e0     7fa9b3d60c98      6,842,488
+</span></span><span class="line"><span class="cl">    7fa5dc3f2178     7fa9b3d60c98      7,773,830
+</span></span><span class="line"><span class="cl">    7fa5dcb5c020     7fa9b3d60c98      7,773,830
+</span></span><span class="line"><span class="cl">    7fa5dd2c5ec8     7fa9b3d60c98      7,773,830
+</span></span><span class="line"><span class="cl">    7fa5dda2fd70     7fa9b3d60c98     12,585,235
+</span></span><span class="line"><span class="cl">    7fa5de6306a8     7fa9b3d60c98      1,889,260
+</span></span><span class="line"><span class="cl">    7fa5de7fdab8     7fa9b3d60c98      1,172,106
+</span></span><span class="line"><span class="cl">    7fa5de91bd68     7fa9b3d60c98        134,508
+</span></span><span class="line"><span class="cl">    7fa5de94dff8     7fa9b3d60c98      8,857,584
+</span></span><span class="line"><span class="cl">    7fa5df1c0808     7fa9b3d60c98      6,842,488
+</span></span><span class="line"><span class="cl">    7fa5df8470a0     7fa9b3d60c98      6,842,488
+</span></span><span class="line"><span class="cl">    7fa5dfecd938     7fa9b3d60c98      6,842,488
+</span></span><span class="line"><span class="cl">    7fa5e05541d0     7fa9b3d60c98      8,857,584
+</span></span><span class="line"><span class="cl">    7fa5e0dc69e0     7fa9b3d60c98      7,773,449
+</span></span><span class="line"><span class="cl">    7fa5e1530710     7fa9b3d60c98      7,773,449
+</span></span><span class="line"><span class="cl">    7fa5e1c9a440     7fa9b3d60c98        980,321
+</span></span><span class="line"><span class="cl">    7fa5e1d899c8     7fa9b3d60c98      1,052,316
+</span></span><span class="line"><span class="cl">    7fa5e1e8a888     7fa9b3d60c98      1,052,316
+</span></span><span class="line"><span class="cl">    7fa5e1f8b748     7fa9b3d60c98      7,373,509
+</span></span><span class="line"><span class="cl">    7fa5e2693a30     7fa9b3d60c98      7,373,509
+</span></span><span class="line"><span class="cl">    7fa5e2d9bd18     7fa9b3d60c98      2,660,027
+</span></span><span class="line"><span class="cl">    7fa5e30253f8     7fa9b3d60c98      2,660,027
+</span></span><span class="line"><span class="cl">    7fa5e32aead8     7fa9b3d60c98      2,783,326
+</span></span><span class="line"><span class="cl">    7fa5e3556358     7fa9b3d60c98      2,783,326
+</span></span><span class="line"><span class="cl">    7fa5e37fdbd8     7fa9b3d60c98      2,783,326
+</span></span><span class="line"><span class="cl">    7fa5e3aa5458     7fa9b3d60c98      6,840,270
+</span></span><span class="line"><span class="cl">    7fa5e412b448     7fa9b3d60c98     17,239,905
+</span></span><span class="line"><span class="cl">    7fa6b27706c8     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27716e0     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27726f8     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b2773710     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b2774728     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b2775740     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b2776758     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b2777770     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b2778788     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27797a0     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b277a7b8     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b277b7d0     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b277c7e8     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b277d800     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b277e818     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b277f830     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b2790860     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b2791878     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b2792890     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27938a8     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27948c0     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27958d8     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27968f0     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b2797908     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b2798920     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b2799938     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b279a950     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b279b968     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b279c980     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b279d998     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b279e9b0     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b279f9c8     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27a09e0     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27a19f8     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27a2a10     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27a3a28     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27a4a40     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27a5a58     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27a6a70     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27a7a88     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27a8aa0     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27a9ab8     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27aaad0     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27abae8     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27acb00     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27adb18     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27aeb30     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27afb48     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27b0b60     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27b1b78     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27b2b90     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa6b27b3ba8     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa8b2703018     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa8b2704030     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa8b2705048     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa8b2706060     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa8b2707078     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa8b2708090     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa8b27090a8     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa8b270a0c0     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">    7fa8b270b0d8     7fa9b3d60c98          4,120
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Statistics:
+</span></span><span class="line"><span class="cl">          MT  Count     TotalSize Class Name
+</span></span><span class="line"><span class="cl">7fa9b4c13148      <span class="m">1</span>            <span class="m">24</span> AutoMapper.Configuration.MemberConfigurationExpression&lt;***.Core.***.***, ***.***.***.***.***, System.Byte<span class="o">[]</span>&gt;+&lt;&gt;c__DisplayClass21_0
+</span></span><span class="line"><span class="cl">7fa9b4c13070      <span class="m">1</span>            <span class="m">32</span> System.Linq.Expressions.Expression1&lt;System.Func&lt;***.***.***.***, System.Byte<span class="o">[]</span>&gt;&gt;
+</span></span><span class="line"><span class="cl">7fa9bb162720      <span class="m">1</span>            <span class="m">32</span> System.Collections.Generic.List&lt;System.Byte<span class="o">[]</span>&gt;
+</span></span><span class="line"><span class="cl">7fa9b4c12a38      <span class="m">1</span>            <span class="m">48</span> AutoMapper.Configuration.MemberConfigurationExpression&lt;***.***.***.***, ***.***.***.***.***, System.Byte<span class="o">[]</span>&gt;
+</span></span><span class="line"><span class="cl">7fa9baa24648      <span class="m">1</span>            <span class="m">64</span> System.Func&lt;Microsoft.Win32.SafeHandles.SafeX509Handle, System.Byte<span class="o">[]</span>&gt;
+</span></span><span class="line"><span class="cl">7fa9b4199a80      <span class="m">1</span>            <span class="m">64</span> System.Action&lt;AutoMapper.IMemberConfigurationExpression&lt;***.***.***.***, ***.***.***.***.***, System.Byte<span class="o">[]</span>&gt;&gt;
+</span></span><span class="line"><span class="cl">7fa9ba918cf8      <span class="m">1</span>            <span class="m">64</span> System.Func&lt;System.String, System.Threading.CancellationToken, System.Byte<span class="o">[]</span>&gt;
+</span></span><span class="line"><span class="cl">7fa9bb7434d0      <span class="m">1</span>            <span class="m">64</span> System.Buffers.SpanAction&lt;System.Char, System.ValueTuple&lt;System.Byte<span class="o">[]</span>, System.Int32, System.Int32&gt;&gt;
+</span></span><span class="line"><span class="cl">7fa9ba21c2f8      <span class="m">1</span>            <span class="m">64</span> System.Func&lt;System.Byte<span class="o">[]</span>, System.Security.Cryptography.HashAlgorithm&gt;
+</span></span><span class="line"><span class="cl">7fa9ba3fb308      <span class="m">1</span>            <span class="m">64</span> System.Action&lt;System.IntPtr, System.Byte<span class="o">[]</span>, System.Int32, System.Net.Sockets.SocketError&gt;
+</span></span><span class="line"><span class="cl">7fa9b98b3e90     <span class="m">67</span>         4,288 System.Action&lt;System.Int32, System.Byte<span class="o">[]</span>, System.Int32, System.Net.Sockets.SocketFlags, System.Net.Sockets.SocketError&gt;
+</span></span><span class="line"><span class="cl">7fa9b6ad65e8     <span class="m">55</span>        50,376 System.Byte<span class="o">[][]</span>
+</span></span><span class="line"><span class="cl">7fa9b3d60c98 68,716 3,046,115,321 System.Byte<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">Total 68,848 objects, 3,046,170,505 byte
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>到这一步，你就需要多看看这些对象是什么东西，你可以使用 <code>dumpobj [address]</code> 查看某个对象的具体信息，这里我优先考虑那些比较大的对象，这里我选择了</p>
+<p><code>7fa5d6ad21c0</code> 看看里面有什么东西。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">&gt; dumpobj 7fa5d6ad21c0
+</span></span><span class="line"><span class="cl">Name:        System.Byte<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">MethodTable: 00007fa9b3d60c98
+</span></span><span class="line"><span class="cl">EEClass:     00007fa9b3d60c28
+</span></span><span class="line"><span class="cl">Tracked Type: <span class="nb">false</span>
+</span></span><span class="line"><span class="cl">Size:        18749311<span class="o">(</span>0x11e177f<span class="o">)</span> bytes
+</span></span><span class="line"><span class="cl">Array:       Rank 1, Number of elements 18749287, Type Byte
+</span></span><span class="line"><span class="cl">Content:     ... ftypisom....isomiso2avc1mp41....free...<span class="o">}</span>mdat..........E....H..,. .#..x264 - core <span class="m">155</span> r2917 0a84d98 - H.264/MPEG-4 AVC codec
+</span></span><span class="line"><span class="cl">Fields:
+</span></span><span class="line"><span class="cl">None
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>从内容可以看到，这似乎是一个视频文件被加载到了一个字节数组，那么我们需要看看谁在持有它，这里我们可以使用 <code>gcroot [address]</code> 来查看它的引用情况。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">&gt; gcroot 7fa5d6ad21c0
+</span></span><span class="line"><span class="cl">Caching GC roots, this may take a <span class="k">while</span>.
+</span></span><span class="line"><span class="cl">Subsequent runs of this <span class="nb">command</span> will be faster.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Thread da:
+</span></span><span class="line"><span class="cl">    7fa21caae740 7fa9ba5849b9 Serilog.Capturing.PropertyValueConverter.TryConvertEnumerable<span class="o">(</span>System.Object, System.Type, Serilog.Parsing.Destructuring, Serilog.Events.LogEventPropertyValue ByRef<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        r12:
+</span></span><span class="line"><span class="cl">          -&gt; 7fa236bd11a8     System.Collections.Generic.List&lt;***.***.***.CompanyManager&gt;
+</span></span><span class="line"><span class="cl">          -&gt; 7fa5b420b040     ***.***.***.CompanyManager<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">          -&gt; 7fa236bd1c90     ***.***.***.CompanyManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa33f3b91e0     ***.***.***.CompanyTypeManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa33fa34ee8     System.Collections.Generic.List&lt;***.***.***.ManualManager&gt;
+</span></span><span class="line"><span class="cl">          -&gt; 7fa33fa375f0     ***.***.***.ManualManager<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">          -&gt; 7fa33fa37058     ***.***.***.ManualManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa5d6ad21c0     System.Byte<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">... Other Information
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    7fa21caaf680 7fa9b93b3c34 Serilog.Core.Logger.ForContext<span class="o">(</span>System.String, System.Object, Boolean<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        r15:
+</span></span><span class="line"><span class="cl">          -&gt; 7fa2b6278930     ***.***.***.Services.BaseResponse
+</span></span><span class="line"><span class="cl">          -&gt; 7fa2b627dc18     ***.***.***.ServiceLogItemManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa2b627d998     ***.***.***.ServiceLogManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa236bcac90     ***.***.***.UserManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa236bccbb0     ***.***.***.UserGroupManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa236bcd558     ***.***.***.CompanyManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa236bcdfb8     ***.***.***.CompanyTypeManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa236bd11a8     System.Collections.Generic.List&lt;***.***.***.CompanyManager&gt;
+</span></span><span class="line"><span class="cl">          -&gt; 7fa5b420b040     ***.***.***.CompanyManager<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">          -&gt; 7fa236bd1c90     ***.***.***.CompanyManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa33f3b91e0     ***.***.***.CompanyTypeManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa33fa34ee8     System.Collections.Generic.List&lt;***.***.***.ManualManager&gt;
+</span></span><span class="line"><span class="cl">          -&gt; 7fa33fa375f0     ***.***.***.ManualManager<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">          -&gt; 7fa33fa37058     ***.***.***.ManualManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa5d6ad21c0     System.Byte<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    7fa21caaf710 7fa9bb62a3a2 ***.***.***.***.SendNewOrderIntegrationBeforeCommit<span class="o">(</span>***.***.***.***, System.Collections.Generic.List<span class="sb">`</span>1&lt;***.***.***.***Manager&gt;<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        rbp-d0: 00007fa21caaf850
+</span></span><span class="line"><span class="cl">          -&gt; 7fa2b6278930     ***.***.***.***.BaseResponse
+</span></span><span class="line"><span class="cl">          -&gt; 7fa2b627dc18     ***.***.***.ServiceLogItemManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa2b627d998     ***.***.***.ServiceLogManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa236bcac90     ***.***.***.UserManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa236bccbb0     ***.***.***.UserGroupManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa236bcd558     ***.***.***.CompanyManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa236bcdfb8     ***.***.***.CompanyTypeManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa236bd11a8     System.Collections.Generic.List&lt;***.***.***.CompanyManager&gt;
+</span></span><span class="line"><span class="cl">          -&gt; 7fa5b420b040     ***.***.***.CompanyManager<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">          -&gt; 7fa236bd1c90     ***.***.***.CompanyManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa33f3b91e0     ***.***.***.CompanyTypeManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa33fa34ee8     System.Collections.Generic.List&lt;***.***.***.ManualManager&gt;
+</span></span><span class="line"><span class="cl">          -&gt; 7fa33fa375f0     ***.***.***.ManualManager<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">          -&gt; 7fa33fa37058     ***.***.***.ManualManager
+</span></span><span class="line"><span class="cl">          -&gt; 7fa5d6ad21c0     System.Byte<span class="o">[]</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Found <span class="m">32</span> unique roots.
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>看起来这里的 <code>Byte[]</code> 最后是被某个 <code>BaseResponse</code> 所持有的，并且被 <code>7fa21caaf680 7fa9b93b3c34 Serilog.Core.Logger.ForContext(System.String, System.Object, Boolean)</code> 调用，其实到这一步我也猜到大概是什么原因了，如果想要获取更加详细的信息，可以切换到对应线程执行 <code>clrstack</code> 查看调用堆栈。</p>
+<p>这里 Thread Number 是 <code>da</code>，使用 <code>threads</code> 指令查看所有线程:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">&gt; threads
+</span></span><span class="line"><span class="cl">*0 0x0001 <span class="o">(</span>1<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">1</span> 0x0007 <span class="o">(</span>7<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">2</span> 0x0008 <span class="o">(</span>8<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">3</span> 0x0009 <span class="o">(</span>9<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">4</span> 0x000A <span class="o">(</span>10<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">5</span> 0x000B <span class="o">(</span>11<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">6</span> 0x000C <span class="o">(</span>12<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">7</span> 0x000D <span class="o">(</span>13<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">8</span> 0x000E <span class="o">(</span>14<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">9</span> 0x000F <span class="o">(</span>15<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">10</span> 0x0010 <span class="o">(</span>16<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">11</span> 0x0011 <span class="o">(</span>17<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">12</span> 0x0013 <span class="o">(</span>19<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">13</span> 0x0017 <span class="o">(</span>23<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">14</span> 0x0018 <span class="o">(</span>24<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">15</span> 0x0019 <span class="o">(</span>25<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">16</span> 0x001B <span class="o">(</span>27<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">17</span> 0x001D <span class="o">(</span>29<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">18</span> 0x001E <span class="o">(</span>30<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">19</span> 0x001F <span class="o">(</span>31<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">20</span> 0x0020 <span class="o">(</span>32<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">21</span> 0x0024 <span class="o">(</span>36<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">22</span> 0x0025 <span class="o">(</span>37<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">23</span> 0x0026 <span class="o">(</span>38<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">24</span> 0x002A <span class="o">(</span>42<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">25</span> 0x004A <span class="o">(</span>74<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">26</span> 0x00BB <span class="o">(</span>187<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">27</span> 0x00BC <span class="o">(</span>188<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">28</span> 0x00BD <span class="o">(</span>189<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">29</span> 0x00CE <span class="o">(</span>206<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">30</span> 0x00D1 <span class="o">(</span>209<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">31</span> 0x00D2 <span class="o">(</span>210<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">32</span> 0x00D4 <span class="o">(</span>212<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">33</span> 0x00D5 <span class="o">(</span>213<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">34</span> 0x00D6 <span class="o">(</span>214<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">35</span> 0x00DA <span class="o">(</span>218<span class="o">)</span>
+</span></span><span class="line"><span class="cl"> <span class="m">36</span> 0x00DB <span class="o">(</span>219<span class="o">)</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>发现 <code>0x00DA</code> 对应的是 35 号线程，使用命令 <code>setthread 35</code> 切换到对应线程，执行 <code>clrstack</code> 指令查看调用堆栈。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">  1
+</span><span class="lnt">  2
+</span><span class="lnt">  3
+</span><span class="lnt">  4
+</span><span class="lnt">  5
+</span><span class="lnt">  6
+</span><span class="lnt">  7
+</span><span class="lnt">  8
+</span><span class="lnt">  9
+</span><span class="lnt"> 10
+</span><span class="lnt"> 11
+</span><span class="lnt"> 12
+</span><span class="lnt"> 13
+</span><span class="lnt"> 14
+</span><span class="lnt"> 15
+</span><span class="lnt"> 16
+</span><span class="lnt"> 17
+</span><span class="lnt"> 18
+</span><span class="lnt"> 19
+</span><span class="lnt"> 20
+</span><span class="lnt"> 21
+</span><span class="lnt"> 22
+</span><span class="lnt"> 23
+</span><span class="lnt"> 24
+</span><span class="lnt"> 25
+</span><span class="lnt"> 26
+</span><span class="lnt"> 27
+</span><span class="lnt"> 28
+</span><span class="lnt"> 29
+</span><span class="lnt"> 30
+</span><span class="lnt"> 31
+</span><span class="lnt"> 32
+</span><span class="lnt"> 33
+</span><span class="lnt"> 34
+</span><span class="lnt"> 35
+</span><span class="lnt"> 36
+</span><span class="lnt"> 37
+</span><span class="lnt"> 38
+</span><span class="lnt"> 39
+</span><span class="lnt"> 40
+</span><span class="lnt"> 41
+</span><span class="lnt"> 42
+</span><span class="lnt"> 43
+</span><span class="lnt"> 44
+</span><span class="lnt"> 45
+</span><span class="lnt"> 46
+</span><span class="lnt"> 47
+</span><span class="lnt"> 48
+</span><span class="lnt"> 49
+</span><span class="lnt"> 50
+</span><span class="lnt"> 51
+</span><span class="lnt"> 52
+</span><span class="lnt"> 53
+</span><span class="lnt"> 54
+</span><span class="lnt"> 55
+</span><span class="lnt"> 56
+</span><span class="lnt"> 57
+</span><span class="lnt"> 58
+</span><span class="lnt"> 59
+</span><span class="lnt"> 60
+</span><span class="lnt"> 61
+</span><span class="lnt"> 62
+</span><span class="lnt"> 63
+</span><span class="lnt"> 64
+</span><span class="lnt"> 65
+</span><span class="lnt"> 66
+</span><span class="lnt"> 67
+</span><span class="lnt"> 68
+</span><span class="lnt"> 69
+</span><span class="lnt"> 70
+</span><span class="lnt"> 71
+</span><span class="lnt"> 72
+</span><span class="lnt"> 73
+</span><span class="lnt"> 74
+</span><span class="lnt"> 75
+</span><span class="lnt"> 76
+</span><span class="lnt"> 77
+</span><span class="lnt"> 78
+</span><span class="lnt"> 79
+</span><span class="lnt"> 80
+</span><span class="lnt"> 81
+</span><span class="lnt"> 82
+</span><span class="lnt"> 83
+</span><span class="lnt"> 84
+</span><span class="lnt"> 85
+</span><span class="lnt"> 86
+</span><span class="lnt"> 87
+</span><span class="lnt"> 88
+</span><span class="lnt"> 89
+</span><span class="lnt"> 90
+</span><span class="lnt"> 91
+</span><span class="lnt"> 92
+</span><span class="lnt"> 93
+</span><span class="lnt"> 94
+</span><span class="lnt"> 95
+</span><span class="lnt"> 96
+</span><span class="lnt"> 97
+</span><span class="lnt"> 98
+</span><span class="lnt"> 99
+</span><span class="lnt">100
+</span><span class="lnt">101
+</span><span class="lnt">102
+</span><span class="lnt">103
+</span><span class="lnt">104
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl">&gt; setthread <span class="m">35</span>
+</span></span><span class="line"><span class="cl">&gt; clrstack
+</span></span><span class="line"><span class="cl">OS Thread Id: 0xda <span class="o">(</span>35<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        Child SP               IP Call Site
+</span></span><span class="line"><span class="cl">00007FA21CAACE00 00007faa2ce99f63 <span class="o">[</span>InlinedCallFrame: 00007fa21caace00<span class="o">]</span> Interop+Sys.ReceiveMessage<span class="o">(</span>System.Runtime.InteropServices.SafeHandle, MessageHeader*, System.Net.Sockets.SocketFlags, Int64*<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAACE00 00007fa9ba5ddc38 <span class="o">[</span>InlinedCallFrame: 00007fa21caace00<span class="o">]</span> Interop+Sys.ReceiveMessage<span class="o">(</span>System.Runtime.InteropServices.SafeHandle, MessageHeader*, System.Net.Sockets.SocketFlags, Int64*<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAACDF0 00007FA9BA5DDC38 ILStubClass.IL_STUB_PInvoke<span class="o">(</span>System.Runtime.InteropServices.SafeHandle, MessageHeader*, System.Net.Sockets.SocketFlags, Int64*<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAACE90 00007FA9BA5DDAE9 System.Net.Sockets.SocketPal.SysReceive<span class="o">(</span>System.Net.Sockets.SafeSocketHandle, System.Net.Sockets.SocketFlags, System.Span<span class="sb">`</span>1&lt;Byte&gt;, Byte<span class="o">[]</span>, Int32 ByRef, System.Net.Sockets.SocketFlags ByRef, Error ByRef<span class="o">)</span> <span class="o">[</span>/_/src/libraries/System.Net.Sockets/src/System/Net/Sockets/SocketPal.Unix.cs @ 158<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAACF30 00007FA9BA5DD671 System.Net.Sockets.SocketPal.TryCompleteReceiveFrom<span class="o">(</span>System.Net.Sockets.SafeSocketHandle, System.Span<span class="sb">`</span>1&lt;Byte&gt;, System.Collections.Generic.IList<span class="sb">`</span>1&lt;System.ArraySegment<span class="sb">`</span>1&lt;Byte&gt;&gt;, System.Net.Sockets.SocketFlags, Byte<span class="o">[]</span>, Int32 ByRef, Int32 ByRef, System.Net.Sockets.SocketFlags ByRef, System.Net.Sockets.SocketError ByRef<span class="o">)</span> <span class="o">[</span>/_/src/libraries/System.Net.Sockets/src/System/Net/Sockets/SocketPal.Unix.cs @ 834<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAACFA0 00007FA9BAD28C59 System.Net.Sockets.SocketAsyncContext.ReceiveFrom<span class="o">(</span>System.Memory<span class="sb">`</span>1&lt;Byte&gt;, System.Net.Sockets.SocketFlags ByRef, Byte<span class="o">[]</span>, Int32 ByRef, Int32, Int32 ByRef<span class="o">)</span> <span class="o">[</span>/_/src/libraries/System.Net.Sockets/src/System/Net/Sockets/SocketAsyncContext.Unix.cs @ 1540<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD030 00007FA9BAD28ABB System.Net.Sockets.SocketPal.Receive<span class="o">(</span>System.Net.Sockets.SafeSocketHandle, Byte<span class="o">[]</span>, Int32, Int32, System.Net.Sockets.SocketFlags, Int32 ByRef<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD0B0 00007FA9BAD28857 System.Net.Sockets.Socket.Receive<span class="o">(</span>Byte<span class="o">[]</span>, Int32, Int32, System.Net.Sockets.SocketFlags, System.Net.Sockets.SocketError ByRef<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD130 00007FA9BAD28549 System.Net.Sockets.NetworkStream.Read<span class="o">(</span>Byte<span class="o">[]</span>, Int32, Int32<span class="o">)</span> <span class="o">[</span>/_/src/libraries/System.Net.Sockets/src/System/Net/Sockets/NetworkStream.cs @ 231<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD180 00007FA9BAD2DD75 System.IO.Stream.Read<span class="o">(</span>System.Span<span class="sb">`</span>1&lt;Byte&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/System.Private.CoreLib/src/System/IO/Stream.cs @ 667<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD1D0 00007FA9BA5DC52B System.Net.Sockets.NetworkStream.Read<span class="o">(</span>System.Span<span class="sb">`</span>1&lt;Byte&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/System.Net.Sockets/src/System/Net/Sockets/NetworkStream.cs @ 246<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD220 00007FA9BAD2DB78 Microsoft.Data.SqlClient.SNI.SslOverTdsStream.Read<span class="o">(</span>System.Span<span class="sb">`</span>1&lt;Byte&gt;<span class="o">)</span> <span class="o">[</span>/_/src/Microsoft.Data.SqlClient/netcore/src/Microsoft/Data/SqlClient/SNI/SslOverTdsStream.NetCoreApp.cs @ 32<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD290 00007FA9BAD39691 System.Net.Security.SslStream+&lt;EnsureFullTlsFrameAsync&gt;d__186<span class="sb">`</span>1<span class="o">[[</span>System.Net.Security.SyncReadWriteAdapter, System.Net.Security<span class="o">]]</span>.MoveNext<span class="o">()</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD310 00007FA9BAD39477 System.Runtime.CompilerServices.AsyncMethodBuilderCore.Start<span class="o">[[</span>System.Net.Security.SslStream+&lt;EnsureFullTlsFrameAsync&gt;d__186<span class="sb">`</span>1<span class="o">[[</span>System.Net.Security.SyncReadWriteAdapter, System.Net.Security<span class="o">]]</span>, System.Net.Security<span class="o">]](</span>&lt;EnsureFullTlsFrameAsync&gt;d__186<span class="sb">`</span>1&lt;System.Net.Security.SyncReadWriteAdapter&gt; ByRef<span class="o">)</span> <span class="o">[</span>/_/src/libraries/System.Private.CoreLib/src/System/Runtime/CompilerServices/AsyncMethodBuilderCore.cs @ 38<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD350 00007FA9BAD393D7 System.Net.Security.SslStream.EnsureFullTlsFrameAsync<span class="o">[[</span>System.Net.Security.SyncReadWriteAdapter, System.Net.Security<span class="o">]](</span>System.Net.Security.SyncReadWriteAdapter<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD3C0 00007FA9BAD38A39 System.Net.Security.SslStream+&lt;ReadAsyncInternal&gt;d__188<span class="sb">`</span>1<span class="o">[[</span>System.Net.Security.SyncReadWriteAdapter, System.Net.Security<span class="o">]]</span>.MoveNext<span class="o">()</span> <span class="o">[</span>/_/src/libraries/System.Net.Security/src/System/Net/Security/SslStream.Implementation.cs @ 963<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD520 00007FA9BAD385D7 System.Runtime.CompilerServices.AsyncMethodBuilderCore.Start<span class="o">[[</span>System.Net.Security.SslStream+&lt;ReadAsyncInternal&gt;d__188<span class="sb">`</span>1<span class="o">[[</span>System.Net.Security.SyncReadWriteAdapter, System.Net.Security<span class="o">]]</span>, System.Net.Security<span class="o">]](</span>&lt;ReadAsyncInternal&gt;d__188<span class="sb">`</span>1&lt;System.Net.Security.SyncReadWriteAdapter&gt; ByRef<span class="o">)</span> <span class="o">[</span>/_/src/libraries/System.Private.CoreLib/src/System/Runtime/CompilerServices/AsyncMethodBuilderCore.cs @ 38<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD560 00007FA9BAD3847B System.Net.Security.SslStream.Read<span class="o">(</span>Byte<span class="o">[]</span>, Int32, Int32<span class="o">)</span> <span class="o">[</span>/_/src/libraries/System.Net.Security/src/System/Net/Security/SslStream.cs @ 767<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD620 00007FA9BAD27C43 Microsoft.Data.SqlClient.SNI.SNITCPHandle.Receive<span class="o">(</span>Microsoft.Data.SqlClient.SNI.SNIPacket ByRef, Int32<span class="o">)</span> <span class="o">[</span>/_/src/Microsoft.Data.SqlClient/netcore/src/Microsoft/Data/SqlClient/SNI/SNITcpHandle.cs @ 799<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD780 00007FA9BAD279FA Microsoft.Data.SqlClient.SNI.TdsParserStateObjectManaged.ReadSyncOverAsync<span class="o">(</span>Int32, UInt32 ByRef<span class="o">)</span> <span class="o">[</span>/_/src/Microsoft.Data.SqlClient/netcore/src/Microsoft/Data/SqlClient/TdsParserStateObjectManaged.cs @ 219<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD7D0 00007FA9BAD276EF Microsoft.Data.SqlClient.TdsParserStateObject.ReadSniSyncOverAsync<span class="o">()</span> <span class="o">[</span>/_/src/Microsoft.Data.SqlClient/netcore/src/Microsoft/Data/SqlClient/TdsParserStateObject.cs @ 1223<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD820 00007FA9BAD2760C Microsoft.Data.SqlClient.TdsParserStateObject.TryReadNetworkPacket<span class="o">()</span> <span class="o">[</span>/_/src/Microsoft.Data.SqlClient/netcore/src/Microsoft/Data/SqlClient/TdsParserStateObject.cs @ 1181<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD840 00007FA9BAD37E54 Microsoft.Data.SqlClient.TdsParserStateObject.TryPrepareBuffer<span class="o">()</span> <span class="o">[</span>/_/src/Microsoft.Data.SqlClient/src/Microsoft/Data/SqlClient/TdsParserStateObject.cs @ 901<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD860 00007FA9BAD3C748 Microsoft.Data.SqlClient.TdsParserStateObject.TryReadUInt32<span class="o">(</span>UInt32 ByRef<span class="o">)</span> <span class="o">[</span>/_/src/Microsoft.Data.SqlClient/netcore/src/Microsoft/Data/SqlClient/TdsParserStateObject.cs @ 632<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD890 00007FA9BAD7C73C Microsoft.Data.SqlClient.TdsParserStateObject.TryReadPlpLength<span class="o">(</span>Boolean, UInt64 ByRef<span class="o">)</span> <span class="o">[</span>/_/src/Microsoft.Data.SqlClient/netcore/src/Microsoft/Data/SqlClient/TdsParserStateObject.cs @ 908<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD8D0 00007FA9BAD7CA11 Microsoft.Data.SqlClient.TdsParserStateObject.TryReadPlpBytes<span class="o">(</span>Byte<span class="o">[]</span> ByRef, Int32, Int32, Int32 ByRef<span class="o">)</span> <span class="o">[</span>/_/src/Microsoft.Data.SqlClient/netcore/src/Microsoft/Data/SqlClient/TdsParserStateObject.cs @ 1054<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD930 00007FA9BAD6D9A8 Microsoft.Data.SqlClient.TdsParser.TryReadSqlValue<span class="o">(</span>Microsoft.Data.SqlClient.SqlBuffer, Microsoft.Data.SqlClient.SqlMetaDataPriv, Int32, Microsoft.Data.SqlClient.TdsParserStateObject, Microsoft.Data.SqlClient.SqlCommandColumnEncryptionSetting, System.String, Microsoft.Data.SqlClient.SqlCommand<span class="o">)</span> <span class="o">[</span>/_/src/Microsoft.Data.SqlClient/netcore/src/Microsoft/Data/SqlClient/TdsParser.cs @ 6054<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAD9B0 00007FA9BAD6CF76 Microsoft.Data.SqlClient.SqlDataReader.TryReadColumnInternal<span class="o">(</span>Int32, Boolean, Boolean<span class="o">)</span> <span class="o">[</span>/_/src/Microsoft.Data.SqlClient/netcore/src/Microsoft/Data/SqlClient/SqlDataReader.cs @ 3915<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAADA40 00007FA9BAD6C92A Microsoft.Data.SqlClient.SqlDataReader.GetValueInternal<span class="o">(</span>Int32<span class="o">)</span> <span class="o">[</span>/_/src/Microsoft.Data.SqlClient/netcore/src/Microsoft/Data/SqlClient/SqlDataReader.cs @ 2719<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAADA60 00007FA9BAD6C864 Microsoft.Data.SqlClient.SqlDataReader.GetValue<span class="o">(</span>Int32<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAADAA0 00007FA9BAD6C26A ***.DataAccess.NeoBaseDAL<span class="sb">`</span>1<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]]</span>.LoadObject<span class="o">(</span>System.Data.IDataReader<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAADBE0 00007FA9BAD7E4C9 ***.DataAccess.NeoBaseDAL<span class="sb">`</span>1<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]]</span>.LoadObjects<span class="o">(</span>Microsoft.Data.SqlClient.SqlDataReader<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAADC20 00007FA9BAD7D6BB ***.DataAccess.NeoBaseDAL<span class="sb">`</span>1<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]]</span>.GetData<span class="o">(</span>System.__Canon, ***.Domain.FiltroPaginador<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAADCC0 00007FA9BAD7D12E ***.Domain.NeoBaseManager<span class="sb">`</span>1<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]]</span>.GetData<span class="o">(</span>System.__Canon<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAADD10 00007FA9BB66EAFD ***.***.***.***.get_ListManual<span class="o">()</span>
+</span></span><span class="line"><span class="cl">00007FA21CAADFC0 00007faa2c663c13 <span class="o">[</span>DebuggerU2MCatchHandlerFrame: 00007fa21caadfc0<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE0C8 00007faa2c663c13 <span class="o">[</span>HelperMethodFrame_PROTECTOBJ: 00007fa21caae0c8<span class="o">]</span> System.RuntimeMethodHandle.InvokeMethod<span class="o">(</span>System.Object, System.Span<span class="sb">`</span>1&lt;System.Object&gt; ByRef, System.Signature, Boolean, Boolean<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE240 00007FA9B49E9B3C System.Reflection.RuntimeMethodInfo.Invoke<span class="o">(</span>System.Object, System.Reflection.BindingFlags, System.Reflection.Binder, System.Object<span class="o">[]</span>, System.Globalization.CultureInfo<span class="o">)</span> <span class="o">[</span>/_/src/coreclr/System.Private.CoreLib/src/System/Reflection/RuntimeMethodInfo.cs @ 435<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE2C0 00007FA9BB644BB8 Serilog.Capturing.PropertyValueConverter+&lt;GetProperties&gt;d__22.MoveNext<span class="o">()</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE340 00007FA9B49A7C29 System.Collections.Generic.LargeArrayBuilder<span class="sb">`</span>1<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]]</span>.AddRange<span class="o">(</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/LargeArrayBuilder.SpeedOpt.cs @ 116<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE3A0 00007FA9B40C0EA5 System.Collections.Generic.EnumerableHelpers.ToArray<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]](</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/EnumerableHelpers.Linq.cs @ 85<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE410 00007FA9BA584DD7 Serilog.Capturing.PropertyValueConverter.TryConvertCompilerGeneratedType<span class="o">(</span>System.Object, System.Type, Serilog.Parsing.Destructuring, Serilog.Events.LogEventPropertyValue ByRef<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE460 00007FA9B93B4090 Serilog.Capturing.PropertyValueConverter.CreatePropertyValue<span class="o">(</span>System.Object, Serilog.Parsing.Destructuring, Int32<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE4D0 00007FA9BB644CCD Serilog.Capturing.PropertyValueConverter+&lt;GetProperties&gt;d__22.MoveNext<span class="o">()</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE550 00007FA9B49A7C29 System.Collections.Generic.LargeArrayBuilder<span class="sb">`</span>1<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]]</span>.AddRange<span class="o">(</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/LargeArrayBuilder.SpeedOpt.cs @ 116<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE5B0 00007FA9B40C0EA5 System.Collections.Generic.EnumerableHelpers.ToArray<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]](</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/EnumerableHelpers.Linq.cs @ 85<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE620 00007FA9BA584DD7 Serilog.Capturing.PropertyValueConverter.TryConvertCompilerGeneratedType<span class="o">(</span>System.Object, System.Type, Serilog.Parsing.Destructuring, Serilog.Events.LogEventPropertyValue ByRef<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE670 00007FA9B93B4090 Serilog.Capturing.PropertyValueConverter.CreatePropertyValue<span class="o">(</span>System.Object, Serilog.Parsing.Destructuring, Int32<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE6E0 00007FA9BB66EA50 Serilog.Capturing.PropertyValueConverter+DepthLimiter.CreatePropertyValue<span class="o">(</span>System.Object, Serilog.Parsing.Destructuring<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE740 00007FA9BA5849B9 Serilog.Capturing.PropertyValueConverter.TryConvertEnumerable<span class="o">(</span>System.Object, System.Type, Serilog.Parsing.Destructuring, Serilog.Events.LogEventPropertyValue ByRef<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE7A0 00007FA9B93B403D Serilog.Capturing.PropertyValueConverter.CreatePropertyValue<span class="o">(</span>System.Object, Serilog.Parsing.Destructuring, Int32<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE810 00007FA9BB644CCD Serilog.Capturing.PropertyValueConverter+&lt;GetProperties&gt;d__22.MoveNext<span class="o">()</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE890 00007FA9B49A7C29 System.Collections.Generic.LargeArrayBuilder<span class="sb">`</span>1<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]]</span>.AddRange<span class="o">(</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/LargeArrayBuilder.SpeedOpt.cs @ 116<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE8F0 00007FA9B40C0EA5 System.Collections.Generic.EnumerableHelpers.ToArray<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]](</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/EnumerableHelpers.Linq.cs @ 85<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE960 00007FA9BA584DD7 Serilog.Capturing.PropertyValueConverter.TryConvertCompilerGeneratedType<span class="o">(</span>System.Object, System.Type, Serilog.Parsing.Destructuring, Serilog.Events.LogEventPropertyValue ByRef<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAE9B0 00007FA9B93B4090 Serilog.Capturing.PropertyValueConverter.CreatePropertyValue<span class="o">(</span>System.Object, Serilog.Parsing.Destructuring, Int32<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAEA20 00007FA9BB644CCD Serilog.Capturing.PropertyValueConverter+&lt;GetProperties&gt;d__22.MoveNext<span class="o">()</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAEAA0 00007FA9B49A7C29 System.Collections.Generic.LargeArrayBuilder<span class="sb">`</span>1<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]]</span>.AddRange<span class="o">(</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/LargeArrayBuilder.SpeedOpt.cs @ 116<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAEB00 00007FA9B40C0EA5 System.Collections.Generic.EnumerableHelpers.ToArray<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]](</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/EnumerableHelpers.Linq.cs @ 85<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAEB70 00007FA9BA584DD7 Serilog.Capturing.PropertyValueConverter.TryConvertCompilerGeneratedType<span class="o">(</span>System.Object, System.Type, Serilog.Parsing.Destructuring, Serilog.Events.LogEventPropertyValue ByRef<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAEBC0 00007FA9B93B4090 Serilog.Capturing.PropertyValueConverter.CreatePropertyValue<span class="o">(</span>System.Object, Serilog.Parsing.Destructuring, Int32<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAEC30 00007FA9BB644CCD Serilog.Capturing.PropertyValueConverter+&lt;GetProperties&gt;d__22.MoveNext<span class="o">()</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAECB0 00007FA9B49A7C29 System.Collections.Generic.LargeArrayBuilder<span class="sb">`</span>1<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]]</span>.AddRange<span class="o">(</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/LargeArrayBuilder.SpeedOpt.cs @ 116<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAED10 00007FA9B40C0EA5 System.Collections.Generic.EnumerableHelpers.ToArray<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]](</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/EnumerableHelpers.Linq.cs @ 85<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAED80 00007FA9BA584DD7 Serilog.Capturing.PropertyValueConverter.TryConvertCompilerGeneratedType<span class="o">(</span>System.Object, System.Type, Serilog.Parsing.Destructuring, Serilog.Events.LogEventPropertyValue ByRef<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAEDD0 00007FA9B93B4090 Serilog.Capturing.PropertyValueConverter.CreatePropertyValue<span class="o">(</span>System.Object, Serilog.Parsing.Destructuring, Int32<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAEE40 00007FA9BB644CCD Serilog.Capturing.PropertyValueConverter+&lt;GetProperties&gt;d__22.MoveNext<span class="o">()</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAEEC0 00007FA9B49A7C29 System.Collections.Generic.LargeArrayBuilder<span class="sb">`</span>1<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]]</span>.AddRange<span class="o">(</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/LargeArrayBuilder.SpeedOpt.cs @ 116<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAEF20 00007FA9B40C0EA5 System.Collections.Generic.EnumerableHelpers.ToArray<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]](</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/EnumerableHelpers.Linq.cs @ 85<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAEF90 00007FA9BA584DD7 Serilog.Capturing.PropertyValueConverter.TryConvertCompilerGeneratedType<span class="o">(</span>System.Object, System.Type, Serilog.Parsing.Destructuring, Serilog.Events.LogEventPropertyValue ByRef<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAEFE0 00007FA9B93B4090 Serilog.Capturing.PropertyValueConverter.CreatePropertyValue<span class="o">(</span>System.Object, Serilog.Parsing.Destructuring, Int32<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF050 00007FA9BB644CCD Serilog.Capturing.PropertyValueConverter+&lt;GetProperties&gt;d__22.MoveNext<span class="o">()</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF0D0 00007FA9B49A7C29 System.Collections.Generic.LargeArrayBuilder<span class="sb">`</span>1<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]]</span>.AddRange<span class="o">(</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/LargeArrayBuilder.SpeedOpt.cs @ 116<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF130 00007FA9B40C0EA5 System.Collections.Generic.EnumerableHelpers.ToArray<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]](</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/EnumerableHelpers.Linq.cs @ 85<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF1A0 00007FA9BA584DD7 Serilog.Capturing.PropertyValueConverter.TryConvertCompilerGeneratedType<span class="o">(</span>System.Object, System.Type, Serilog.Parsing.Destructuring, Serilog.Events.LogEventPropertyValue ByRef<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF1F0 00007FA9B93B4090 Serilog.Capturing.PropertyValueConverter.CreatePropertyValue<span class="o">(</span>System.Object, Serilog.Parsing.Destructuring, Int32<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF260 00007FA9BB644CCD Serilog.Capturing.PropertyValueConverter+&lt;GetProperties&gt;d__22.MoveNext<span class="o">()</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF2E0 00007FA9B49A7C29 System.Collections.Generic.LargeArrayBuilder<span class="sb">`</span>1<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]]</span>.AddRange<span class="o">(</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/LargeArrayBuilder.SpeedOpt.cs @ 116<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF340 00007FA9B40C0EA5 System.Collections.Generic.EnumerableHelpers.ToArray<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]](</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/EnumerableHelpers.Linq.cs @ 85<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF3B0 00007FA9BA584DD7 Serilog.Capturing.PropertyValueConverter.TryConvertCompilerGeneratedType<span class="o">(</span>System.Object, System.Type, Serilog.Parsing.Destructuring, Serilog.Events.LogEventPropertyValue ByRef<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF400 00007FA9B93B4090 Serilog.Capturing.PropertyValueConverter.CreatePropertyValue<span class="o">(</span>System.Object, Serilog.Parsing.Destructuring, Int32<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF470 00007FA9BB644CCD Serilog.Capturing.PropertyValueConverter+&lt;GetProperties&gt;d__22.MoveNext<span class="o">()</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF4F0 00007FA9B49A7C29 System.Collections.Generic.LargeArrayBuilder<span class="sb">`</span>1<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]]</span>.AddRange<span class="o">(</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/LargeArrayBuilder.SpeedOpt.cs @ 116<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF550 00007FA9B40C0EA5 System.Collections.Generic.EnumerableHelpers.ToArray<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]](</span>System.Collections.Generic.IEnumerable<span class="sb">`</span>1&lt;System.__Canon&gt;<span class="o">)</span> <span class="o">[</span>/_/src/libraries/Common/src/System/Collections/Generic/EnumerableHelpers.Linq.cs @ 85<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF5C0 00007FA9BA584DD7 Serilog.Capturing.PropertyValueConverter.TryConvertCompilerGeneratedType<span class="o">(</span>System.Object, System.Type, Serilog.Parsing.Destructuring, Serilog.Events.LogEventPropertyValue ByRef<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF610 00007FA9B93B4090 Serilog.Capturing.PropertyValueConverter.CreatePropertyValue<span class="o">(</span>System.Object, Serilog.Parsing.Destructuring, Int32<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF680 00007FA9B93B3C34 Serilog.Core.Logger.ForContext<span class="o">(</span>System.String, System.Object, Boolean<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF710 00007FA9BB62A3A2 ***.***.***.***.SendNewOrderIntegrationBeforeCommit<span class="o">(</span>***.***.***.***, System.Collections.Generic.List<span class="sb">`</span>1&lt;***.***.***.***&gt;<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAF930 00007FA9BB60EDAD ***.***.***.***.GenerateOrder<span class="o">(</span>***.***.***.***, Boolean<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAFD90 00007FA9BB60910F ***.***.***.***.GenerateOrderManuallyWithSelectedItems<span class="o">(</span>***.***.***.***, ***.***.***.***<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAFE20 00007FA9BB608F44 ***.***.***.***.GenerateOrder<span class="o">(</span>***.***.***.***, Int64<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAAFE60 00007FA9BB605B29 ***.***.***.Controllers.OrderController.GenerateOrder<span class="o">(</span>***.***.***.***.*********<span class="o">)</span>
+</span></span><span class="line"><span class="cl">... 省略
+</span></span><span class="line"><span class="cl">00007FA21CAB11F0 00007FA9BA585082 NewRelic.Providers.Wrapper.AspNetCore.WrapPipelineMiddleware.Invoke<span class="o">(</span>Microsoft.AspNetCore.Http.HttpContext<span class="o">)</span>
+</span></span><span class="line"><span class="cl">00007FA21CAB1240 00007FA9BA56EDB1 Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol+&lt;ProcessRequests&gt;d__226<span class="sb">`</span>1<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]]</span>.MoveNext<span class="o">()</span>
+</span></span><span class="line"><span class="cl">00007FA21CAB13E0 00007FA9B70753AD System.Threading.ExecutionContext.RunFromThreadPoolDispatchLoop<span class="o">(</span>System.Threading.Thread, System.Threading.ExecutionContext, System.Threading.ContextCallback, System.Object<span class="o">)</span> <span class="o">[</span>/_/src/libraries/System.Private.CoreLib/src/System/Threading/ExecutionContext.cs @ 268<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAB1420 00007FA9BADE97EA System.Runtime.CompilerServices.AsyncTaskMethodBuilder<span class="sb">`</span>1+AsyncStateMachineBox<span class="sb">`</span>1<span class="o">[[</span>System.Threading.Tasks.VoidTaskResult, System.Private.CoreLib<span class="o">]</span>,<span class="o">[</span>Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol+&lt;ProcessRequests&gt;d__226<span class="sb">`</span>1<span class="o">[[</span>System.__Canon, System.Private.CoreLib<span class="o">]]</span>, Microsoft.AspNetCore.Server.Kestrel.Core<span class="o">]]</span>.MoveNext<span class="o">(</span>System.Threading.Thread<span class="o">)</span> <span class="o">[</span>/_/src/libraries/System.Private.CoreLib/src/System/Runtime/CompilerServices/AsyncTaskMethodBuilderT.cs @ 332<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAB1470 00007FA9B6FD2073 System.Threading.ThreadPoolWorkQueue.Dispatch<span class="o">()</span> <span class="o">[</span>/_/src/libraries/System.Private.CoreLib/src/System/Threading/ThreadPoolWorkQueue.cs @ 724<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAB14E0 00007FA9B6FD0230 System.Threading.PortableThreadPool+WorkerThread.WorkerThreadStart<span class="o">()</span> <span class="o">[</span>/_/src/libraries/System.Private.CoreLib/src/System/Threading/PortableThreadPool.WorkerThread.cs @ 107<span class="o">]</span>
+</span></span><span class="line"><span class="cl">00007FA21CAB16F0 00007faa2c663c13 <span class="o">[</span>DebuggerU2MCatchHandlerFrame: 00007fa21cab16f0<span class="o">]</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>找到对应方法 <code>SendNewOrderIntegrationBeforeCommit</code> 里面调用 <code>Serilog.Core.Logger.ForContext</code> 的地方，发现了以下代码:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">result</span> <span class="n">objBaseResponse</span> <span class="p">=</span> <span class="p">***.***(***,</span> <span class="p">***.</span><span class="n">IdOrder</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="n">Log</span><span class="p">..</span><span class="n">ForContext</span><span class="p">(</span><span class="s">&#34;{@Result}&#34;</span><span class="p">,</span> <span class="n">objBaseResponse</span><span class="p">,</span> <span class="kc">true</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">Information</span><span class="p">(</span><span class="s">&#34;SendNewOrderIntegration end&#34;</span><span class="p">);</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="3-结论">3. 结论</h2>
+<p>调查 objBaseResponse 得知，里面手搓了类似于导航属性的玩意儿，而且还有循环依赖，这样一旦走到这个打日志的地方，就会遍历对象的属性，与此同时还会触发从数据库获取数据的操作，也就是会导致入站流量飙升。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">Create a logger that enriches log events with the specified property.
+</span></span><span class="line"><span class="cl">Params:
+</span></span><span class="line"><span class="cl">propertyName – The name of the property. Must be non-empty.
+</span></span><span class="line"><span class="cl">value – The property value.
+</span></span><span class="line"><span class="cl">destructureObjects – If true, the value will be serialized as a structured object if possible; if false, the object will be recorded as a scalar or simple array.
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>本来不指定 <code>true</code> 值可能都不会有问题，一旦指定了 <code>true</code> 值，序列化对象的时候就会完全遍历里面的子对象。</p>
+<h2 id="4-资料">4. 资料</h2>
+<ul>
+<li><a class="link" href="https://www.reddit.com/r/kubernetes/comments/15nd84v/net_corenet_memory_dump_issue_on_kubernetes/"  target="_blank" rel="noopener"
+    >.NET Core/NET memory dump issue on Kubernetes</a></li>
+<li><a class="link" href="https://github.com/dotnet/diagnostics/issues/3118"  target="_blank" rel="noopener"
+    >dotnet-dump fails HRESULT: 0x00000000 not single file app #3118</a></li>
+<li><a class="link" href="https://www.tessferrandez.com/blog/2021/03/18/debugging-a-netcore-memory-issue-with-dotnet-dump.html"  target="_blank" rel="noopener"
+    >Debugging .NET Core memory issues (on Linux) with dotnet dump</a></li>
+</ul>
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/linux/">Linux</a>
+        
+            <a href="/tags/dotnet/">DotNET</a>
+        
+            <a href="/tags/gc/">GC</a>
+        
+            <a href="/tags/%E5%86%85%E5%AD%98%E6%B3%84%E6%BC%8F/">内存泄漏</a>
+        
+            <a href="/tags/dump/">Dump</a>
+        
+    </section>
+
+
+    
+    <section class="article-copyright">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
+</svg>
+
+
+
+        <span>Licensed under CC BY-NC-SA 4.0</span>
+    </section>
+    </footer>
+
+
+    
+</article>
+
+    
+
+    
+
+     
+    
+        
+    <script
+    src="https://giscus.app/client.js"
+    data-repo="real-zony/real-zony.github.io"
+    data-repo-id="R_kgDOIC_OeA"
+    data-category="General"
+    data-category-id="DIC_kwDOIC_OeM4CRp3M"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="en"
+    crossorigin="anonymous"
+    async
+></script>
+<script>
+    function setGiscusTheme(theme) {
+        let giscus = document.querySelector("iframe.giscus-frame");
+        if (giscus) {
+            giscus.contentWindow.postMessage(
+                {
+                    giscus: {
+                        setConfig: {
+                            theme: theme,
+                        },
+                    },
+                },
+                "https://giscus.app"
+            );
+        }
+    }
+
+    (function () {
+        addEventListener("message", (e) => {
+            if (event.origin !== "https://giscus.app") return;
+            handler();
+        });
+        window.addEventListener("onColorSchemeChange", handler);
+
+        function handler() {
+            if (document.documentElement.dataset.scheme === "light") {
+                setGiscusTheme('preferred_color_scheme');
+            } else {
+                setGiscusTheme('preferred_color_scheme');
+            }
+        }
+    })();
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2024 Zony 的博客
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#0-问题">0. 问题</a></li>
+    <li><a href="#1-准备">1. 准备</a></li>
+    <li><a href="#2-调查">2. 调查</a></li>
+    <li><a href="#3-结论">3. 结论</a></li>
+    <li><a href="#4-资料">4. 资料</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>
