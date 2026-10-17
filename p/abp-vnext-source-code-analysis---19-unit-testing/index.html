@@ -1,357 +1,70 @@
 <!DOCTYPE html>
-<html lang="zh-cn" dir="ltr">
-    <head><meta charset='utf-8'>
-<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='简介 ABP vNext 框架使用 xUnit 作为单元测试组件，官方的所有模块都编写了大量的 单元/集成测试 确保功能正常。由于 ABP vNext 模块化系统的原因，开发人员在建立单元测试项目的时候需要集成 Volo.Abp.UnitTest 项目，这样在执行单元测试的时候才不会缺少必要组件。
-分析 ABP vNext 单元测试相关的类型最核心的是集成测试基类 AbpIntegratedTest 和 MVC 专用测试基类 AbpAspNetCoreIntegratedTestBase，这两个基类核心工作就是初始化 IoC 容器并且初始化整个模块系统，只不过后者对 控制器 相关的组件进行了初始化配置，让开发人员可以针对 控制器 进行单元/集成测试。
-从上图可以看到两个基类都继承自 AbpTestBaseWithServiceProvider 基类，在这个基类里面将 IServiceProvider 作为一个抽象成员。这是因为 MVC 和测试基类的 ServiceProvider 来源不一样，一个是 ABP vNext 根据 Application 类已注册 IoC 容器构建的，另一个使用的是 IHost 测试主机内的 ServiceProvider。
-单元测试执行本质上就是将测试类进行实例化，然后调用对应的单元测试方法，所以测试基类的初始化动作都是放在对应的无参构造函数。
-'><title>Abp vNext 源码分析 - 19. 单元测试</title>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Abp vNext 源码分析 - 19. 单元测试 · zony.</title>
+<meta name="description" content="简介ABP vNext 框架使用 xUnit 作为单元测试组件，官方的所有模块都编写了大量的 单元/集成测试 确保功能正常。由于 ABP vNext 模块化系统的原因，开发人员在建立单元测试项目的时候需要集成 Volo.Abp.UnitTest 项目，这样在执行单元测试的时候才不会缺少必要组件。
+分析ABP vNext …">
+<link rel="canonical" href="https://real-zony.github.io/p/abp-vnext-source-code-analysis---19-unit-testing/">
+<meta property="og:title" content="Abp vNext 源码分析 - 19. 单元测试">
+<meta property="og:description" content="简介ABP vNext 框架使用 xUnit 作为单元测试组件，官方的所有模块都编写了大量的 单元/集成测试 确保功能正常。由于 ABP vNext 模块化系统的原因，开发人员在建立单元测试项目的时候需要集成 Volo.Abp.UnitTest 项目，这样在执行单元测试的时候才不会缺少必要组件。
+分析ABP vNext …">
+<meta property="og:url" content="https://real-zony.github.io/p/abp-vnext-source-code-analysis---19-unit-testing/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Zony 的博客">
+<link rel="alternate" type="application/rss+xml" title="Zony 的博客" href="/index.xml">
+<script>(function(){var t;try{t=localStorage.getItem('theme')}catch(e){}document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')})()</script>
+<link rel="stylesheet" href="/css/theme.min.3eed00026a26ff56922e8970c10ca4c5d66278d907b4aa4646197383de34f0de.css" integrity="sha256-Pu0AAmom/1aSLolwwQykxdZieNkHtKpGRhlzg9408N4=">
 
-<link rel='canonical' href='https://real-zony.github.io/p/abp-vnext-source-code-analysis---19-unit-testing/'>
-
-<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp vNext 源码分析 - 19. 单元测试'>
-<meta property='og:description' content='简介 ABP vNext 框架使用 xUnit 作为单元测试组件，官方的所有模块都编写了大量的 单元/集成测试 确保功能正常。由于 ABP vNext 模块化系统的原因，开发人员在建立单元测试项目的时候需要集成 Volo.Abp.UnitTest 项目，这样在执行单元测试的时候才不会缺少必要组件。
-分析 ABP vNext 单元测试相关的类型最核心的是集成测试基类 AbpIntegratedTest 和 MVC 专用测试基类 AbpAspNetCoreIntegratedTestBase，这两个基类核心工作就是初始化 IoC 容器并且初始化整个模块系统，只不过后者对 控制器 相关的组件进行了初始化配置，让开发人员可以针对 控制器 进行单元/集成测试。
-从上图可以看到两个基类都继承自 AbpTestBaseWithServiceProvider 基类，在这个基类里面将 IServiceProvider 作为一个抽象成员。这是因为 MVC 和测试基类的 ServiceProvider 来源不一样，一个是 ABP vNext 根据 Application 类已注册 IoC 容器构建的，另一个使用的是 IHost 测试主机内的 ServiceProvider。
-单元测试执行本质上就是将测试类进行实例化，然后调用对应的单元测试方法，所以测试基类的初始化动作都是放在对应的无参构造函数。
-'>
-<meta property='og:url' content='https://real-zony.github.io/p/abp-vnext-source-code-analysis---19-unit-testing/'>
-<meta property='og:site_name' content='Zony 的博客'>
-<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='ABP vNext' /><meta property='article:tag' content='.NET Core' /><meta property='article:tag' content='ASP.NET Core' /><meta property='article:tag' content='ASP.NET Core MVC' /><meta property='article:tag' content='单元测试' /><meta property='article:published_time' content='2021-04-27T06:11:00&#43;00:00'/><meta property='article:modified_time' content='2021-04-27T06:11:00&#43;00:00'/>
-<meta name="twitter:title" content="Abp vNext 源码分析 - 19. 单元测试">
-<meta name="twitter:description" content="简介 ABP vNext 框架使用 xUnit 作为单元测试组件，官方的所有模块都编写了大量的 单元/集成测试 确保功能正常。由于 ABP vNext 模块化系统的原因，开发人员在建立单元测试项目的时候需要集成 Volo.Abp.UnitTest 项目，这样在执行单元测试的时候才不会缺少必要组件。
-分析 ABP vNext 单元测试相关的类型最核心的是集成测试基类 AbpIntegratedTest 和 MVC 专用测试基类 AbpAspNetCoreIntegratedTestBase，这两个基类核心工作就是初始化 IoC 容器并且初始化整个模块系统，只不过后者对 控制器 相关的组件进行了初始化配置，让开发人员可以针对 控制器 进行单元/集成测试。
-从上图可以看到两个基类都继承自 AbpTestBaseWithServiceProvider 基类，在这个基类里面将 IServiceProvider 作为一个抽象成员。这是因为 MVC 和测试基类的 ServiceProvider 来源不一样，一个是 ABP vNext 根据 Application 类已注册 IoC 容器构建的，另一个使用的是 IHost 测试主机内的 ServiceProvider。
-单元测试执行本质上就是将测试类进行实例化，然后调用对应的单元测试方法，所以测试基类的初始化动作都是放在对应的无参构造函数。
-">
-  
+<script type="application/json" id="zony-strings">{"catBack":"回来啦","catCopy":"拿去用吧～|抄作业？喵","catDone":"读完啦～ 要不要\u003cb\u003e留个言\u003c/b\u003e？","catRest":"已经读了 10 分钟，眨眨眼，歇一会儿吧","catTop":"走，回去～","catWait":"等等我！","catWake":"……嗯？","console":"你好，同行。","consoleSource":"这个主题的源码在 github.com/real-zony","copied":"已复制","copy":"复制","greet0":"夜深了，看完这篇早点睡。","greet1":"早上好，今天也要好好写代码。","greet2":"上午好。","greet3":"午饭吃了吗？","greet4":"下午好，来杯茶再看。","greet5":"晚上好，今天辛苦了。","greet6":"这么晚还在看技术文章，敬你。","lang":"zh-CN","lost":"不在这儿…|这边也没有|喵？|要不回首页看看？","minutes":"约 {n} 分钟","pagefindUrl":"/pagefind/pagefind.js","petsOther":"喵～|呼噜呼噜|今天写博客了吗？|喵？编译过了吗","petsPost":"喵～|呼噜呼噜|好好看文章，别摸鱼","purr":"呼噜呼噜","searchAdvanced":"高级搜索 →","searchClose":"关闭","searchFound":"找到 {n} 篇","searchHint":"输入关键词，标题、标签、正文都会搜","searchNone":"没有找到「{q}」，换个词试试？","searchOpen":"打开","searchPlaceholder":"搜索文章、标签…","searchRecent":"最近更新","searchSelect":"选择","searchUnavailable":"搜索暂时不可用","searchUrl":"/search/","titleAway":"看完再走嘛 · zony.","titleBack":"欢迎回来 · zony.","toc":"目录","zoom":"放大图片"}</script>
 
 
-    </head>
-    <body class="
-    article-page
-    ">
-    <script>
-        (function() {
-            const colorSchemeKey = 'StackColorScheme';
-            if(!localStorage.getItem(colorSchemeKey)){
-                localStorage.setItem(colorSchemeKey, "auto");
-            }
-        })();
-    </script><script>
-    (function() {
-        const colorSchemeKey = 'StackColorScheme';
-        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
-        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+</head>
+<body>
 
-        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
-            
+<header class="site"><div class="col top">
+  <a class="brand" href="/" aria-label="zony. 首页">zony<i>.</i><span class="ext">cs</span></a>
+  <nav>
+    <a class="nl" href="/">文章</a>
+    <a class="nl" href="/archives/">归档</a>
+    <a class="nl" href="/tags/">标签</a>
+    <a class="nl" href="/%E5%85%B3%E4%BA%8E/">关于</a>
+    <div class="tools">
+      <button class="search-btn" type="button" data-search aria-label="搜索"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg><span>搜索</span> <kbd>⌘K</kbd></button>
+      <button class="icon-btn" type="button" data-theme-toggle aria-label="切换浅色/深色"><svg class="i-moon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.6 9.7A5.7 5.7 0 0 1 6.3 2.4a5.7 5.7 0 1 0 7.3 7.3Z"/></svg><svg class="i-sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.8"/><path d="M8 1.6v1.2M8 13.2v1.2M1.6 8h1.2M13.2 8h1.2M3.5 3.5l.85.85M11.65 11.65l.85.85M3.5 12.5l.85-.85M11.65 4.35l.85-.85"/></svg></button>
+      
+<span class="lang"><b>中</b> / <a href="/en/" hreflang="en">EN</a></span>
 
-            document.documentElement.dataset.scheme = 'dark';
-        } else {
-            document.documentElement.dataset.scheme = 'light';
-        }
-    })();
-</script>
-<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
-    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
-        <span class="hamburger-box">
-            <span class="hamburger-inner"></span>
-        </span>
-    </button>
-
-    <header>
-        
-            
-            <figure class="site-avatar">
-                <a href="/">
-                
-                    
-                    
-                    
-                        
-                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
-                            height="300" class="site-logo" loading="lazy" alt="Avatar">
-                    
-                
-                </a>
-                
-                    <span class="emoji">🍥</span>
-                
-            </figure>
-            
-        
-        
-        <div class="site-meta">
-            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
-            <h2 class="site-description">A .NET Developer</h2>
-        </div>
-    </header><ol class="social-menu">
-            
-                <li>
-                    <a 
-                        href='https://github.com/real-zony'
-                        target="_blank"
-                        title="GitHub"
-                    >
-                        
-                        
-                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
-</svg>
-
-
-
-                        
-                    </a>
-                </li>
-            
-        </ol><ol class="menu" id="main-menu">
-        
-        
-        
-
-        <li >
-            <a href='/' >
-                
-                
-                
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <polyline points="5 12 3 12 12 3 21 12 19 12" />
-  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
-  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
-</svg>
-
-
-
-                
-                <span>主页</span>
-            </a>
-        </li>
-        
-        
-
-        <li >
-            <a href='/%E5%85%B3%E4%BA%8E/' >
-                
-                
-                
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="12" cy="7" r="4" />
-  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
-</svg>
-
-
-
-                
-                <span>关于</span>
-            </a>
-        </li>
-        
-        
-
-        <li >
-            <a href='/archives/' >
-                
-                
-                
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <rect x="3" y="4" width="18" height="4" rx="2" />
-  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
-  <line x1="10" y1="12" x2="14" y2="12" />
-</svg>
-
-
-
-                
-                <span>存档</span>
-            </a>
-        </li>
-        
-        
-
-        <li >
-            <a href='/search/' >
-                
-                
-                
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="10" cy="10" r="7" />
-  <line x1="21" y1="21" x2="15" y2="15" />
-</svg>
-
-
-
-                
-                <span>搜索</span>
-            </a>
-        </li>
-        
-        
-
-        <li >
-            <a href='/links/' >
-                
-                
-                
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
-  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
-</svg>
-
-
-
-                
-                <span>Links</span>
-            </a>
-        </li>
-        
-
-        <div class="menu-bottom-section">
-                <li id="i18n-switch">  
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-  <path d="M4 5h7" />
-  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
-  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
-  <path d="M12 20l4 -9l4 9" />
-  <path d="M19.1 18h-6.2" />
-</svg>
-
-
-
-                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
-                        
-                            <option value="https://real-zony.github.io/en/" >English</option>
-                        
-                            <option value="https://real-zony.github.io/" selected>中文</option>
-                        
-                    </select>
-                </li>
-            
-            
-            
-                <li id="dark-mode-toggle">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="8" cy="12" r="2" />
-  <rect x="2" y="6" width="20" height="12" rx="6" />
-</svg>
-
-
-
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="16" cy="12" r="2" />
-  <rect x="2" y="6" width="20" height="12" rx="6" />
-</svg>
-
-
-
-                    <span>暗色模式</span>
-                </li>
-            
-        </div>
-    </ol>
-</aside>
-<main class="main full-width">
-    <article class="main-article">
-    <header class="article-header">
-
-    <div class="article-details">
-    
-
-    <div class="article-title-wrapper">
-        <h2 class="article-title">
-            <a href="/p/abp-vnext-source-code-analysis---19-unit-testing/">Abp vNext 源码分析 - 19. 单元测试</a>
-        </h2>
-    
-        
+      <button class="icon-btn menu-btn" type="button" data-menu aria-label="菜单" aria-expanded="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5.5h11M2.5 10.5h11"/></svg></button>
     </div>
-
-    
-    <footer class="article-time">
-        
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
-  <circle cx="18" cy="18" r="4" />
-  <path d="M15 3v4" />
-  <path d="M7 3v4" />
-  <path d="M3 11h16" />
-  <path d="M18 16.496v1.504l1 1" />
-</svg>
-                <time class="article-time--published">Apr 27, 2021</time>
-            </div>
-        
-
-        
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="12" cy="12" r="9" />
-  <polyline points="12 7 12 12 15 15" />
-</svg>
-
-
-
-                <time class="article-time--reading">
-                    阅读时长: 3 分钟
-                </time>
-            </div>
-        
-    </footer>
-    
-
-    
+  </nav>
+</div><div class="progress"></div>
+  <div class="cat" id="cat" title="摸摸" role="img" aria-label="一只趴在页眉线上的猫"></div>
+  <div class="say" id="say" aria-live="polite"></div>
+  <div class="menu"><a href="/">文章</a><a href="/archives/">归档</a><a href="/tags/">标签</a><a href="/%E5%85%B3%E4%BA%8E/">关于</a>
+<span class="lang"><b>中</b> / <a href="/en/" hreflang="en">EN</a></span>
 </div>
 </header>
 
-    <section class="article-content">
-    
-    
-    <h2 id="简介">简介</h2>
-<p>ABP vNext 框架使用 <em>xUnit</em> 作为单元测试组件，官方的所有模块都编写了大量的 <strong>单元/集成测试</strong> 确保功能正常。由于 ABP vNext 模块化系统的原因，开发人员在建立单元测试项目的时候需要集成 <em>Volo.Abp.UnitTest</em> 项目，这样在执行单元测试的时候才不会缺少必要组件。</p>
-<h2 id="分析">分析</h2>
-<p>ABP vNext 单元测试相关的类型最核心的是集成测试基类 <code>AbpIntegratedTest</code> 和 MVC 专用测试基类 <code>AbpAspNetCoreIntegratedTestBase</code>，这两个基类核心工作就是初始化 IoC 容器并且初始化整个模块系统，只不过后者对 <strong>控制器</strong> 相关的组件进行了初始化配置，让开发人员可以针对 <strong>控制器</strong> 进行单元/集成测试。</p>
-<p><img src="/p/abp-vnext-source-code-analysis---19-unit-testing/1203160-20210427115359995-1600189156.png"
-	width="990"
-	height="162"
-	srcset="/p/abp-vnext-source-code-analysis---19-unit-testing/1203160-20210427115359995-1600189156_hu3af43c45963d74e01be8afc005ead5cc_49537_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---19-unit-testing/1203160-20210427115359995-1600189156_hu3af43c45963d74e01be8afc005ead5cc_49537_1024x0_resize_box_3.png 1024w"
-	loading="lazy"
-	
-		alt="img"
-	
-	
-		class="gallery-image" 
-		data-flex-grow="611"
-		data-flex-basis="1466px"
-	
-></p>
-<p>从上图可以看到两个基类都继承自 <code>AbpTestBaseWithServiceProvider</code> 基类，在这个基类里面将 <code>IServiceProvider</code> 作为一个抽象成员。<strong>这是因为 MVC 和测试基类的 <code>ServiceProvider</code> 来源不一样</strong>，一个是 ABP vNext 根据 <code>Application</code> 类已注册 IoC 容器构建的，另一个使用的是 <code>IHost</code> 测试主机内的 <code>ServiceProvider</code>。</p>
+
+<main class="col" data-pagefind-body>
+  <div class="post-head">
+    <div class="crumbs" data-pagefind-ignore><a href="/">文章</a> / <a href="/series/abp-vnext-source/">Abp vNext 源码分析</a></div>
+    <h1 data-pagefind-meta="title">Abp vNext 源码分析 - 19. 单元测试</h1>
+    <div class="post-meta"><span data-pagefind-ignore>2021-04-27</span><span data-pagefind-ignore>约 4 分钟</span><span class="tags" data-pagefind-weight="5"><a href="/tags/c%23/"><span data-pagefind-ignore>#</span>C#</a> <a href="/tags/abp/"><span data-pagefind-ignore>#</span>ABP</a> <a href="/tags/abp-vnext/"><span data-pagefind-ignore>#</span>ABP VNext</a> <a href="/tags/.net-core/"><span data-pagefind-ignore>#</span>.NET Core</a> <a href="/tags/asp.net-core/"><span data-pagefind-ignore>#</span>ASP.NET Core</a> <a href="/tags/asp.net-core-mvc/"><span data-pagefind-ignore>#</span>ASP.NET Core MVC</a> <a href="/tags/%E5%8D%95%E5%85%83%E6%B5%8B%E8%AF%95/"><span data-pagefind-ignore>#</span>单元测试</a></span></div>
+    <span hidden data-pagefind-meta="date:2021-04-27"></span>
+    <span hidden data-pagefind-meta="minutes:4"></span>
+    <span hidden data-pagefind-meta="tags:C#|ABP|ABP vNext|.NET Core|ASP.NET Core|ASP.NET Core MVC|单元测试"></span>
+  </div>
+
+  <article>
+<h2 id="简介"><a class="anchor" href="#简介" aria-hidden="true" data-pagefind-ignore>#</a>简介</h2><p>ABP vNext 框架使用 <em>xUnit</em> 作为单元测试组件，官方的所有模块都编写了大量的 <strong>单元/集成测试</strong> 确保功能正常。由于 ABP vNext 模块化系统的原因，开发人员在建立单元测试项目的时候需要集成 <em>Volo.Abp.UnitTest</em> 项目，这样在执行单元测试的时候才不会缺少必要组件。</p>
+<h2 id="分析"><a class="anchor" href="#分析" aria-hidden="true" data-pagefind-ignore>#</a>分析</h2><p>ABP vNext 单元测试相关的类型最核心的是集成测试基类 <code>AbpIntegratedTest</code> 和 MVC 专用测试基类 <code>AbpAspNetCoreIntegratedTestBase</code>，这两个基类核心工作就是初始化 IoC 容器并且初始化整个模块系统，只不过后者对 <strong>控制器</strong> 相关的组件进行了初始化配置，让开发人员可以针对 <strong>控制器</strong> 进行单元/集成测试。</p>
+<figure><img src="/p/abp-vnext-source-code-analysis---19-unit-testing/1203160-20210427115359995-1600189156.png" alt="img" loading="lazy" decoding="async" width="990" height="162"></figure><p>从上图可以看到两个基类都继承自 <code>AbpTestBaseWithServiceProvider</code> 基类，在这个基类里面将 <code>IServiceProvider</code> 作为一个抽象成员。<strong>这是因为 MVC 和测试基类的 <code>ServiceProvider</code> 来源不一样</strong>，一个是 ABP vNext 根据 <code>Application</code> 类已注册 IoC 容器构建的，另一个使用的是 <code>IHost</code> 测试主机内的 <code>ServiceProvider</code>。</p>
 <p>单元测试执行本质上就是将测试类进行实例化，然后调用对应的单元测试方法，所以测试基类的初始化动作都是放在对应的无参构造函数。</p>
 <p>虽然 <em>Volo.Abp.UnitTest</em> 也是单独的一个项目，它的 <code>AbpTestBaseModule</code> 是没有任何动作，仅仅是为了同其他项目保持一致，内部是没有任何代码。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt">1
-</span><span class="lnt">2
-</span><span class="lnt">3
-</span><span class="lnt">4
-</span><span class="lnt">5
-</span><span class="lnt">6
-</span><span class="lnt">7
-</span><span class="lnt">8
-</span><span class="lnt">9
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Volo.Abp.Modularity</span><span class="p">;</span>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">using</span> <span class="nn">Volo.Abp.Modularity</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="k">namespace</span> <span class="nn">Volo.Abp</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
@@ -359,63 +72,10 @@
 </span></span><span class="line"><span class="cl">    <span class="p">{</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">    <span class="p">}</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><h4 id="集成测试基类">集成测试基类</h4>
-<p>一般来说，我们会直接从 <code>AbpIntegratedTest</code> 继承并实现我们需要的单元测试基类，包括 ABP vNext 官方的默认模版也是这样。集成测试基类的核心代码很简单，就是在无参构造函数的内部进行初始化动作，且在过程中按顺序执行两个生命周期方法。</p>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<h4 id="集成测试基类"><a class="anchor" href="#集成测试基类" aria-hidden="true" data-pagefind-ignore>#</a>集成测试基类</h4><p>一般来说，我们会直接从 <code>AbpIntegratedTest</code> 继承并实现我们需要的单元测试基类，包括 ABP vNext 官方的默认模版也是这样。集成测试基类的核心代码很简单，就是在无参构造函数的内部进行初始化动作，且在过程中按顺序执行两个生命周期方法。</p>
 <p>简易流程图:</p>
-<p><img src="/p/abp-vnext-source-code-analysis---19-unit-testing/Snipaste_2021-04-21_16-53-22.png"
-	width="2000"
-	height="143"
-	srcset="/p/abp-vnext-source-code-analysis---19-unit-testing/Snipaste_2021-04-21_16-53-22_hu8a655cbf4d958c3cbd66bb721418185b_145297_480x0_resize_box_3.png 480w, /p/abp-vnext-source-code-analysis---19-unit-testing/Snipaste_2021-04-21_16-53-22_hu8a655cbf4d958c3cbd66bb721418185b_145297_1024x0_resize_box_3.png 1024w"
-	loading="lazy"
-	
-		alt="Snipaste_2021-04-21_16-53-22"
-	
-	
-		class="gallery-image" 
-		data-flex-grow="1398"
-		data-flex-basis="3356px"
-	
-></p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span><span class="lnt">21
-</span><span class="lnt">22
-</span><span class="lnt">23
-</span><span class="lnt">24
-</span><span class="lnt">25
-</span><span class="lnt">26
-</span><span class="lnt">27
-</span><span class="lnt">28
-</span><span class="lnt">29
-</span><span class="lnt">30
-</span><span class="lnt">31
-</span><span class="lnt">32
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="kd">abstract</span> <span class="k">class</span> <span class="nc">AbpIntegratedTest</span><span class="p">&lt;</span><span class="n">TStartupModule</span><span class="p">&gt;</span> <span class="p">:</span> <span class="n">AbpTestBaseWithServiceProvider</span><span class="p">,</span> <span class="n">IDisposable</span>
+<figure><img src="/p/abp-vnext-source-code-analysis---19-unit-testing/Snipaste_2021-04-21_16-53-22.png" alt="Snipaste_2021-04-21_16-53-22" loading="lazy" decoding="async" width="2000" height="143"></figure><div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="kd">abstract</span> <span class="k">class</span> <span class="nc">AbpIntegratedTest</span><span class="p">&lt;</span><span class="n">TStartupModule</span><span class="p">&gt;</span> <span class="p">:</span> <span class="n">AbpTestBaseWithServiceProvider</span><span class="p">,</span> <span class="n">IDisposable</span>
 </span></span><span class="line"><span class="cl">    <span class="k">where</span> <span class="n">TStartupModule</span> <span class="p">:</span> <span class="n">IAbpModule</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="kd">protected</span> <span class="n">IAbpApplication</span> <span class="n">Application</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
@@ -446,56 +106,23 @@
 </span></span><span class="line"><span class="cl">    <span class="p">}</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">    <span class="c1">// ... 其他代码。</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>上述代码可以看到默认的测试基类并没有直接使用 <code>RootServiceProvider</code>，而是创建了一个子容器给 ABP vNext 使用，这主要是为了后续可以对容器进行销毁操作，具体可一看下面的 <code>Dispose()</code> 方法。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt">1
-</span><span class="lnt">2
-</span><span class="lnt">3
-</span><span class="lnt">4
-</span><span class="lnt">5
-</span><span class="lnt">6
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">Dispose</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>上述代码可以看到默认的测试基类并没有直接使用 <code>RootServiceProvider</code>，而是创建了一个子容器给 ABP vNext 使用，这主要是为了后续可以对容器进行销毁操作，具体可一看下面的 <code>Dispose()</code> 方法。</p>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">virtual</span> <span class="k">void</span> <span class="n">Dispose</span><span class="p">()</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="n">Application</span><span class="p">.</span><span class="n">Shutdown</span><span class="p">();</span>
 </span></span><span class="line"><span class="cl">    <span class="n">TestServiceScope</span><span class="p">.</span><span class="n">Dispose</span><span class="p">();</span>
 </span></span><span class="line"><span class="cl">    <span class="n">Application</span><span class="p">.</span><span class="n">Dispose</span><span class="p">();</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>总的来说，测试基类就是构建了一个 <code>IAbpApplication</code> 对象，根据传入的 <code>TStartupModule</code> 模块进入拓扑排序过程，依次执行各个模块的生命周期配置。</p>
-<h4 id="mvc-测试基类">MVC 测试基类</h4>
-<p>针对我们的 Http Api 层，如果需要对 <code>Controller</code> 进行测试的话，就需要从 MVC 测试基类继承编写单元/集成测试，各个类型的关系如下。</p>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>总的来说，测试基类就是构建了一个 <code>IAbpApplication</code> 对象，根据传入的 <code>TStartupModule</code> 模块进入拓扑排序过程，依次执行各个模块的生命周期配置。</p>
+<h4 id="mvc-测试基类"><a class="anchor" href="#mvc-测试基类" aria-hidden="true" data-pagefind-ignore>#</a>MVC 测试基类</h4><p>针对我们的 Http Api 层，如果需要对 <code>Controller</code> 进行测试的话，就需要从 MVC 测试基类继承编写单元/集成测试，各个类型的关系如下。</p>
 <p>AbpTestBaseWithServiceProvider#ServiceProvider#GetService() : <!-- raw HTML omitted -->#GetRequiredService() : <!-- raw HTML omitted -->AbpIntegratedTest<!-- raw HTML omitted -->#BeforeAddApplication(IServiceCollection service)#SetAbpApplicationCreationOptions(AbpApplicationCreationOptions options)#AfterAddApplication(IServiceCollection services)#CreateServiceProvider(IServiceCollection service)+Dispose()AbpAspNetCoreIntegratedTestBase<!-- raw HTML omitted -->#TestServer Server#HttpClient Client-IHost host#CreateHostBuilder() : IHostBuilder#ConfigureServices(HostBuilderContext context, IServiceCollection services)#GetUrl_OfType_TController() : string#GetUrl_OfType_TController(string actionName) : string#GetUrl_OfType_TController(string actionName, object queryStringParamsAsAnonymousObject) : string+Dispose()IDispose&lt;&gt; IDispose</p>
 <p>针对 AspNetCore 来说，ABP 创建了一个新的 Host 主机，在每次执行测试的时候会启动一个新的 Web 服务器。(并不会创建真实服务，不存在端口占用问题)</p>
 <p>在基类当中，ABP 定义了两个属性 <code>Server</code> 和 <code>Client</code>，它们都是 Mock 了对应的接口，方便后续的单元测试，这里的 <code>ITestServerAccessor</code> 接口是用于 Mock <code>AspNetCoreTestDynamicProxyHttpClientFactory</code> 接口所需要的。</p>
 <blockquote>
 <p><code>AspNetCoreTestDynamicProxyHttpClientFactory</code> 接口是 ABP 底层进行动态代理所使用的，在请求远程服务的时候会调用这个接口创建 HttpClient 对象。</p>
 </blockquote>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">protected</span> <span class="n">AbpAspNetCoreIntegratedTestBase</span><span class="p">()</span>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">protected</span> <span class="n">AbpAspNetCoreIntegratedTestBase</span><span class="p">()</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">builder</span> <span class="p">=</span> <span class="n">CreateHostBuilder</span><span class="p">();</span>
 </span></span><span class="line"><span class="cl">
@@ -508,68 +135,18 @@
 </span></span><span class="line"><span class="cl">    <span class="n">ServiceProvider</span> <span class="p">=</span> <span class="n">Server</span><span class="p">.</span><span class="n">Services</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">    <span class="n">ServiceProvider</span><span class="p">.</span><span class="n">GetRequiredService</span><span class="p">&lt;</span><span class="n">ITestServerAccessor</span><span class="p">&gt;().</span><span class="n">Server</span> <span class="p">=</span> <span class="n">Server</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>从 UML 类图当中，可以看到基类定义了几个 <code>GetUrl()</code> 方法，这几个方法是根据 Controller 获取对应的请求路径。</p>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>从 UML 类图当中，可以看到基类定义了几个 <code>GetUrl()</code> 方法，这几个方法是根据 Controller 获取对应的请求路径。</p>
 <p>这里我以一个 <code>SampleController</code> 控制器为例，它提供了一个 Index 方法，返回了一个页面内容。针对它来说，我们编写集成测试是这样操作的。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt">1
-</span><span class="lnt">2
-</span><span class="lnt">3
-</span><span class="lnt">4
-</span><span class="lnt">5
-</span><span class="lnt">6
-</span><span class="lnt">7
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">class</span> <span class="nc">SimpleController</span> <span class="p">:</span> <span class="n">AbpController</span>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">class</span> <span class="nc">SimpleController</span> <span class="p">:</span> <span class="n">AbpController</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="kd">public</span> <span class="n">ActionResult</span> <span class="n">Index</span><span class="p">()</span>
 </span></span><span class="line"><span class="cl">    <span class="p">{</span>
 </span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">Content</span><span class="p">(</span><span class="s">&#34;Index-Result&#34;</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="p">}</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p><strong>集成测试</strong></p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span><span class="lnt">21
-</span><span class="lnt">22
-</span><span class="lnt">23
-</span><span class="lnt">24
-</span><span class="lnt">25
-</span><span class="lnt">26
-</span><span class="lnt">27
-</span><span class="lnt">28
-</span><span class="lnt">29
-</span><span class="lnt">30
-</span><span class="lnt">31
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">class</span> <span class="nc">SimpleController_Tests</span> <span class="p">:</span> <span class="n">AbpAspNetCoreIntegratedTestBase</span><span class="p">&lt;</span><span class="n">Startup</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p><strong>集成测试</strong></p>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">class</span> <span class="nc">SimpleController_Tests</span> <span class="p">:</span> <span class="n">AbpAspNetCoreIntegratedTestBase</span><span class="p">&lt;</span><span class="n">Startup</span><span class="p">&gt;</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="kd">protected</span> <span class="k">virtual</span> <span class="kd">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">HttpResponseMessage</span><span class="p">&gt;</span> <span class="n">GetResponseAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">url</span><span class="p">,</span> <span class="n">HttpStatusCode</span> <span class="n">expectedStatusCode</span> <span class="p">=</span> <span class="n">HttpStatusCode</span><span class="p">.</span><span class="n">OK</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl">    <span class="p">{</span>
@@ -599,64 +176,9 @@
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">        <span class="n">result</span><span class="p">.</span><span class="n">ShouldBe</span><span class="p">(</span><span class="s">&#34;Index-Result&#34;</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="p">}</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><h3 id="ef-core-的集成">EF Core 的集成</h3>
-<p>在执行单元测试过程中，我们难免会对数据库进行操作。这个时候不可能连接真实数据库，就需要我们在测试基类当中进行一些初始化动作，将底层的数据库链接改为 SQLite 的内存模式。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span><span class="lnt">21
-</span><span class="lnt">22
-</span><span class="lnt">23
-</span><span class="lnt">24
-</span><span class="lnt">25
-</span><span class="lnt">26
-</span><span class="lnt">27
-</span><span class="lnt">28
-</span><span class="lnt">29
-</span><span class="lnt">30
-</span><span class="lnt">31
-</span><span class="lnt">32
-</span><span class="lnt">33
-</span><span class="lnt">34
-</span><span class="lnt">35
-</span><span class="lnt">36
-</span><span class="lnt">37
-</span><span class="lnt">38
-</span><span class="lnt">39
-</span><span class="lnt">40
-</span><span class="lnt">41
-</span><span class="lnt">42
-</span><span class="lnt">43
-</span><span class="lnt">44
-</span><span class="lnt">45
-</span><span class="lnt">46
-</span><span class="lnt">47
-</span><span class="lnt">48
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">class</span> <span class="nc">SampleEntityFrameworkCoreTestModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<h3 id="ef-core-的集成"><a class="anchor" href="#ef-core-的集成" aria-hidden="true" data-pagefind-ignore>#</a>EF Core 的集成</h3><p>在执行单元测试过程中，我们难免会对数据库进行操作。这个时候不可能连接真实数据库，就需要我们在测试基类当中进行一些初始化动作，将底层的数据库链接改为 SQLite 的内存模式。</p>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">class</span> <span class="nc">SampleEntityFrameworkCoreTestModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="kd">private</span> <span class="n">SqliteConnection</span> <span class="n">_sqliteConnection</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
@@ -703,349 +225,45 @@
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">connection</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">    <span class="p">}</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><h2 id="总结">总结</h2>
-<p>ABP 的测试更偏向于集成测试，因为各个功能都依赖于模块，所以在执行单元测试的时候会运行更长的时间。日常开发过程当中，我们更多地还是针对应用层进行测试就可以了，粒度更细的话也可以针对<em>仓储层</em>、<em>领域层</em>、<em>API 层</em> 编写测试即可。</p>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<h2 id="总结"><a class="anchor" href="#总结" aria-hidden="true" data-pagefind-ignore>#</a>总结</h2><p>ABP 的测试更偏向于集成测试，因为各个功能都依赖于模块，所以在执行单元测试的时候会运行更长的时间。日常开发过程当中，我们更多地还是针对应用层进行测试就可以了，粒度更细的话也可以针对<em>仓储层</em>、<em>领域层</em>、<em>API 层</em> 编写测试即可。</p>
 <p>为了保证项目质量，在开发完成之后编写单元/集成测试是每个开发人员应做的工作。编写单元/集成测试，虽然不能 100% 避免 BUG，但可以保证每次进行业务修改之后接口的正确性。</p>
-<h2 id="四总目录">四、总目录</h2>
-<p>欢迎翻阅作者的其他文章，请 <strong><a class="link" href="https://www.cnblogs.com/myzony/p/10722506.html"  target="_blank" rel="noopener"
-    >点击我</a></strong> 进行跳转，如果你觉得本篇文章对你有帮助，请点击文章末尾的 <strong>推荐按钮</strong>。</p>
+<h2 id="四总目录"><a class="anchor" href="#四总目录" aria-hidden="true" data-pagefind-ignore>#</a>四、总目录</h2><p>欢迎翻阅作者的其他文章，请 <strong><a href="https://www.cnblogs.com/myzony/p/10722506.html">点击我</a></strong> 进行跳转，如果你觉得本篇文章对你有帮助，请点击文章末尾的 <strong>推荐按钮</strong>。</p>
 <p>最后更新时间: 2021年6月27日 23点41分</p>
-</section>
+  </article>
+
+  <div class="license" data-pagefind-ignore><b>Abp vNext 源码分析 - 19. 单元测试</b><br>作者 Zony · 发布于 2021-04-27<br>Licensed under CC BY-NC-SA 4.0</div>
+  <div class="pager" data-pagefind-ignore><a href="/p/acme.sh-free-pan-parsing-certificate-generation/"><small>← 上一篇</small><span class="u">acme.sh 免费泛解析证书生成</span></a><a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/"><small>下一篇 →</small><span class="u">Abp vNext 源码分析 - 20. 电子邮件与短信支持</span></a>
+  </div>
+  
+<div class="comments" data-pagefind-ignore data-giscus
+  data-repo="real-zony/real-zony.github.io" data-repo-id="R_kgDOIC_OeA" data-category="General" data-category-id="DIC_kwDOIC_OeM4CRp3M"
+  data-mapping="pathname" data-strict="1"
+  data-reactions-enabled="1" data-emit-metadata="0"
+  data-input-position="bottom" data-lang="zh-CN"></div>
+
+</main>
+<div class="toc" id="toc">
+  <div class="toc-panel"></div>
+  <div class="toc-pill" role="button" tabindex="0" aria-label="目录">
+    <svg class="ring" viewBox="0 0 16 16" aria-hidden="true"><circle class="bg" cx="8" cy="8" r="6.5" fill="none" stroke-width="1.5"/><circle class="arc" cx="8" cy="8" r="6.5" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="40.84" stroke-dashoffset="40.84" transform="rotate(-90 8 8)"/></svg>
+    <span class="cur">目录</span>
+  </div>
+</div>
+
+<div class="lightbox" id="lb"><img alt=""></div>
+<div class="pop" id="pop" role="note"></div>
+
+<footer class="site"><div class="col"><div class="foot">
+  <span>© 2015–2026 Zony · CC BY-NC-SA 4.0</span>
+  <nav><a href="/index.xml">RSS</a><a href="/links/">友链</a><a href="https://github.com/real-zony">GitHub</a></nav>
+</div></div></footer>
 
 
-    <footer class="article-footer">
-    
-    <section class="article-tags">
-        
-            <a href="/tags/c%23/">C#</a>
-        
-            <a href="/tags/abp/">ABP</a>
-        
-            <a href="/tags/abp-vnext/">ABP VNext</a>
-        
-            <a href="/tags/.net-core/">.NET Core</a>
-        
-            <a href="/tags/asp.net-core/">ASP.NET Core</a>
-        
-            <a href="/tags/asp.net-core-mvc/">ASP.NET Core MVC</a>
-        
-            <a href="/tags/%E5%8D%95%E5%85%83%E6%B5%8B%E8%AF%95/">单元测试</a>
-        
-    </section>
+<script type="application/json" id="zony-recent">[{"d":"2024-06-27","t":"Linux 使用 CUDA Docker 镜像加速视频转码","u":"/p/linux-cuda-docker-video-transcoding/"},{"d":"2024-03-08","t":"排查 dotNET Core 程序内存暴涨的问题","u":"/p/troubleshooting-memory-surge-issues-in-dotnet-core-applications/"},{"d":"2023-12-28","t":"修复 Parallels Desktop 无网络的问题","u":"/p/fix-no-network-issue-in-parallels-desktop/"},{"d":"2023-06-12","t":"在 .NET 5 以后的 HttpClient 超时问题","u":"/p/net-5-and-later-httpclient-timeout-issues/"},{"d":"2022-12-31","t":"WCF 服务容器化的一些问题","u":"/p/problems-with-containerizing-a-wcf-service/"},{"d":"2022-10-01","t":"基于 Godaddy 与阿里云, 一键申请 SSL 证书","u":"/p/based-on-godaddy-and-alicloud-one-click-to-get-ssl-certificate/"},{"d":"2022-09-30","t":"解决被占用的文件夹无法被删除的问题","u":"/p/solve-the-problem-that-occupied-folders-cannot-be-deleted/"},{"d":"2022-09-27","t":"限制容器在 Docker 输出的日志大小","u":"/p/limit-the-size-of-logs-output-by-containers-in-docker/"}]</script>
 
 
-    
-    <section class="article-copyright">
-        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="12" cy="12" r="9" />
-  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
-</svg>
+<script defer src="/js/entries/post.6942b5ae33cea18dab054e6703dc616082ff0ff9cff7e748687fa6c846ca5435.js" integrity="sha256-aUK1rjPOoY2rBU5nA9xhYIL/D/nP9&#43;dIaH&#43;myEbKVDU="></script>
 
-
-
-        <span>Licensed under CC BY-NC-SA 4.0</span>
-    </section>
-    </footer>
-
-
-    
-</article>
-
-    
-
-    
-
-<aside class="related-content--wrapper">
-    <h2 class="section-title">相关文章</h2>
-    <div class="related-content">
-        <div class="flex article-list--tile">
-            
-                
-<article class="">
-    <a href="/p/abp-vnext-source-code-analysis---20-email-and-sms-support/">
-        
-        
-
-        <div class="article-details">
-            <h2 class="article-title">Abp vNext 源码分析 - 20. 电子邮件与短信支持</h2>
-        </div>
-    </a>
-</article>
-
-            
-                
-<article class="">
-    <a href="/p/abp-vnext-source-code-analysis---21-localization-of-interface-and-text/">
-        
-        
-
-        <div class="article-details">
-            <h2 class="article-title">Abp vNext 源码分析 - 21. 界面与文字的本地化</h2>
-        </div>
-    </a>
-</article>
-
-            
-                
-<article class="">
-    <a href="/p/abp-vnext-source-code-analysis---23-binary-large-object-system-blob/">
-        
-        
-
-        <div class="article-details">
-            <h2 class="article-title">Abp vNext 源码分析 - 23. 二进制大对象系统(BLOB)</h2>
-        </div>
-    </a>
-</article>
-
-            
-                
-<article class="">
-    <a href="/p/abp-vnext-source-code-analysis---19-multi-tenancy/">
-        
-        
-
-        <div class="article-details">
-            <h2 class="article-title">Abp vNext 源码分析 - 19. 多租户</h2>
-        </div>
-    </a>
-</article>
-
-            
-                
-<article class="">
-    <a href="/p/abp-vnext-source-code-analysis-integration-of-entityframework-core/">
-        
-        
-
-        <div class="article-details">
-            <h2 class="article-title">Abp vNext 源码分析 - 14. EntityFramework Core 的集成</h2>
-        </div>
-    </a>
-</article>
-
-            
-        </div>
-    </div>
-</aside>
-
-     
-    
-        
-    <script
-    src="https://giscus.app/client.js"
-    data-repo="real-zony/real-zony.github.io"
-    data-repo-id="R_kgDOIC_OeA"
-    data-category="General"
-    data-category-id="DIC_kwDOIC_OeM4CRp3M"
-    data-mapping="pathname"
-    data-strict="0"
-    data-reactions-enabled="1"
-    data-emit-metadata="0"
-    data-input-position="top"
-    data-theme="preferred_color_scheme"
-    data-lang="en"
-    crossorigin="anonymous"
-    async
-></script>
-<script>
-    function setGiscusTheme(theme) {
-        let giscus = document.querySelector("iframe.giscus-frame");
-        if (giscus) {
-            giscus.contentWindow.postMessage(
-                {
-                    giscus: {
-                        setConfig: {
-                            theme: theme,
-                        },
-                    },
-                },
-                "https://giscus.app"
-            );
-        }
-    }
-
-    (function () {
-        addEventListener("message", (e) => {
-            if (event.origin !== "https://giscus.app") return;
-            handler();
-        });
-        window.addEventListener("onColorSchemeChange", handler);
-
-        function handler() {
-            if (document.documentElement.dataset.scheme === "light") {
-                setGiscusTheme('preferred_color_scheme');
-            } else {
-                setGiscusTheme('preferred_color_scheme');
-            }
-        }
-    })();
-</script>
-
-    
-
-    <footer class="site-footer">
-    <section class="copyright">
-        &copy; 
-        
-            2020 - 
-        
-        2024 Zony 的博客
-    </section>
-    
-    <section class="powerby">
-        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
-        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
-    </section>
-</footer>
-
-
-    
-<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
-
-    
-    <div class="pswp__bg"></div>
-
-    
-    <div class="pswp__scroll-wrap">
-
-        
-        <div class="pswp__container">
-            <div class="pswp__item"></div>
-            <div class="pswp__item"></div>
-            <div class="pswp__item"></div>
-        </div>
-
-        
-        <div class="pswp__ui pswp__ui--hidden">
-
-            <div class="pswp__top-bar">
-
-                
-
-                <div class="pswp__counter"></div>
-
-                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
-
-                <button class="pswp__button pswp__button--share" title="Share"></button>
-
-                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
-
-                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
-
-                
-                
-                <div class="pswp__preloader">
-                    <div class="pswp__preloader__icn">
-                        <div class="pswp__preloader__cut">
-                            <div class="pswp__preloader__donut"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
-                <div class="pswp__share-tooltip"></div>
-            </div>
-
-            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
-            </button>
-
-            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
-            </button>
-
-            <div class="pswp__caption">
-                <div class="pswp__caption__center"></div>
-            </div>
-
-        </div>
-
-    </div>
-
-</div><script 
-                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
-                defer
-                >
-            </script><script 
-                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
-                defer
-                >
-            </script><link 
-                rel="stylesheet" 
-                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
-            ><link 
-                rel="stylesheet" 
-                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
-            >
-
-            </main>
-    <aside class="sidebar right-sidebar sticky">
-        
-            
-                
-    <section class="widget archives">
-        <div class="widget-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <line x1="5" y1="9" x2="19" y2="9" />
-  <line x1="5" y1="15" x2="19" y2="15" />
-  <line x1="11" y1="4" x2="7" y2="20" />
-  <line x1="17" y1="4" x2="13" y2="20" />
-</svg>
-
-
-
-        </div>
-        <h2 class="widget-title section-title">目录</h2>
-        
-        <div class="widget--toc">
-            <nav id="TableOfContents">
-  <ol>
-    <li><a href="#简介">简介</a></li>
-    <li><a href="#分析">分析</a>
-      <ol>
-        <li>
-          <ol>
-            <li><a href="#集成测试基类">集成测试基类</a></li>
-            <li><a href="#mvc-测试基类">MVC 测试基类</a></li>
-          </ol>
-        </li>
-        <li><a href="#ef-core-的集成">EF Core 的集成</a></li>
-      </ol>
-    </li>
-    <li><a href="#总结">总结</a></li>
-    <li><a href="#四总目录">四、总目录</a></li>
-  </ol>
-</nav>
-        </div>
-    </section>
-
-            
-        
-    </aside>
-
-
-        </div>
-        <script 
-                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
-                
-                >
-            </script><script type="text/javascript" src="/ts/main.js" defer></script>
-<script>
-    (function () {
-        const customFont = document.createElement('link');
-        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
-
-        customFont.type = "text/css";
-        customFont.rel = "stylesheet";
-
-        document.head.appendChild(customFont);
-    }());
-</script>
-
-    </body>
+</body>
 </html>

@@ -1,321 +1,67 @@
 <!DOCTYPE html>
-<html lang="zh-cn" dir="ltr">
-    <head><meta charset='utf-8'>
-<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='0. 简介 在某些时候我们可能会需要执行后台任务，或者是执行一些周期性的任务。比如说可能每隔 1 个小时要清除某个临时文件夹内的数据，可能用户会要针对某一个用户群来群发一组短信。前面这些就是典型的应用场景，在 Abp 框架里面为我们准备了后台作业和后台工作者来帮助我们解决这个问题。
-后台作业与后台工作者的区别是，前者主要用于某些耗时较长的任务，而不想阻塞用户的时候所使用。后者主要用于周期性的执行某些任务，从 “工作者” 的名字可以看出来，就是一个个工人，而且他们每个工人都拥有单独的后台线程。
-'><title>Abp 源码分析：十六、后台工作与后台工作者</title>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Abp 源码分析：十六、后台工作与后台工作者 · zony.</title>
+<meta name="description" content="0. 简介在某些时候我们可能会需要执行后台任务，或者是执行一些周期性的任务。比如说可能每隔 1 个小时要清除某个临时文件夹内的数据，可能用户会要针对某一个用户群来群发一组短信。前面这些就是典型的应用场景，在 Abp 框架里面为我们准备了后台作业和后台工作者来帮助我们解决这个问题。
+后台作业与后台工作者的区别是，前者主要 …">
+<link rel="canonical" href="https://real-zony.github.io/p/abp-source-code-analysis-sixteen-background-work-and-background-workers/">
+<meta property="og:title" content="Abp 源码分析：十六、后台工作与后台工作者">
+<meta property="og:description" content="0. 简介在某些时候我们可能会需要执行后台任务，或者是执行一些周期性的任务。比如说可能每隔 1 个小时要清除某个临时文件夹内的数据，可能用户会要针对某一个用户群来群发一组短信。前面这些就是典型的应用场景，在 Abp 框架里面为我们准备了后台作业和后台工作者来帮助我们解决这个问题。
+后台作业与后台工作者的区别是，前者主要 …">
+<meta property="og:url" content="https://real-zony.github.io/p/abp-source-code-analysis-sixteen-background-work-and-background-workers/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Zony 的博客">
+<link rel="alternate" type="application/rss+xml" title="Zony 的博客" href="/index.xml">
+<script>(function(){var t;try{t=localStorage.getItem('theme')}catch(e){}document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')})()</script>
+<link rel="stylesheet" href="/css/theme.min.3eed00026a26ff56922e8970c10ca4c5d66278d907b4aa4646197383de34f0de.css" integrity="sha256-Pu0AAmom/1aSLolwwQykxdZieNkHtKpGRhlzg9408N4=">
 
-<link rel='canonical' href='https://real-zony.github.io/p/abp-source-code-analysis-sixteen-background-work-and-background-workers/'>
-
-<link rel="stylesheet" href="/scss/style.min.ac77dcf8b111b51da39a92990f431923f210f3876d85798a2125667f96dc33a4.css"><meta property='og:title' content='Abp 源码分析：十六、后台工作与后台工作者'>
-<meta property='og:description' content='0. 简介 在某些时候我们可能会需要执行后台任务，或者是执行一些周期性的任务。比如说可能每隔 1 个小时要清除某个临时文件夹内的数据，可能用户会要针对某一个用户群来群发一组短信。前面这些就是典型的应用场景，在 Abp 框架里面为我们准备了后台作业和后台工作者来帮助我们解决这个问题。
-后台作业与后台工作者的区别是，前者主要用于某些耗时较长的任务，而不想阻塞用户的时候所使用。后者主要用于周期性的执行某些任务，从 “工作者” 的名字可以看出来，就是一个个工人，而且他们每个工人都拥有单独的后台线程。
-'>
-<meta property='og:url' content='https://real-zony.github.io/p/abp-source-code-analysis-sixteen-background-work-and-background-workers/'>
-<meta property='og:site_name' content='Zony 的博客'>
-<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='ABP' /><meta property='article:tag' content='C#' /><meta property='article:tag' content='AspNetBoilerplate' /><meta property='article:published_time' content='2018-10-24T01:28:08&#43;00:00'/><meta property='article:modified_time' content='2018-10-24T01:28:08&#43;00:00'/>
-<meta name="twitter:title" content="Abp 源码分析：十六、后台工作与后台工作者">
-<meta name="twitter:description" content="0. 简介 在某些时候我们可能会需要执行后台任务，或者是执行一些周期性的任务。比如说可能每隔 1 个小时要清除某个临时文件夹内的数据，可能用户会要针对某一个用户群来群发一组短信。前面这些就是典型的应用场景，在 Abp 框架里面为我们准备了后台作业和后台工作者来帮助我们解决这个问题。
-后台作业与后台工作者的区别是，前者主要用于某些耗时较长的任务，而不想阻塞用户的时候所使用。后者主要用于周期性的执行某些任务，从 “工作者” 的名字可以看出来，就是一个个工人，而且他们每个工人都拥有单独的后台线程。
-">
-  
-
-
-    </head>
-    <body class="
-    article-page
-    ">
-    <script>
-        (function() {
-            const colorSchemeKey = 'StackColorScheme';
-            if(!localStorage.getItem(colorSchemeKey)){
-                localStorage.setItem(colorSchemeKey, "auto");
-            }
-        })();
-    </script><script>
-    (function() {
-        const colorSchemeKey = 'StackColorScheme';
-        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
-        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
-
-        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
-            
-
-            document.documentElement.dataset.scheme = 'dark';
-        } else {
-            document.documentElement.dataset.scheme = 'light';
-        }
-    })();
-</script>
-<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
-    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
-        <span class="hamburger-box">
-            <span class="hamburger-inner"></span>
-        </span>
-    </button>
-
-    <header>
-        
-            
-            <figure class="site-avatar">
-                <a href="/">
-                
-                    
-                    
-                    
-                        
-                        <img src="/img/avatar_hu88ff3bfa88d8ce73b9d64b435a0a3f2c_26917_300x0_resize_box_3.png" width="300"
-                            height="300" class="site-logo" loading="lazy" alt="Avatar">
-                    
-                
-                </a>
-                
-                    <span class="emoji">🍥</span>
-                
-            </figure>
-            
-        
-        
-        <div class="site-meta">
-            <h1 class="site-name"><a href="/">Zony 的博客</a></h1>
-            <h2 class="site-description">A .NET Developer</h2>
-        </div>
-    </header><ol class="social-menu">
-            
-                <li>
-                    <a 
-                        href='https://github.com/real-zony'
-                        target="_blank"
-                        title="GitHub"
-                    >
-                        
-                        
-                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
-</svg>
+<script type="application/json" id="zony-strings">{"catBack":"回来啦","catCopy":"拿去用吧～|抄作业？喵","catDone":"读完啦～ 要不要\u003cb\u003e留个言\u003c/b\u003e？","catRest":"已经读了 10 分钟，眨眨眼，歇一会儿吧","catTop":"走，回去～","catWait":"等等我！","catWake":"……嗯？","console":"你好，同行。","consoleSource":"这个主题的源码在 github.com/real-zony","copied":"已复制","copy":"复制","greet0":"夜深了，看完这篇早点睡。","greet1":"早上好，今天也要好好写代码。","greet2":"上午好。","greet3":"午饭吃了吗？","greet4":"下午好，来杯茶再看。","greet5":"晚上好，今天辛苦了。","greet6":"这么晚还在看技术文章，敬你。","lang":"zh-CN","lost":"不在这儿…|这边也没有|喵？|要不回首页看看？","minutes":"约 {n} 分钟","pagefindUrl":"/pagefind/pagefind.js","petsOther":"喵～|呼噜呼噜|今天写博客了吗？|喵？编译过了吗","petsPost":"喵～|呼噜呼噜|好好看文章，别摸鱼","purr":"呼噜呼噜","searchAdvanced":"高级搜索 →","searchClose":"关闭","searchFound":"找到 {n} 篇","searchHint":"输入关键词，标题、标签、正文都会搜","searchNone":"没有找到「{q}」，换个词试试？","searchOpen":"打开","searchPlaceholder":"搜索文章、标签…","searchRecent":"最近更新","searchSelect":"选择","searchUnavailable":"搜索暂时不可用","searchUrl":"/search/","titleAway":"看完再走嘛 · zony.","titleBack":"欢迎回来 · zony.","toc":"目录","zoom":"放大图片"}</script>
 
 
+</head>
+<body>
 
-                        
-                    </a>
-                </li>
-            
-        </ol><ol class="menu" id="main-menu">
-        
-        
-        
+<header class="site"><div class="col top">
+  <a class="brand" href="/" aria-label="zony. 首页">zony<i>.</i><span class="ext">cs</span></a>
+  <nav>
+    <a class="nl" href="/">文章</a>
+    <a class="nl" href="/archives/">归档</a>
+    <a class="nl" href="/tags/">标签</a>
+    <a class="nl" href="/%E5%85%B3%E4%BA%8E/">关于</a>
+    <div class="tools">
+      <button class="search-btn" type="button" data-search aria-label="搜索"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg><span>搜索</span> <kbd>⌘K</kbd></button>
+      <button class="icon-btn" type="button" data-theme-toggle aria-label="切换浅色/深色"><svg class="i-moon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.6 9.7A5.7 5.7 0 0 1 6.3 2.4a5.7 5.7 0 1 0 7.3 7.3Z"/></svg><svg class="i-sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.8"/><path d="M8 1.6v1.2M8 13.2v1.2M1.6 8h1.2M13.2 8h1.2M3.5 3.5l.85.85M11.65 11.65l.85.85M3.5 12.5l.85-.85M11.65 4.35l.85-.85"/></svg></button>
+      
+<span class="lang"><b>中</b> / <a href="/en/" hreflang="en">EN</a></span>
 
-        <li >
-            <a href='/' >
-                
-                
-                
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <polyline points="5 12 3 12 12 3 21 12 19 12" />
-  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
-  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
-</svg>
-
-
-
-                
-                <span>主页</span>
-            </a>
-        </li>
-        
-        
-
-        <li >
-            <a href='/%E5%85%B3%E4%BA%8E/' >
-                
-                
-                
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="12" cy="7" r="4" />
-  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
-</svg>
-
-
-
-                
-                <span>关于</span>
-            </a>
-        </li>
-        
-        
-
-        <li >
-            <a href='/archives/' >
-                
-                
-                
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <rect x="3" y="4" width="18" height="4" rx="2" />
-  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
-  <line x1="10" y1="12" x2="14" y2="12" />
-</svg>
-
-
-
-                
-                <span>存档</span>
-            </a>
-        </li>
-        
-        
-
-        <li >
-            <a href='/search/' >
-                
-                
-                
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="10" cy="10" r="7" />
-  <line x1="21" y1="21" x2="15" y2="15" />
-</svg>
-
-
-
-                
-                <span>搜索</span>
-            </a>
-        </li>
-        
-        
-
-        <li >
-            <a href='/links/' >
-                
-                
-                
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
-  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
-</svg>
-
-
-
-                
-                <span>Links</span>
-            </a>
-        </li>
-        
-
-        <div class="menu-bottom-section">
-                <li id="i18n-switch">  
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-  <path d="M4 5h7" />
-  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
-  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
-  <path d="M12 20l4 -9l4 9" />
-  <path d="M19.1 18h-6.2" />
-</svg>
-
-
-
-                    <select name="language" onchange="window.location.href = this.selectedOptions[0].value">
-                        
-                            <option value="https://real-zony.github.io/en/" >English</option>
-                        
-                            <option value="https://real-zony.github.io/" selected>中文</option>
-                        
-                    </select>
-                </li>
-            
-            
-            
-                <li id="dark-mode-toggle">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="8" cy="12" r="2" />
-  <rect x="2" y="6" width="20" height="12" rx="6" />
-</svg>
-
-
-
-                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="16" cy="12" r="2" />
-  <rect x="2" y="6" width="20" height="12" rx="6" />
-</svg>
-
-
-
-                    <span>暗色模式</span>
-                </li>
-            
-        </div>
-    </ol>
-</aside>
-<main class="main full-width">
-    <article class="main-article">
-    <header class="article-header">
-
-    <div class="article-details">
-    
-
-    <div class="article-title-wrapper">
-        <h2 class="article-title">
-            <a href="/p/abp-source-code-analysis-sixteen-background-work-and-background-workers/">Abp 源码分析：十六、后台工作与后台工作者</a>
-        </h2>
-    
-        
+      <button class="icon-btn menu-btn" type="button" data-menu aria-label="菜单" aria-expanded="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5.5h11M2.5 10.5h11"/></svg></button>
     </div>
-
-    
-    <footer class="article-time">
-        
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
-  <circle cx="18" cy="18" r="4" />
-  <path d="M15 3v4" />
-  <path d="M7 3v4" />
-  <path d="M3 11h16" />
-  <path d="M18 16.496v1.504l1 1" />
-</svg>
-                <time class="article-time--published">Oct 24, 2018</time>
-            </div>
-        
-
-        
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="12" cy="12" r="9" />
-  <polyline points="12 7 12 12 15 15" />
-</svg>
-
-
-
-                <time class="article-time--reading">
-                    阅读时长: 10 分钟
-                </time>
-            </div>
-        
-    </footer>
-    
-
-    
+  </nav>
+</div><div class="progress"></div>
+  <div class="cat" id="cat" title="摸摸" role="img" aria-label="一只趴在页眉线上的猫"></div>
+  <div class="say" id="say" aria-live="polite"></div>
+  <div class="menu"><a href="/">文章</a><a href="/archives/">归档</a><a href="/tags/">标签</a><a href="/%E5%85%B3%E4%BA%8E/">关于</a>
+<span class="lang"><b>中</b> / <a href="/en/" hreflang="en">EN</a></span>
 </div>
 </header>
 
-    <section class="article-content">
-    
-    
-    <h2 id="0-简介">0. 简介</h2>
-<p>在某些时候我们可能会需要执行后台任务，或者是执行一些周期性的任务。比如说可能每隔 1 个小时要清除某个临时文件夹内的数据，可能用户会要针对某一个用户群来群发一组短信。前面这些就是典型的应用场景，在 Abp 框架里面为我们准备了后台作业和后台工作者来帮助我们解决这个问题。</p>
+
+<main class="col" data-pagefind-body>
+  <div class="post-head">
+    <div class="crumbs" data-pagefind-ignore><a href="/">文章</a> / <a href="/series/abp-source/">Abp 源码分析</a></div>
+    <h1 data-pagefind-meta="title">Abp 源码分析：十六、后台工作与后台工作者</h1>
+    <div class="post-meta"><span data-pagefind-ignore>2018-10-24</span><span data-pagefind-ignore>约 11 分钟</span><span class="tags" data-pagefind-weight="5"><a href="/tags/abp/"><span data-pagefind-ignore>#</span>ABP</a> <a href="/tags/c%23/"><span data-pagefind-ignore>#</span>C#</a> <a href="/tags/aspnetboilerplate/"><span data-pagefind-ignore>#</span>AspNetBoilerplate</a></span></div>
+    <span hidden data-pagefind-meta="date:2018-10-24"></span>
+    <span hidden data-pagefind-meta="minutes:11"></span>
+    <span hidden data-pagefind-meta="tags:ABP|C#|AspNetBoilerplate"></span>
+  </div>
+
+  <article>
+<h2 id="0-简介"><a class="anchor" href="#0-简介" aria-hidden="true" data-pagefind-ignore>#</a>0. 简介</h2><p>在某些时候我们可能会需要执行后台任务，或者是执行一些周期性的任务。比如说可能每隔 1 个小时要清除某个临时文件夹内的数据，可能用户会要针对某一个用户群来群发一组短信。前面这些就是典型的应用场景，在 Abp 框架里面为我们准备了后台作业和后台工作者来帮助我们解决这个问题。</p>
 <p>后台作业与后台工作者的区别是，前者主要用于某些耗时较长的任务，而不想阻塞用户的时候所使用。后者主要用于周期性的执行某些任务，从 “工作者” 的名字可以看出来，就是一个个工人，而且他们每个工人都拥有单独的后台线程。</p>
-<h3 id="01-典型场景">0.1 典型场景</h3>
-<p>后台作业</p>
+<h3 id="01-典型场景"><a class="anchor" href="#01-典型场景" aria-hidden="true" data-pagefind-ignore>#</a>0.1 典型场景</h3><p>后台作业</p>
 <ul>
 <li>某个用户按下了报表按钮来生成一个需要长时间等待的报表。你添加这个工作到队列中，当报表生成完毕后，发送报表结果到该用户的邮箱。</li>
 <li>在后台作业中发送一封邮件，有些问题可能会导致发送失败(网络连接异常，或者主机宕机)；由于有后台作业以及持久化机制，在问题排除后，可以重试以保证任务的成功执行。</li>
@@ -325,36 +71,10 @@
 <li>后台工作者能够周期性地执行旧日志的删除。</li>
 <li>后台工作者可以周期性地筛选出非活跃性用户，并且发送回归邮件给这些用户。</li>
 </ul>
-<h2 id="1-启动流程">1. 启动流程</h2>
-<p>后台作业与后台工作者都是通过各自的 Manager(<code>IBackgroundJobManager</code>/<code>IBackgroundWorkerManager</code>) 来进行管理的。而这两个 Manager 分别继承了 <code>ISingletonDependency</code> 接口，所以在启动的时候就会自动注入这两个管理器以便开发人员管理操作。</p>
+<h2 id="1-启动流程"><a class="anchor" href="#1-启动流程" aria-hidden="true" data-pagefind-ignore>#</a>1. 启动流程</h2><p>后台作业与后台工作者都是通过各自的 Manager(<code>IBackgroundJobManager</code>/<code>IBackgroundWorkerManager</code>) 来进行管理的。而这两个 Manager 分别继承了 <code>ISingletonDependency</code> 接口，所以在启动的时候就会自动注入这两个管理器以便开发人员管理操作。</p>
 <p>这里值得注意的一点是，<code>IBackgroundJobManager</code> 接口是 <code>IBackgroundWorker</code> 的派生接口，而 <code>IBackgroudWorker</code> 是归属于 <code>IBackgroundWorkerManager</code> 进行管理的。</p>
 <p>所以，你可以在 <code>AbpKernelModule</code> 里面看到如下代码：</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span><span class="lnt">21
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="kd">sealed</span> <span class="k">class</span> <span class="nc">AbpKernelModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="kd">sealed</span> <span class="k">class</span> <span class="nc">AbpKernelModule</span> <span class="p">:</span> <span class="n">AbpModule</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">	<span class="kd">public</span> <span class="kd">override</span> <span class="k">void</span> <span class="n">PostInitialize</span><span class="p">()</span>
 </span></span><span class="line"><span class="cl">	<span class="p">{</span>
@@ -374,71 +94,16 @@
 </span></span><span class="line"><span class="cl">			<span class="n">workerManager</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">IocManager</span><span class="p">.</span><span class="n">Resolve</span><span class="p">&lt;</span><span class="n">IBackgroundJobManager</span><span class="p">&gt;());</span>
 </span></span><span class="line"><span class="cl">		<span class="p">}</span>
 </span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>可以看到，后台作业管理器是作为一个后台工作者被添加到了 <code>IBackgroundWorkerManager</code> 当中来执行的。</p>
-<h2 id="2-代码分析">2. 代码分析</h2>
-<h3 id="21-后台工作者">2.1 后台工作者</h3>
-<h4 id="211-后台工作者管理器">2.1.1 后台工作者管理器</h4>
-<p>Abp 通过后台工作者管理器来管理后台作业队列，所以我们首先来看一下后台工作者管理器接口的定义是什么样子的。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt">1
-</span><span class="lnt">2
-</span><span class="lnt">3
-</span><span class="lnt">4
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">interface</span> <span class="nc">IBackgroundWorkerManager</span> <span class="p">:</span> <span class="n">IRunnable</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>可以看到，后台作业管理器是作为一个后台工作者被添加到了 <code>IBackgroundWorkerManager</code> 当中来执行的。</p>
+<h2 id="2-代码分析"><a class="anchor" href="#2-代码分析" aria-hidden="true" data-pagefind-ignore>#</a>2. 代码分析</h2><h3 id="21-后台工作者"><a class="anchor" href="#21-后台工作者" aria-hidden="true" data-pagefind-ignore>#</a>2.1 后台工作者</h3><h4 id="211-后台工作者管理器"><a class="anchor" href="#211-后台工作者管理器" aria-hidden="true" data-pagefind-ignore>#</a>2.1.1 后台工作者管理器</h4><p>Abp 通过后台工作者管理器来管理后台作业队列，所以我们首先来看一下后台工作者管理器接口的定义是什么样子的。</p>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">interface</span> <span class="nc">IBackgroundWorkerManager</span> <span class="p">:</span> <span class="n">IRunnable</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">	<span class="k">void</span> <span class="n">Add</span><span class="p">(</span><span class="n">IBackgroundWorker</span> <span class="n">worker</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>还是相当简洁的，就一个 <code>Add</code> 方法用来添加一个新的后台工作者对象。只是在这个地方，可以看到该接口又是集成自 <code>IRunnable</code> 接口，那么该接口的作用又是什么呢？</p>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>还是相当简洁的，就一个 <code>Add</code> 方法用来添加一个新的后台工作者对象。只是在这个地方，可以看到该接口又是集成自 <code>IRunnable</code> 接口，那么该接口的作用又是什么呢？</p>
 <p>转到其定义可以看到，<code>IRunable</code> 接口定义了三个基本的方法：<code>Start()</code>、<code>Stop()</code>、<code>WaitStop()</code> ，而且他拥有一个默认实现 <code>RunableBase</code>，其实就是用来标识一个任务的运行状态。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span><span class="lnt">21
-</span><span class="lnt">22
-</span><span class="lnt">23
-</span><span class="lnt">24
-</span><span class="lnt">25
-</span><span class="lnt">26
-</span><span class="lnt">27
-</span><span class="lnt">28
-</span><span class="lnt">29
-</span><span class="lnt">30
-</span><span class="lnt">31
-</span><span class="lnt">32
-</span><span class="lnt">33
-</span><span class="lnt">34
-</span><span class="lnt">35
-</span><span class="lnt">36
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">interface</span> <span class="nc">IRunnable</span>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">interface</span> <span class="nc">IRunnable</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// 开始执行任务</span>
 </span></span><span class="line"><span class="cl">	<span class="k">void</span> <span class="n">Start</span><span class="p">();</span>
@@ -473,26 +138,9 @@
 </span></span><span class="line"><span class="cl">	<span class="p">{</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>到目前为止整个代码都还是比较简单清晰的，我们接着看 <code>IBackgroundWorkerManager</code> 的默认实现 <code>BackgroundWorkerManager</code> 类，首先我们看一下该类拥有哪些属性与字段。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">class</span> <span class="nc">BackgroundWorkerManager</span> <span class="p">:</span> <span class="n">RunnableBase</span><span class="p">,</span> <span class="n">IBackgroundWorkerManager</span><span class="p">,</span> <span class="n">ISingletonDependency</span><span class="p">,</span> <span class="n">IDisposable</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>到目前为止整个代码都还是比较简单清晰的，我们接着看 <code>IBackgroundWorkerManager</code> 的默认实现 <code>BackgroundWorkerManager</code> 类，首先我们看一下该类拥有哪些属性与字段。</p>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">class</span> <span class="nc">BackgroundWorkerManager</span> <span class="p">:</span> <span class="n">RunnableBase</span><span class="p">,</span> <span class="n">IBackgroundWorkerManager</span><span class="p">,</span> <span class="n">ISingletonDependency</span><span class="p">,</span> <span class="n">IDisposable</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">	<span class="kd">private</span> <span class="k">readonly</span> <span class="n">IIocResolver</span> <span class="n">_iocResolver</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">	<span class="kd">private</span> <span class="k">readonly</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">IBackgroundWorker</span><span class="p">&gt;</span> <span class="n">_backgroundJobs</span><span class="p">;</span>
@@ -502,35 +150,9 @@
 </span></span><span class="line"><span class="cl">		<span class="n">_iocResolver</span> <span class="p">=</span> <span class="n">iocResolver</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">		<span class="n">_backgroundJobs</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">IBackgroundWorker</span><span class="p">&gt;();</span>
 </span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>在后台工作者管理器类的内部，默认有一个 List 集合，用于维护所有的后台工作者对象。那么其他的 <code>Start()</code> 等方法肯定是基于这个集合进行操作的。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="kd">override</span> <span class="k">void</span> <span class="n">Start</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>在后台工作者管理器类的内部，默认有一个 List 集合，用于维护所有的后台工作者对象。那么其他的 <code>Start()</code> 等方法肯定是基于这个集合进行操作的。</p>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="kd">override</span> <span class="k">void</span> <span class="n">Start</span><span class="p">()</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="k">base</span><span class="p">.</span><span class="n">Start</span><span class="p">();</span>
 </span></span><span class="line"><span class="cl">
@@ -549,24 +171,9 @@
 </span></span><span class="line"><span class="cl">    <span class="n">_backgroundJobs</span><span class="p">.</span><span class="n">ForEach</span><span class="p">(</span><span class="n">job</span> <span class="p">=&gt;</span> <span class="n">job</span><span class="p">.</span><span class="n">WaitToStop</span><span class="p">());</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">    <span class="k">base</span><span class="p">.</span><span class="n">WaitToStop</span><span class="p">();</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>可以看到实现还是比较简单的，接下来我们继续看他的 <code>Add()</code> 方法是如何进行操作的？</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt">1
-</span><span class="lnt">2
-</span><span class="lnt">3
-</span><span class="lnt">4
-</span><span class="lnt">5
-</span><span class="lnt">6
-</span><span class="lnt">7
-</span><span class="lnt">8
-</span><span class="lnt">9
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">void</span> <span class="n">Add</span><span class="p">(</span><span class="n">IBackgroundWorker</span> <span class="n">worker</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>可以看到实现还是比较简单的，接下来我们继续看他的 <code>Add()</code> 方法是如何进行操作的？</p>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">void</span> <span class="n">Add</span><span class="p">(</span><span class="n">IBackgroundWorker</span> <span class="n">worker</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="n">_backgroundJobs</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">worker</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">
@@ -574,32 +181,10 @@
 </span></span><span class="line"><span class="cl">    <span class="p">{</span>
 </span></span><span class="line"><span class="cl">        <span class="n">worker</span><span class="p">.</span><span class="n">Start</span><span class="p">();</span>
 </span></span><span class="line"><span class="cl">    <span class="p">}</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>在这里我们看到他会针对 <code>IsRunning</code> 进行判定是否立即启动加入的后台工作者对象。而这个 <code>IsRunning</code> 属性值唯一产生变化的情况就在于 <code>Start()</code> 方法与 <code>Stop()</code> 方法的调用。</p>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>在这里我们看到他会针对 <code>IsRunning</code> 进行判定是否立即启动加入的后台工作者对象。而这个 <code>IsRunning</code> 属性值唯一产生变化的情况就在于 <code>Start()</code> 方法与 <code>Stop()</code> 方法的调用。</p>
 <p>最后肯定也有相关的销毁方法，用于释放所有注入的后台工作者对象，并将集合清除。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">private</span> <span class="kt">bool</span> <span class="n">_isDisposed</span><span class="p">;</span>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">private</span> <span class="kt">bool</span> <span class="n">_isDisposed</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">void</span> <span class="n">Dispose</span><span class="p">()</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
@@ -614,93 +199,15 @@
 </span></span><span class="line"><span class="cl">    <span class="n">_backgroundJobs</span><span class="p">.</span><span class="n">ForEach</span><span class="p">(</span><span class="n">_iocResolver</span><span class="p">.</span><span class="n">Release</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// 清空集合</span>
 </span></span><span class="line"><span class="cl">    <span class="n">_backgroundJobs</span><span class="p">.</span><span class="n">Clear</span><span class="p">();</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>所以，针对于所有后台工作者的管理，都是通过 <code>IBackgroundWorkerManager</code> 来进行操作的。</p>
-<h4 id="212-后台工作者">2.1.2 后台工作者</h4>
-<p>看完了管理器，我们来看一下 <code>IBackgroundWorker</code> 后台工作者对象是怎样的构成。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt">1
-</span><span class="lnt">2
-</span><span class="lnt">3
-</span><span class="lnt">4
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">interface</span> <span class="nc">IBackgroundWorker</span> <span class="p">:</span> <span class="n">IRunnable</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>所以，针对于所有后台工作者的管理，都是通过 <code>IBackgroundWorkerManager</code> 来进行操作的。</p>
+<h4 id="212-后台工作者"><a class="anchor" href="#212-后台工作者" aria-hidden="true" data-pagefind-ignore>#</a>2.1.2 后台工作者</h4><p>看完了管理器，我们来看一下 <code>IBackgroundWorker</code> 后台工作者对象是怎样的构成。</p>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">interface</span> <span class="nc">IBackgroundWorker</span> <span class="p">:</span> <span class="n">IRunnable</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>貌似只是一个空的接口，其作用主要是标识某个类型是否为后台工作者，转到其抽象类实现 <code>BackgroundWorkerBase</code>，里面只是注入了一些辅助对象与本地化的一些方法。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span><span class="lnt">21
-</span><span class="lnt">22
-</span><span class="lnt">23
-</span><span class="lnt">24
-</span><span class="lnt">25
-</span><span class="lnt">26
-</span><span class="lnt">27
-</span><span class="lnt">28
-</span><span class="lnt">29
-</span><span class="lnt">30
-</span><span class="lnt">31
-</span><span class="lnt">32
-</span><span class="lnt">33
-</span><span class="lnt">34
-</span><span class="lnt">35
-</span><span class="lnt">36
-</span><span class="lnt">37
-</span><span class="lnt">38
-</span><span class="lnt">39
-</span><span class="lnt">40
-</span><span class="lnt">41
-</span><span class="lnt">42
-</span><span class="lnt">43
-</span><span class="lnt">44
-</span><span class="lnt">45
-</span><span class="lnt">46
-</span><span class="lnt">47
-</span><span class="lnt">48
-</span><span class="lnt">49
-</span><span class="lnt">50
-</span><span class="lnt">51
-</span><span class="lnt">52
-</span><span class="lnt">53
-</span><span class="lnt">54
-</span><span class="lnt">55
-</span><span class="lnt">56
-</span><span class="lnt">57
-</span><span class="lnt">58
-</span><span class="lnt">59
-</span><span class="lnt">60
-</span><span class="lnt">61
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="kd">abstract</span> <span class="k">class</span> <span class="nc">BackgroundWorkerBase</span> <span class="p">:</span> <span class="n">RunnableBase</span><span class="p">,</span> <span class="n">IBackgroundWorker</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>貌似只是一个空的接口，其作用主要是标识某个类型是否为后台工作者，转到其抽象类实现 <code>BackgroundWorkerBase</code>，里面只是注入了一些辅助对象与本地化的一些方法。</p>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="kd">abstract</span> <span class="k">class</span> <span class="nc">BackgroundWorkerBase</span> <span class="p">:</span> <span class="n">RunnableBase</span><span class="p">,</span> <span class="n">IBackgroundWorker</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">	<span class="c1">// 配置管理器</span>
 </span></span><span class="line"><span class="cl">	<span class="kd">public</span> <span class="n">ISettingManager</span> <span class="n">SettingManager</span> <span class="p">{</span> <span class="kd">protected</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
@@ -760,60 +267,10 @@
 </span></span><span class="line"><span class="cl">	<span class="p">}</span>
 </span></span><span class="line"><span class="cl">	
 </span></span><span class="line"><span class="cl">	<span class="c1">// ... 其他模板代码</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>我们接着看继承并实现了 <code>BackgroundWorkerBase</code> 的类型 <code>PeriodicBackgroundWorkerBase</code>，从字面意思上来看，该类型应该是一个定时后台工作者基类。</p>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>我们接着看继承并实现了 <code>BackgroundWorkerBase</code> 的类型 <code>PeriodicBackgroundWorkerBase</code>，从字面意思上来看，该类型应该是一个定时后台工作者基类。</p>
 <p>重点在于 <code>Periodic</code>(定时)，从其类型内部的定义可以看到，该类型使用了一个 <code>AbpTimer</code> 对象来进行周期计时与具体工作任务的触发。我们暂时先不看这个 <code>AbpTimer</code>，仅仅看 <code>PeriodicBackgroundWorkerBase</code> 的内部实现。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span><span class="lnt">21
-</span><span class="lnt">22
-</span><span class="lnt">23
-</span><span class="lnt">24
-</span><span class="lnt">25
-</span><span class="lnt">26
-</span><span class="lnt">27
-</span><span class="lnt">28
-</span><span class="lnt">29
-</span><span class="lnt">30
-</span><span class="lnt">31
-</span><span class="lnt">32
-</span><span class="lnt">33
-</span><span class="lnt">34
-</span><span class="lnt">35
-</span><span class="lnt">36
-</span><span class="lnt">37
-</span><span class="lnt">38
-</span><span class="lnt">39
-</span><span class="lnt">40
-</span><span class="lnt">41
-</span><span class="lnt">42
-</span><span class="lnt">43
-</span><span class="lnt">44
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="kd">abstract</span> <span class="k">class</span> <span class="nc">PeriodicBackgroundWorkerBase</span> <span class="p">:</span> <span class="n">BackgroundWorkerBase</span>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="kd">abstract</span> <span class="k">class</span> <span class="nc">PeriodicBackgroundWorkerBase</span> <span class="p">:</span> <span class="n">BackgroundWorkerBase</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">	<span class="kd">protected</span> <span class="k">readonly</span> <span class="n">AbpTimer</span> <span class="n">Timer</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
@@ -856,68 +313,16 @@
 </span></span><span class="line"><span class="cl">	<span class="p">}</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">	<span class="kd">protected</span> <span class="kd">abstract</span> <span class="k">void</span> <span class="n">DoWork</span><span class="p">();</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>可以看到，这里基类绑定了 <code>DoWork()</code> 作为其定时执行的方法，那么用户在使用的时候直接继承自该基类，然后重写 <code>DoWork()</code> 方法即可绑定自己的后台工作者的任务。</p>
-<h4 id="213-abptimer-定时器">2.1.3 AbpTimer 定时器</h4>
-<p>在上面的基类我们看到，基类的 <code>Start()</code>、<code>Stop()</code>、<code>WaitTpStop()</code> 方法都是调用的 <code>AbpTimer</code> 所提供的，所以说 <code>AbpTimer</code> 其实也继承了 <code>RunableBase</code> 基类并实现其具体的启动与停止操作。</p>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>可以看到，这里基类绑定了 <code>DoWork()</code> 作为其定时执行的方法，那么用户在使用的时候直接继承自该基类，然后重写 <code>DoWork()</code> 方法即可绑定自己的后台工作者的任务。</p>
+<h4 id="213-abptimer-定时器"><a class="anchor" href="#213-abptimer-定时器" aria-hidden="true" data-pagefind-ignore>#</a>2.1.3 AbpTimer 定时器</h4><p>在上面的基类我们看到，基类的 <code>Start()</code>、<code>Stop()</code>、<code>WaitTpStop()</code> 方法都是调用的 <code>AbpTimer</code> 所提供的，所以说 <code>AbpTimer</code> 其实也继承了 <code>RunableBase</code> 基类并实现其具体的启动与停止操作。</p>
 <p>其实 <code>AbpTimer</code> 的核心就是通过 CLR 的 <code>Timer</code> 来实现周期性任务执行的，不过默认的 <code>Timer</code> 类有两个比较大的问题。</p>
 <ol>
 <li>CLR 的 <code>Timer</code> 并不会等待你的任务执行完再执行下一个周期的任务，如果你的某个任务耗时过长，超过了 <code>Timer</code> 定义的周期。那么 <code>Timer</code> 会开启一个新的线程执行，这样的话最后我们系统的资源会因为线程大量重复创建而被拖垮。</li>
 <li>如何知道一个 <code>Timer</code> 所执行的业务方法已经真正地被结束了。</li>
 </ol>
 <p>所以 Abp 才会重新封装一个 <code>AbpTimer</code> 作为一个基础的计时器。第一个问题的解决方法很简单，就是在执行具体绑定的业务方法之前，通过 <code>Timer.Change()</code> 方法来让 <code>Timer</code> 临时失效。等待业务方法执行完成之后，再将 <code>Timer</code> 的周期置为用户设定的周期。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span><span class="lnt">21
-</span><span class="lnt">22
-</span><span class="lnt">23
-</span><span class="lnt">24
-</span><span class="lnt">25
-</span><span class="lnt">26
-</span><span class="lnt">27
-</span><span class="lnt">28
-</span><span class="lnt">29
-</span><span class="lnt">30
-</span><span class="lnt">31
-</span><span class="lnt">32
-</span><span class="lnt">33
-</span><span class="lnt">34
-</span><span class="lnt">35
-</span><span class="lnt">36
-</span><span class="lnt">37
-</span><span class="lnt">38
-</span><span class="lnt">39
-</span><span class="lnt">40
-</span><span class="lnt">41
-</span><span class="lnt">42
-</span><span class="lnt">43
-</span><span class="lnt">44
-</span><span class="lnt">45
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="c1">// CLR Timer 绑定的回调方法</span>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="c1">// CLR Timer 绑定的回调方法</span>
 </span></span><span class="line"><span class="cl"><span class="kd">private</span> <span class="k">void</span> <span class="n">TimerCallBack</span><span class="p">(</span><span class="kt">object</span> <span class="n">state</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">	<span class="k">lock</span> <span class="p">(</span><span class="n">_taskTimer</span><span class="p">)</span>
@@ -961,29 +366,9 @@
 </span></span><span class="line"><span class="cl">			<span class="n">Monitor</span><span class="p">.</span><span class="n">Pulse</span><span class="p">(</span><span class="n">_taskTimer</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">		<span class="p">}</span>
 </span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>针对于第二个问题，Abp 通过 <code>WaitToStop()</code> 方法会阻塞调用这个 <code>Timer</code> 的线程，并且在 <code>_performingTasks</code> 标识位是 <code>false</code> 的时候释放。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="kd">override</span> <span class="k">void</span> <span class="n">WaitToStop</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>针对于第二个问题，Abp 通过 <code>WaitToStop()</code> 方法会阻塞调用这个 <code>Timer</code> 的线程，并且在 <code>_performingTasks</code> 标识位是 <code>false</code> 的时候释放。</p>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="kd">override</span> <span class="k">void</span> <span class="n">WaitToStop</span><span class="p">()</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// 锁定 CLR 的 Timer 对象</span>
 </span></span><span class="line"><span class="cl">    <span class="k">lock</span> <span class="p">(</span><span class="n">_taskTimer</span><span class="p">)</span>
@@ -996,56 +381,14 @@
 </span></span><span class="line"><span class="cl">    <span class="p">}</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">    <span class="k">base</span><span class="p">.</span><span class="n">WaitToStop</span><span class="p">();</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>至于其他的 <code>Start()</code> 方法就是使用 CLR 的 <code>Timer</code> 更改其执行周期，而 <code>Stop()</code> 就是直接将 <code>Timer</code> 的周期设置为无限大，使计时器失效。</p>
-<h4 id="214-总结">2.1.4 总结</h4>
-<p>Abp 后台工作者的核心就是通过 <code>AbpTimer</code> 来实现周期性任务的执行，用户只需要继承自 <code>PeriodicBackgroundWorkerBase</code>，然后将其添加到 <code>IBackgroundWorkerManager</code> 的集合当中。这样 Abp 在启动之后就会遍历这个工作者集合，然后周期执行这些后台工作者绑定的方法。</p>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>至于其他的 <code>Start()</code> 方法就是使用 CLR 的 <code>Timer</code> 更改其执行周期，而 <code>Stop()</code> 就是直接将 <code>Timer</code> 的周期设置为无限大，使计时器失效。</p>
+<h4 id="214-总结"><a class="anchor" href="#214-总结" aria-hidden="true" data-pagefind-ignore>#</a>2.1.4 总结</h4><p>Abp 后台工作者的核心就是通过 <code>AbpTimer</code> 来实现周期性任务的执行，用户只需要继承自 <code>PeriodicBackgroundWorkerBase</code>，然后将其添加到 <code>IBackgroundWorkerManager</code> 的集合当中。这样 Abp 在启动之后就会遍历这个工作者集合，然后周期执行这些后台工作者绑定的方法。</p>
 <p>当然如果你继承了 <code>PeriodicBackgroundWorkerBase</code> 之后，可以通过设置构造函数的 <code>AbpTimer</code> 来指定自己的执行周期。</p>
-<h3 id="22-后台作业队列">2.2 后台作业队列</h3>
-<p>后台工作队列的管理是通过 <code>IBackgroundJobManager</code> 来处理的，而该接口又继承自 <code>IBackgroundWorker</code>，所以一整个后台作业队列就是一个后台工作者，只不过这个工作者有点特殊。</p>
-<h4 id="221-后台作业管理器">2.2.1 后台作业管理器</h4>
-<p><code>IBackgroundJobManager</code> 接口的定义其实就两个方法，一个 <code>EnqueueAsync&lt;TJob, TArgs&gt;()</code> 用于将一个后台作业加入到执行队列当中。而 <code>DeleteAsync()</code> 方法呢，顾名思义就是从队列当中移除指定的后台作业。</p>
+<h3 id="22-后台作业队列"><a class="anchor" href="#22-后台作业队列" aria-hidden="true" data-pagefind-ignore>#</a>2.2 后台作业队列</h3><p>后台工作队列的管理是通过 <code>IBackgroundJobManager</code> 来处理的，而该接口又继承自 <code>IBackgroundWorker</code>，所以一整个后台作业队列就是一个后台工作者，只不过这个工作者有点特殊。</p>
+<h4 id="221-后台作业管理器"><a class="anchor" href="#221-后台作业管理器" aria-hidden="true" data-pagefind-ignore>#</a>2.2.1 后台作业管理器</h4><p><code>IBackgroundJobManager</code> 接口的定义其实就两个方法，一个 <code>EnqueueAsync&lt;TJob, TArgs&gt;()</code> 用于将一个后台作业加入到执行队列当中。而 <code>DeleteAsync()</code> 方法呢，顾名思义就是从队列当中移除指定的后台作业。</p>
 <p>首先看一下其默认实现 <code>BackgroundJobManager</code>，该实现同样是继承自 <code>PeriodicBackgroundWorkerBase</code> 并且其默认周期为 5000 ms。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span><span class="lnt">21
-</span><span class="lnt">22
-</span><span class="lnt">23
-</span><span class="lnt">24
-</span><span class="lnt">25
-</span><span class="lnt">26
-</span><span class="lnt">27
-</span><span class="lnt">28
-</span><span class="lnt">29
-</span><span class="lnt">30
-</span><span class="lnt">31
-</span><span class="lnt">32
-</span><span class="lnt">33
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">class</span> <span class="nc">BackgroundJobManager</span> <span class="p">:</span> <span class="n">PeriodicBackgroundWorkerBase</span><span class="p">,</span> <span class="n">IBackgroundJobManager</span><span class="p">,</span> <span class="n">ISingletonDependency</span>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">class</span> <span class="nc">BackgroundJobManager</span> <span class="p">:</span> <span class="n">PeriodicBackgroundWorkerBase</span><span class="p">,</span> <span class="n">IBackgroundJobManager</span><span class="p">,</span> <span class="n">ISingletonDependency</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">		<span class="c1">// 事件总线</span>
 </span></span><span class="line"><span class="cl">		<span class="kd">public</span> <span class="n">IEventBus</span> <span class="n">EventBus</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
@@ -1077,39 +420,10 @@
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">            <span class="n">Timer</span><span class="p">.</span><span class="n">Period</span> <span class="p">=</span> <span class="n">JobPollPeriod</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">        <span class="p">}</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>基础结构基本上就这个样子，接下来看一下他的两个接口方法是如何实现的。</p>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>基础结构基本上就这个样子，接下来看一下他的两个接口方法是如何实现的。</p>
 <p><code>EnqueueAsync&lt;TJob, TArgs&gt;</code> 方法通过传入指定的后台作业对象和相应的参数，同时还有任务的优先级。将其通过 <code>IBackgroundJobStore</code> 进行持久化，并返回一个任务的唯一 JobId 以便进行删除操作。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span><span class="lnt">21
-</span><span class="lnt">22
-</span><span class="lnt">23
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="kd">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">EnqueueAsync</span><span class="p">&lt;</span><span class="n">TJob</span><span class="p">,</span> <span class="n">TArgs</span><span class="p">&gt;(</span><span class="n">TArgs</span> <span class="n">args</span><span class="p">,</span> <span class="n">BackgroundJobPriority</span> <span class="n">priority</span> <span class="p">=</span> <span class="n">BackgroundJobPriority</span><span class="p">.</span><span class="n">Normal</span><span class="p">,</span> <span class="n">TimeSpan</span><span class="p">?</span> <span class="n">delay</span> <span class="p">=</span> <span class="kc">null</span><span class="p">)</span>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="kd">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="n">EnqueueAsync</span><span class="p">&lt;</span><span class="n">TJob</span><span class="p">,</span> <span class="n">TArgs</span><span class="p">&gt;(</span><span class="n">TArgs</span> <span class="n">args</span><span class="p">,</span> <span class="n">BackgroundJobPriority</span> <span class="n">priority</span> <span class="p">=</span> <span class="n">BackgroundJobPriority</span><span class="p">.</span><span class="n">Normal</span><span class="p">,</span> <span class="n">TimeSpan</span><span class="p">?</span> <span class="n">delay</span> <span class="p">=</span> <span class="kc">null</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl">	<span class="k">where</span> <span class="n">TJob</span> <span class="p">:</span> <span class="n">IBackgroundJob</span><span class="p">&lt;</span><span class="n">TArgs</span><span class="p">&gt;</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">	<span class="c1">// 通过 JobInfo 包装任务的基本信息</span>
@@ -1131,34 +445,9 @@
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">	<span class="c1">// 返回后台任务的唯一标识</span>
 </span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">jobInfo</span><span class="p">.</span><span class="n">Id</span><span class="p">.</span><span class="n">ToString</span><span class="p">();</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>至于删除操作，在 Manager 内部其实也是通过 <code>IBackgroundJobStore</code> 进行实际的删除操作的。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="kd">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">bool</span><span class="p">&gt;</span> <span class="n">DeleteAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">jobId</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>至于删除操作，在 Manager 内部其实也是通过 <code>IBackgroundJobStore</code> 进行实际的删除操作的。</p>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="kd">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">bool</span><span class="p">&gt;</span> <span class="n">DeleteAsync</span><span class="p">(</span><span class="kt">string</span> <span class="n">jobId</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// 判断 jobId 的值是否有效</span>
 </span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="kt">long</span><span class="p">.</span><span class="n">TryParse</span><span class="p">(</span><span class="n">jobId</span><span class="p">,</span> <span class="k">out</span> <span class="kt">long</span> <span class="n">finalJobId</span><span class="p">)</span> <span class="p">==</span> <span class="kc">false</span><span class="p">)</span>
@@ -1176,26 +465,9 @@
 </span></span><span class="line"><span class="cl">    <span class="c1">// 如果存在有 JobInfo 则使用 Store 进行删除操作</span>
 </span></span><span class="line"><span class="cl">    <span class="k">await</span> <span class="n">_store</span><span class="p">.</span><span class="n">DeleteAsync</span><span class="p">(</span><span class="n">jobInfo</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="kc">true</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>后台作业管理器实质上是一个周期性执行的后台工作者，那么我们的后台作业是每 5000 ms 执行一次，那么他的 <code>DoWork()</code> 方法又在执行什么操作呢？</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">protected</span> <span class="kd">override</span> <span class="k">void</span> <span class="n">DoWork</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>后台作业管理器实质上是一个周期性执行的后台工作者，那么我们的后台作业是每 5000 ms 执行一次，那么他的 <code>DoWork()</code> 方法又在执行什么操作呢？</p>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">protected</span> <span class="kd">override</span> <span class="k">void</span> <span class="n">DoWork</span><span class="p">()</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// 从 Store 当中获得等待执行的后台作业集合</span>
 </span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">waitingJobs</span> <span class="p">=</span> <span class="n">AsyncHelper</span><span class="p">.</span><span class="n">RunSync</span><span class="p">(()</span> <span class="p">=&gt;</span> <span class="n">_store</span><span class="p">.</span><span class="n">GetWaitingJobsAsync</span><span class="p">(</span><span class="m">1000</span><span class="p">));</span>
@@ -1205,92 +477,14 @@
 </span></span><span class="line"><span class="cl">    <span class="p">{</span>
 </span></span><span class="line"><span class="cl">        <span class="n">TryProcessJob</span><span class="p">(</span><span class="n">job</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="p">}</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>可以看到每 5 秒钟我们的后台作业管理器就会从 <code>IBackgroundJobStore</code> 当中拿到最大 1000 条的后台作业信息，然后遍历这些信息。通过 <code>TryProcessJob(job)</code> 方法来执行后台作业。</p>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>可以看到每 5 秒钟我们的后台作业管理器就会从 <code>IBackgroundJobStore</code> 当中拿到最大 1000 条的后台作业信息，然后遍历这些信息。通过 <code>TryProcessJob(job)</code> 方法来执行后台作业。</p>
 <p>而 <code>TryProcessJob()</code> 方法，本质上就是通过反射构建出一个 <code>IBackgroundJob</code> 对象，然后取得序列化的参数值，通过反射得到的 <code>MethodInfo</code> 对象来执行我们的后台任务。执行完成之后，就会从 Store 当中移除掉执行完成的任务。</p>
 <p>针对于在执行过程当中所出现的异常，会通过 <code>IEventBus</code> 触发一个 <code>AbpHandledExceptionData</code> 事件记录后台作业执行失败时的异常信息。并且一旦在执行过程当中出现了任何异常的情况，都会将该任务的 <code>IsAbandoned</code> 字段置为 <code>true</code>，当该字段为 <code>true</code> 时，该任务将不再回被执行。</p>
 <blockquote>
 <p>PS：就是在 <code>GetWaitingJobsAsync()</code> 方法时，会过滤掉 IsAbandoned 值为 <code>true</code> 的任务。</p>
 </blockquote>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span><span class="lnt">21
-</span><span class="lnt">22
-</span><span class="lnt">23
-</span><span class="lnt">24
-</span><span class="lnt">25
-</span><span class="lnt">26
-</span><span class="lnt">27
-</span><span class="lnt">28
-</span><span class="lnt">29
-</span><span class="lnt">30
-</span><span class="lnt">31
-</span><span class="lnt">32
-</span><span class="lnt">33
-</span><span class="lnt">34
-</span><span class="lnt">35
-</span><span class="lnt">36
-</span><span class="lnt">37
-</span><span class="lnt">38
-</span><span class="lnt">39
-</span><span class="lnt">40
-</span><span class="lnt">41
-</span><span class="lnt">42
-</span><span class="lnt">43
-</span><span class="lnt">44
-</span><span class="lnt">45
-</span><span class="lnt">46
-</span><span class="lnt">47
-</span><span class="lnt">48
-</span><span class="lnt">49
-</span><span class="lnt">50
-</span><span class="lnt">51
-</span><span class="lnt">52
-</span><span class="lnt">53
-</span><span class="lnt">54
-</span><span class="lnt">55
-</span><span class="lnt">56
-</span><span class="lnt">57
-</span><span class="lnt">58
-</span><span class="lnt">59
-</span><span class="lnt">60
-</span><span class="lnt">61
-</span><span class="lnt">62
-</span><span class="lnt">63
-</span><span class="lnt">64
-</span><span class="lnt">65
-</span><span class="lnt">66
-</span><span class="lnt">67
-</span><span class="lnt">68
-</span><span class="lnt">69
-</span><span class="lnt">70
-</span><span class="lnt">71
-</span><span class="lnt">72
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">private</span> <span class="k">void</span> <span class="n">TryProcessJob</span><span class="p">(</span><span class="n">BackgroundJobInfo</span> <span class="n">jobInfo</span><span class="p">)</span>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">private</span> <span class="k">void</span> <span class="n">TryProcessJob</span><span class="p">(</span><span class="n">BackgroundJobInfo</span> <span class="n">jobInfo</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="k">try</span>
 </span></span><span class="line"><span class="cl">    <span class="p">{</span>
@@ -1361,50 +555,13 @@
 </span></span><span class="line"><span class="cl">		<span class="c1">// 更新 Store</span>
 </span></span><span class="line"><span class="cl">        <span class="n">TryUpdate</span><span class="p">(</span><span class="n">jobInfo</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="p">}</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><h4 id="222-后台作业">2.2.2 后台作业</h4>
-<p>后台作业的默认接口定义为 <code>IBackgroundJob&lt;in TArgs&gt;</code> ，他只有一个 <code>Execute(TArgs args)</code> 方法，用于接收指定类型的作业参数，并执行。</p>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<h4 id="222-后台作业"><a class="anchor" href="#222-后台作业" aria-hidden="true" data-pagefind-ignore>#</a>2.2.2 后台作业</h4><p>后台作业的默认接口定义为 <code>IBackgroundJob&lt;in TArgs&gt;</code> ，他只有一个 <code>Execute(TArgs args)</code> 方法，用于接收指定类型的作业参数，并执行。</p>
 <p>一般来说我们不建议直接通过继承 <code>IBackgroundJob&lt;in TArgs&gt;</code> 来实现后台作业，而是继承自 <code>BackgroundJob&lt;TArgs&gt;</code> 抽象类。该抽象类内部也没有什么特别的实现，主要是注入了一些基础设施，比如说 UOW 与 本地化资源管理器，方便我们开发使用。</p>
 <p>后台作业本身是具体执行的对象，而 <code>BackgroundJobInfo</code> 则是存储了后台作业的 Type 类型和参数，方便在需要执行的时候通过反射的方式执行后台作业。</p>
-<h4 id="222-后台作业队列存储">2.2.2 后台作业队列存储</h4>
-<p>从 <code>IBackgroundJobStore</code> 我们就可以猜到以 Abp 框架的套路，他肯定会有两种实现，第一种就是基于内存的 <code>InMemoryBackgroundJobStore</code>。而第二种呢，就是由 Abp.Zero 模块所提供的基于数据库的 <code>BackgroundJobStore</code>。</p>
+<h4 id="222-后台作业队列存储"><a class="anchor" href="#222-后台作业队列存储" aria-hidden="true" data-pagefind-ignore>#</a>2.2.2 后台作业队列存储</h4><p>从 <code>IBackgroundJobStore</code> 我们就可以猜到以 Abp 框架的套路，他肯定会有两种实现，第一种就是基于内存的 <code>InMemoryBackgroundJobStore</code>。而第二种呢，就是由 Abp.Zero 模块所提供的基于数据库的 <code>BackgroundJobStore</code>。</p>
 <p><code>IBackgroundJobStore</code> 接口所定义的方法基本上就是增删改查，没有什么复杂的。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span><span class="lnt">21
-</span><span class="lnt">22
-</span><span class="lnt">23
-</span><span class="lnt">24
-</span><span class="lnt">25
-</span><span class="lnt">26
-</span><span class="lnt">27
-</span><span class="lnt">28
-</span><span class="lnt">29
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">interface</span> <span class="nc">IBackgroundJobStore</span>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">interface</span> <span class="nc">IBackgroundJobStore</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// 通过 JobId 获取后台任务信息</span>
 </span></span><span class="line"><span class="cl">    <span class="n">Task</span><span class="p">&lt;</span><span class="n">BackgroundJobInfo</span><span class="p">&gt;</span> <span class="n">GetAsync</span><span class="p">(</span><span class="kt">long</span> <span class="n">jobId</span><span class="p">);</span>
@@ -1432,25 +589,9 @@
 </span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;/summary&gt;</span>
 </span></span><span class="line"><span class="cl">    <span class="cs">/// &lt;param name=&#34;jobInfo&#34;&gt;Job information.&lt;/param&gt;</span>
 </span></span><span class="line"><span class="cl">    <span class="n">Task</span> <span class="n">UpdateAsync</span><span class="p">(</span><span class="n">BackgroundJobInfo</span> <span class="n">jobInfo</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>这里先从简单的内存 Store 说起，这个 <code>InMemoryBackgroundJobStore</code> 内部使用了一个并行字典来存储这些任务信息。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">class</span> <span class="nc">InMemoryBackgroundJobStore</span> <span class="p">:</span> <span class="n">IBackgroundJobStore</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>这里先从简单的内存 Store 说起，这个 <code>InMemoryBackgroundJobStore</code> 内部使用了一个并行字典来存储这些任务信息。</p>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">class</span> <span class="nc">InMemoryBackgroundJobStore</span> <span class="p">:</span> <span class="n">IBackgroundJobStore</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">	<span class="kd">private</span> <span class="k">readonly</span> <span class="n">ConcurrentDictionary</span><span class="p">&lt;</span><span class="kt">long</span><span class="p">,</span> <span class="n">BackgroundJobInfo</span><span class="p">&gt;</span> <span class="n">_jobs</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">	<span class="kd">private</span> <span class="kt">long</span> <span class="n">_lastId</span><span class="p">;</span>
@@ -1459,61 +600,9 @@
 </span></span><span class="line"><span class="cl">	<span class="p">{</span>
 </span></span><span class="line"><span class="cl">		<span class="n">_jobs</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ConcurrentDictionary</span><span class="p">&lt;</span><span class="kt">long</span><span class="p">,</span> <span class="n">BackgroundJobInfo</span><span class="p">&gt;();</span>
 </span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
-</div>
-</div><p>相当简单，这几个接口方法基本上就是针对与这个并行字典操作的一层封装。</p>
-<div class="highlight"><div class="chroma">
-<table class="lntable"><tr><td class="lntd">
-<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
-</span><span class="lnt"> 2
-</span><span class="lnt"> 3
-</span><span class="lnt"> 4
-</span><span class="lnt"> 5
-</span><span class="lnt"> 6
-</span><span class="lnt"> 7
-</span><span class="lnt"> 8
-</span><span class="lnt"> 9
-</span><span class="lnt">10
-</span><span class="lnt">11
-</span><span class="lnt">12
-</span><span class="lnt">13
-</span><span class="lnt">14
-</span><span class="lnt">15
-</span><span class="lnt">16
-</span><span class="lnt">17
-</span><span class="lnt">18
-</span><span class="lnt">19
-</span><span class="lnt">20
-</span><span class="lnt">21
-</span><span class="lnt">22
-</span><span class="lnt">23
-</span><span class="lnt">24
-</span><span class="lnt">25
-</span><span class="lnt">26
-</span><span class="lnt">27
-</span><span class="lnt">28
-</span><span class="lnt">29
-</span><span class="lnt">30
-</span><span class="lnt">31
-</span><span class="lnt">32
-</span><span class="lnt">33
-</span><span class="lnt">34
-</span><span class="lnt">35
-</span><span class="lnt">36
-</span><span class="lnt">37
-</span><span class="lnt">38
-</span><span class="lnt">39
-</span><span class="lnt">40
-</span><span class="lnt">41
-</span><span class="lnt">42
-</span><span class="lnt">43
-</span><span class="lnt">44
-</span><span class="lnt">45
-</span><span class="lnt">46
-</span></code></pre></td>
-<td class="lntd">
-<pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">BackgroundJobInfo</span><span class="p">&gt;</span> <span class="n">GetAsync</span><span class="p">(</span><span class="kt">long</span> <span class="n">jobId</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>相当简单，这几个接口方法基本上就是针对与这个并行字典操作的一层封装。</p>
+<div class="code"><div class="bar" data-pagefind-ignore><span>C#</span><button type="button">复制</button></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">BackgroundJobInfo</span><span class="p">&gt;</span> <span class="n">GetAsync</span><span class="p">(</span><span class="kt">long</span> <span class="n">jobId</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">Task</span><span class="p">.</span><span class="n">FromResult</span><span class="p">(</span><span class="n">_jobs</span><span class="p">[</span><span class="n">jobId</span><span class="p">]);</span>
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
@@ -1558,349 +647,43 @@
 </span></span><span class="line"><span class="cl">	<span class="p">}</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">Task</span><span class="p">.</span><span class="n">FromResult</span><span class="p">(</span><span class="m">0</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></td></tr></table>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>至于持久化到数据库，无非是注入一个仓储，然后针对这个仓储进行增删查改的操作罢了，这里就不在赘述。</p>
+<h4 id="223-后台作业优先级"><a class="anchor" href="#223-后台作业优先级" aria-hidden="true" data-pagefind-ignore>#</a>2.2.3 后台作业优先级</h4><p>后台作业的优先级定义在 <code>BackgroundJobPriority</code> 枚举当中，一共有 5 个等级，分别是 <code>Low</code>、<code>BelowNormal</code>、<code>Normal</code>、<code>AboveNormal</code>、<code>High</code> ，他们从最低到最高排列。</p>
+  </article>
+
+  <div class="license" data-pagefind-ignore><b>Abp 源码分析：十六、后台工作与后台工作者</b><br>作者 Zony · 发布于 2018-10-24<br>Licensed under CC BY-NC-SA 4.0</div>
+  <div class="pager" data-pagefind-ignore><a href="/p/use-the-wrk-stress-test-tool-to-stress-test-the-interface-of-aspnet-core/"><small>← 上一篇</small><span class="u">使用 WRK 压力测试工具对 ASP.NET Core 的接口进行压力测试</span></a><a href="/p/clr-via-csharp-reading-notes-runtime-serialization/"><small>下一篇 →</small><span class="u">《CLR Via C#》读书笔记：24.运行时序列化</span></a>
+  </div>
+  
+<div class="comments" data-pagefind-ignore data-giscus
+  data-repo="real-zony/real-zony.github.io" data-repo-id="R_kgDOIC_OeA" data-category="General" data-category-id="DIC_kwDOIC_OeM4CRp3M"
+  data-mapping="pathname" data-strict="1"
+  data-reactions-enabled="1" data-emit-metadata="0"
+  data-input-position="bottom" data-lang="zh-CN"></div>
+
+</main>
+<div class="toc" id="toc">
+  <div class="toc-panel"></div>
+  <div class="toc-pill" role="button" tabindex="0" aria-label="目录">
+    <svg class="ring" viewBox="0 0 16 16" aria-hidden="true"><circle class="bg" cx="8" cy="8" r="6.5" fill="none" stroke-width="1.5"/><circle class="arc" cx="8" cy="8" r="6.5" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="40.84" stroke-dashoffset="40.84" transform="rotate(-90 8 8)"/></svg>
+    <span class="cur">目录</span>
+  </div>
 </div>
-</div><p>至于持久化到数据库，无非是注入一个仓储，然后针对这个仓储进行增删查改的操作罢了，这里就不在赘述。</p>
-<h4 id="223-后台作业优先级">2.2.3 后台作业优先级</h4>
-<p>后台作业的优先级定义在 <code>BackgroundJobPriority</code> 枚举当中，一共有 5 个等级，分别是 <code>Low</code>、<code>BelowNormal</code>、<code>Normal</code>、<code>AboveNormal</code>、<code>High</code> ，他们从最低到最高排列。</p>
-</section>
+
+<div class="lightbox" id="lb"><img alt=""></div>
+<div class="pop" id="pop" role="note"></div>
+
+<footer class="site"><div class="col"><div class="foot">
+  <span>© 2015–2026 Zony · CC BY-NC-SA 4.0</span>
+  <nav><a href="/index.xml">RSS</a><a href="/links/">友链</a><a href="https://github.com/real-zony">GitHub</a></nav>
+</div></div></footer>
 
 
-    <footer class="article-footer">
-    
-    <section class="article-tags">
-        
-            <a href="/tags/abp/">ABP</a>
-        
-            <a href="/tags/c%23/">C#</a>
-        
-            <a href="/tags/aspnetboilerplate/">AspNetBoilerplate</a>
-        
-    </section>
+<script type="application/json" id="zony-recent">[{"d":"2024-06-27","t":"Linux 使用 CUDA Docker 镜像加速视频转码","u":"/p/linux-cuda-docker-video-transcoding/"},{"d":"2024-03-08","t":"排查 dotNET Core 程序内存暴涨的问题","u":"/p/troubleshooting-memory-surge-issues-in-dotnet-core-applications/"},{"d":"2023-12-28","t":"修复 Parallels Desktop 无网络的问题","u":"/p/fix-no-network-issue-in-parallels-desktop/"},{"d":"2023-06-12","t":"在 .NET 5 以后的 HttpClient 超时问题","u":"/p/net-5-and-later-httpclient-timeout-issues/"},{"d":"2022-12-31","t":"WCF 服务容器化的一些问题","u":"/p/problems-with-containerizing-a-wcf-service/"},{"d":"2022-10-01","t":"基于 Godaddy 与阿里云, 一键申请 SSL 证书","u":"/p/based-on-godaddy-and-alicloud-one-click-to-get-ssl-certificate/"},{"d":"2022-09-30","t":"解决被占用的文件夹无法被删除的问题","u":"/p/solve-the-problem-that-occupied-folders-cannot-be-deleted/"},{"d":"2022-09-27","t":"限制容器在 Docker 输出的日志大小","u":"/p/limit-the-size-of-logs-output-by-containers-in-docker/"}]</script>
 
 
-    
-    <section class="article-copyright">
-        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <circle cx="12" cy="12" r="9" />
-  <path d="M14.5 9a3.5 4 0 1 0 0 6" />
-</svg>
+<script defer src="/js/entries/post.6942b5ae33cea18dab054e6703dc616082ff0ff9cff7e748687fa6c846ca5435.js" integrity="sha256-aUK1rjPOoY2rBU5nA9xhYIL/D/nP9&#43;dIaH&#43;myEbKVDU="></script>
 
-
-
-        <span>Licensed under CC BY-NC-SA 4.0</span>
-    </section>
-    </footer>
-
-
-    
-</article>
-
-    
-
-    
-
-<aside class="related-content--wrapper">
-    <h2 class="section-title">相关文章</h2>
-    <div class="related-content">
-        <div class="flex article-list--tile">
-            
-                
-<article class="">
-    <a href="/p/why-not-use-async-void/">
-        
-        
-
-        <div class="article-details">
-            <h2 class="article-title">为什么不要使用 async void ？</h2>
-        </div>
-    </a>
-</article>
-
-            
-                
-<article class="">
-    <a href="/p/abp-mongodb-retrofits-the-default-audit-log-storage-location/">
-        
-        
-
-        <div class="article-details">
-            <h2 class="article-title">Abp &#43; MongoDb 改造默认的审计日志存储位置</h2>
-        </div>
-    </a>
-</article>
-
-            
-                
-<article class="">
-    <a href="/p/abp-source-code-analysis-seventeen-aspnet-core-integration/">
-        
-        
-
-        <div class="article-details">
-            <h2 class="article-title">Abp 源码分析：十七、ASP.NET Core 集成</h2>
-        </div>
-    </a>
-</article>
-
-            
-                
-<article class="">
-    <a href="/p/replace-abps-di-framework-with-dryioc/">
-        
-        
-
-        <div class="article-details">
-            <h2 class="article-title">使用 DryIoc 替换 Abp 的 DI 框架</h2>
-        </div>
-    </a>
-</article>
-
-            
-                
-<article class="">
-    <a href="/p/abp-source-code-analysis-15-automatic-audit-records/">
-        
-        
-
-        <div class="article-details">
-            <h2 class="article-title">Abp 源码分析：十五、自动审计记录</h2>
-        </div>
-    </a>
-</article>
-
-            
-        </div>
-    </div>
-</aside>
-
-     
-    
-        
-    <script
-    src="https://giscus.app/client.js"
-    data-repo="real-zony/real-zony.github.io"
-    data-repo-id="R_kgDOIC_OeA"
-    data-category="General"
-    data-category-id="DIC_kwDOIC_OeM4CRp3M"
-    data-mapping="pathname"
-    data-strict="0"
-    data-reactions-enabled="1"
-    data-emit-metadata="0"
-    data-input-position="top"
-    data-theme="preferred_color_scheme"
-    data-lang="en"
-    crossorigin="anonymous"
-    async
-></script>
-<script>
-    function setGiscusTheme(theme) {
-        let giscus = document.querySelector("iframe.giscus-frame");
-        if (giscus) {
-            giscus.contentWindow.postMessage(
-                {
-                    giscus: {
-                        setConfig: {
-                            theme: theme,
-                        },
-                    },
-                },
-                "https://giscus.app"
-            );
-        }
-    }
-
-    (function () {
-        addEventListener("message", (e) => {
-            if (event.origin !== "https://giscus.app") return;
-            handler();
-        });
-        window.addEventListener("onColorSchemeChange", handler);
-
-        function handler() {
-            if (document.documentElement.dataset.scheme === "light") {
-                setGiscusTheme('preferred_color_scheme');
-            } else {
-                setGiscusTheme('preferred_color_scheme');
-            }
-        }
-    })();
-</script>
-
-    
-
-    <footer class="site-footer">
-    <section class="copyright">
-        &copy; 
-        
-            2020 - 
-        
-        2024 Zony 的博客
-    </section>
-    
-    <section class="powerby">
-        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
-        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.13.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
-    </section>
-</footer>
-
-
-    
-<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
-
-    
-    <div class="pswp__bg"></div>
-
-    
-    <div class="pswp__scroll-wrap">
-
-        
-        <div class="pswp__container">
-            <div class="pswp__item"></div>
-            <div class="pswp__item"></div>
-            <div class="pswp__item"></div>
-        </div>
-
-        
-        <div class="pswp__ui pswp__ui--hidden">
-
-            <div class="pswp__top-bar">
-
-                
-
-                <div class="pswp__counter"></div>
-
-                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
-
-                <button class="pswp__button pswp__button--share" title="Share"></button>
-
-                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
-
-                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
-
-                
-                
-                <div class="pswp__preloader">
-                    <div class="pswp__preloader__icn">
-                        <div class="pswp__preloader__cut">
-                            <div class="pswp__preloader__donut"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
-                <div class="pswp__share-tooltip"></div>
-            </div>
-
-            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
-            </button>
-
-            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
-            </button>
-
-            <div class="pswp__caption">
-                <div class="pswp__caption__center"></div>
-            </div>
-
-        </div>
-
-    </div>
-
-</div><script 
-                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
-                defer
-                >
-            </script><script 
-                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
-                defer
-                >
-            </script><link 
-                rel="stylesheet" 
-                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
-            ><link 
-                rel="stylesheet" 
-                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
-            >
-
-            </main>
-    <aside class="sidebar right-sidebar sticky">
-        
-            
-                
-    <section class="widget archives">
-        <div class="widget-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z"/>
-  <line x1="5" y1="9" x2="19" y2="9" />
-  <line x1="5" y1="15" x2="19" y2="15" />
-  <line x1="11" y1="4" x2="7" y2="20" />
-  <line x1="17" y1="4" x2="13" y2="20" />
-</svg>
-
-
-
-        </div>
-        <h2 class="widget-title section-title">目录</h2>
-        
-        <div class="widget--toc">
-            <nav id="TableOfContents">
-  <ol>
-    <li><a href="#0-简介">0. 简介</a>
-      <ol>
-        <li><a href="#01-典型场景">0.1 典型场景</a></li>
-      </ol>
-    </li>
-    <li><a href="#1-启动流程">1. 启动流程</a></li>
-    <li><a href="#2-代码分析">2. 代码分析</a>
-      <ol>
-        <li><a href="#21-后台工作者">2.1 后台工作者</a>
-          <ol>
-            <li><a href="#211-后台工作者管理器">2.1.1 后台工作者管理器</a></li>
-            <li><a href="#212-后台工作者">2.1.2 后台工作者</a></li>
-            <li><a href="#213-abptimer-定时器">2.1.3 AbpTimer 定时器</a></li>
-            <li><a href="#214-总结">2.1.4 总结</a></li>
-          </ol>
-        </li>
-        <li><a href="#22-后台作业队列">2.2 后台作业队列</a>
-          <ol>
-            <li><a href="#221-后台作业管理器">2.2.1 后台作业管理器</a></li>
-            <li><a href="#222-后台作业">2.2.2 后台作业</a></li>
-            <li><a href="#222-后台作业队列存储">2.2.2 后台作业队列存储</a></li>
-            <li><a href="#223-后台作业优先级">2.2.3 后台作业优先级</a></li>
-          </ol>
-        </li>
-      </ol>
-    </li>
-  </ol>
-</nav>
-        </div>
-    </section>
-
-            
-        
-    </aside>
-
-
-        </div>
-        <script 
-                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
-                
-                >
-            </script><script type="text/javascript" src="/ts/main.js" defer></script>
-<script>
-    (function () {
-        const customFont = document.createElement('link');
-        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
-
-        customFont.type = "text/css";
-        customFont.rel = "stylesheet";
-
-        document.head.appendChild(customFont);
-    }());
-</script>
-
-    </body>
+</body>
 </html>
